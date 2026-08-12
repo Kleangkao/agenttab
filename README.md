@@ -29,6 +29,9 @@ See [PRODUCT.md](docs/PRODUCT.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md),
 [THREAT_MODEL.md](docs/THREAT_MODEL.md), and **[ADOPT.md](docs/ADOPT.md)** for the
 cold-start control path (policy file → remote agent → approve/audit CLI).
 
+Source: [github.com/Kleangkao/agenttab](https://github.com/Kleangkao/agenttab).
+Packages are not on npm yet — clone the repo and use the pnpm workspace.
+
 ## Current status
 
 Core thesis is implemented and proven at multiple fidelity layers:

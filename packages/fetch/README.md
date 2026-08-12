@@ -14,14 +14,16 @@ your agent
 
 ## Install
 
-Packages are not on npm yet. From a clone of this repo:
+Packages are not on npm yet. Clone this repo:
 
 ```bash
+git clone https://github.com/Kleangkao/agenttab.git
+cd agenttab
 pnpm install
 pnpm --filter @agenttab/fetch build
 ```
 
-Then import `@agenttab/fetch` from the workspace (see `docs/ADOPT.md`).
+Import `@agenttab/fetch` from the workspace (see `docs/ADOPT.md`).
 You still need `@x402/core`, `@x402/fetch`, and a scheme client such as
 `@x402/svm` in the agent process (bring-your-own signer).
 

@@ -4,6 +4,15 @@
   "private": true,
   "description": "AgentTab HTTP control plane: policy, exact-deficit funding, approve, and audit",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git",
+    "directory": "apps/gateway"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab/tree/main/apps/gateway",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "engines": {
     "node": ">=22"
   },

@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Drop-in fetch wrapper for AgentTab policy, funding, x402 pay, and audit",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git",
+    "directory": "packages/fetch"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab/tree/main/packages/fetch",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "engines": {
     "node": ">=22"
   },

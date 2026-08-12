@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Official x402 funding hook for AgentTab",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git",
+    "directory": "packages/x402"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab/tree/main/packages/x402",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "engines": {
     "node": ">=22"
   },

@@ -4,6 +4,14 @@
   "private": true,
   "description": "Policy-controlled funding middleware for agent-native payments on Solana",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab#readme",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "packageManager": "pnpm@11.16.0",
   "engines": {
     "node": ">=22"

@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "DFlow quote client and exact-deficit planner for AgentTab",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git",
+    "directory": "packages/dflow"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab/tree/main/packages/dflow",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "engines": {
     "node": ">=22"
   },

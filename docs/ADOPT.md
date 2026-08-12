@@ -23,7 +23,7 @@ policy JSON
 ## Prerequisites
 
 - Node.js ≥ 22
-- This repository checked out (packages are not on npm yet)
+- This repository: `git clone https://github.com/Kleangkao/agenttab.git`
 - `pnpm install && pnpm --filter @agenttab/gateway build`
 
 Until packages are published, run the gateway and CLIs from this repo:
@@ -141,7 +141,7 @@ No Mainnet spend without explicit human approval and the triple broadcast gates.
 
 ## What this is not
 
-- Not an npm install story yet (clone + pnpm workspace for now)
+- Not an npm install story yet (clone https://github.com/Kleangkao/agenttab + pnpm workspace)
 - Not a custodial signer or hosted SaaS
 - Not a merchant SDK — merchants keep standard x402
 - Not a web dashboard — HTTP + CLI is the operator surface

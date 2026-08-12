@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "AgentTab policy engine and execution state machine",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Kleangkao/agenttab.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/Kleangkao/agenttab/tree/main/packages/core",
+  "bugs": {
+    "url": "https://github.com/Kleangkao/agenttab/issues"
+  },
   "engines": {
     "node": ">=22"
   },
