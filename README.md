@@ -1,5 +1,7 @@
 # AgentTab
 
+[![CI](https://github.com/Kleangkao/agenttab/actions/workflows/ci.yml/badge.svg)](https://github.com/Kleangkao/agenttab/actions/workflows/ci.yml)
+
 AgentTab is a buyer-side funding layer for agent-native payments on Solana.
 It lets an agent pay a standard x402 challenge even when its wallet does not
 already hold the requested asset.
