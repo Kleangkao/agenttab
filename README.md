@@ -72,12 +72,13 @@ triple broadcast gates below.
 ## Fastest path to adopt (operators + developers)
 
 Libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
-`@agenttab/dflow`). The gateway is still clone-and-run from this repo.
+`@agenttab/dflow`). The gateway is still clone-and-run from this repo
+(or Docker: `ghcr.io/kleangkao/agenttab-gateway`).
 
 Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 
 1. `pnpm add @agenttab/fetch` in the agent process
-2. Clone this repo → edit `examples/policies/*.json` → start the gateway
+2. Start a gateway (clone this repo **or** pull the GHCR image) and set policy
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
 4. Use `pnpm policy:set`, `pnpm approve`, `pnpm audit:recent` as the control surface
 
