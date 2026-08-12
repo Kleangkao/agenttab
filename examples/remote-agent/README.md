@@ -12,6 +12,10 @@ remote-agent  --HTTP-->  AgentTab gateway  (policy / deficit funding / audit)
      +-------- x402 pay ---------+----->  neutral-merchant
 ```
 
+One-command proofs from the repo root: `pnpm demo:stack` (long-running UI) or
+`pnpm demo:adopt` (preview / approve / deny). Optional `pnpm notify:sink` then
+`AGENTTAB_NOTIFY_URL=http://127.0.0.1:8792/hook`.
+
 ## Local three-terminal run (no chain, no funds)
 
 ```bash

@@ -37,6 +37,7 @@
     "policy:allow": "tsx src/cli/policy-allow.ts",
     "policy:cap": "tsx src/cli/policy-cap.ts",
     "preview": "tsx src/cli/preview.ts",
+    "notify:sink": "tsx src/cli/notify-sink.ts",
     "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
   "bin": {
@@ -51,7 +52,8 @@
     "agenttab-deny": "./dist/cli/deny.js",
     "agenttab-audit": "./dist/cli/audit-recent.js",
     "agenttab-parked": "./dist/cli/parked.js",
-    "agenttab-preview": "./dist/cli/preview.js"
+    "agenttab-preview": "./dist/cli/preview.js",
+    "agenttab-notify-sink": "./dist/cli/notify-sink.js"
   },
   "dependencies": {
     "@agenttab/core": "workspace:*",

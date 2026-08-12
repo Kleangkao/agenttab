@@ -6,6 +6,8 @@
 - `GET /health` includes `parkedCount` and rolling 24h spend
 - `GET /openapi.json` locked to live Hono routes
 - `pnpm parked` / `pnpm policy:mode` / `pnpm policy:allow` / `pnpm policy:cap`
+- `pnpm notify:sink` local webhook; optional `AGENTTAB_NOTIFY_SECRET` HMAC
+  (`x-agenttab-signature`)
 - When `AGENTTAB_ADMIN_TOKEN` is set, operator reads (policy, spend, balances,
   unfiltered execution lists) require the same bearer token. Agent fund/pay/fulfill
   and `requestHash` resume stay open.

@@ -41,6 +41,8 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     `requestHash` resume stay open.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
+    `AGENTTAB_NOTIFY_SECRET` adds `x-agenttab-signature` (HMAC-SHA256).
+    `pnpm notify:sink` is a local receiver.
   - `GET /openapi.json` is the live HTTP contract (test-locked to Hono routes).
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.

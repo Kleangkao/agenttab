@@ -56,6 +56,7 @@
     "deny": "tsx apps/gateway/src/cli/deny.ts",
     "preview": "tsx apps/gateway/src/cli/preview.ts",
     "parked": "tsx apps/gateway/src/cli/parked.ts",
+    "notify:sink": "tsx apps/gateway/src/cli/notify-sink.ts",
     "test:watch": "pnpm --filter @agenttab/core test:watch"
   },
   "devDependencies": {

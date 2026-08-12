@@ -60,6 +60,9 @@ export {
 export {
   createOperatorNotifier,
   operatorNotifyPayload,
+  signNotifyBody,
+  verifyNotifySignature,
+  NOTIFY_SIGNATURE_HEADER,
   type OperatorNotifyEvent,
   type OperatorNotifyEventName
 } from "./notify.js";

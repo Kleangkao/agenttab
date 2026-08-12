@@ -35,6 +35,7 @@ export interface AgentTabGatewayHealth {
   spentUsdMicrosLast24h?: string;
   maxDailyUsdMicros?: string;
   notifyConfigured?: boolean;
+  notifySigned?: boolean;
   operatorUi?: string;
 }
 

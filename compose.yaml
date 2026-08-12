@@ -17,6 +17,7 @@ services:
       AGENTTAB_POLICY_PATH: /policy/approve.local.json
       AGENTTAB_ADMIN_TOKEN: ${AGENTTAB_ADMIN_TOKEN:-}
       AGENTTAB_NOTIFY_URL: ${AGENTTAB_NOTIFY_URL:-}
+      AGENTTAB_NOTIFY_SECRET: ${AGENTTAB_NOTIFY_SECRET:-}
       AGENTTAB_GATEWAY_URL: http://127.0.0.1:8787
     volumes:
       - agenttab-data:/data

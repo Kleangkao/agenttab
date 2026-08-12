@@ -77,6 +77,9 @@ pnpm deny -- <operationId>
 pnpm audit:recent
 ```
 
+`pnpm notify:sink` is a local webhook printer (`http://127.0.0.1:8792/hook`).
+Point `AGENTTAB_NOTIFY_URL` at it (optional `AGENTTAB_NOTIFY_SECRET` HMAC).
+
 `pnpm demo:stack` prints the operator UI (`http://127.0.0.1:8787/ui`). Then
 `pnpm demo:remote-agent` in a second terminal. Parked payments can be approved
 or denied from `/ui`.

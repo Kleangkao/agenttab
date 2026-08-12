@@ -92,6 +92,8 @@ export interface GatewayRuntimeOptions {
    */
   notifyUrl?: string;
   notifyFetch?: typeof fetch;
+  /** Optional HMAC-SHA256 secret for `x-agenttab-signature` on notify POSTs. */
+  notifySecret?: string;
 }
 
 export interface GatewayRuntime {
@@ -202,7 +204,10 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     options.notifyUrl !== undefined && options.notifyUrl.length > 0
       ? createOperatorNotifier({
           url: options.notifyUrl,
-          ...(options.notifyFetch === undefined ? {} : { fetchImpl: options.notifyFetch })
+          ...(options.notifyFetch === undefined ? {} : { fetchImpl: options.notifyFetch }),
+          ...(options.notifySecret === undefined || options.notifySecret.length === 0
+            ? {}
+            : { secret: options.notifySecret })
         })
       : undefined;
   const emitNotify = async (
@@ -299,6 +304,8 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       preview: "/v1/preview",
       openapi: "/openapi.json",
       notifyConfigured: notify !== undefined,
+      notifySigned:
+        options.notifySecret !== undefined && options.notifySecret.length > 0,
       parkedCount: parked.length,
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros

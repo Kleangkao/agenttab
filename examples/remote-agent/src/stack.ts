@@ -37,6 +37,9 @@ const gateway = createGatewayRuntime({
     : {}),
   ...(process.env.AGENTTAB_NOTIFY_URL
     ? { notifyUrl: process.env.AGENTTAB_NOTIFY_URL }
+    : {}),
+  ...(process.env.AGENTTAB_NOTIFY_SECRET
+    ? { notifySecret: process.env.AGENTTAB_NOTIFY_SECRET }
     : {})
 });
 const live = gateway.policies.get();
