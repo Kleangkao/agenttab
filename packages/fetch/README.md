@@ -67,14 +67,15 @@ same method+url+body reuses that id from in-process memory, or by asking the
 gateway for a reusable execution with the same `requestHash` (so a new process
 after `pnpm approve -- <id>` still resumes). Prefer
 `requestPaidResource(agent, url, init, { onApprovalRequired })` for the
-in-process approve-and-retry loop. `createOperationId` always wins over reuse.
+in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`).
+`createOperationId` always wins over reuse.
 
 ## Options worth knowing
 
 - `gatewayFetchImpl` — HTTP client used only for gateway fund/pay/fulfill.
   Keep it separate from `fetchImpl` when you intercept merchant traffic in tests.
-- `createAgentTabClient` — paid fetch + `getExecution` / policy / preview helpers.
-  `gateway.preview(intent)` is read-only and never funds.
+- `createAgentTabClient` — paid fetch + `getExecution` / policy / preview / deny helpers.
+  `gateway.preview(intent)` is read-only and never funds. `gateway.deny(id)` is terminal.
 - Prefer `schemes` over reusing a shared `x402Client` (x402 appends hooks).
 - `createLocalSmokeScheme()` is for local/CI only; production needs a real SVM signer.
 - `AgentTabApprovalRequiredError` / `AgentTabFundingDeniedError` carry `operationId`.

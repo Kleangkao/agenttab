@@ -1,18 +1,16 @@
 # Changelog
 
-## 0.1.2-dev
+## Unreleased
 
 - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny (fail-open)
-- Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `createGatewayClient().deny`, `/ui` Deny
+- Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `/ui` Deny
 - `GET /v1/spend` rolling 24h spend for the operator UI
 - `pnpm demo:stack` starts gateway + neutral merchant in one process
 - Operator control plane without a clone: GHCR image + `compose.yaml` + `/ui`
 - Bake `/policy/approve.local.json` in the gateway image; `AGENTTAB_POLICY_JSON` env bootstrap
-- `POST /v1/preview`, `pnpm preview`, and `createGatewayClient().preview` evaluate policy without funding
-- `AGENTTAB_ADMIN_TOKEN` also gates `POST /v1/approvals`
+- `AGENTTAB_ADMIN_TOKEN` also gates `POST /v1/approvals` and denials
 - Operator CLIs use `AGENTTAB_GATEWAY_URL` even when `AGENTTAB_DB_PATH` is set (Docker)
-- Image HEALTHCHECK + `gateway|approve|audit|policy-*` entrypoint
-- Fix `pack:check` to read each package version (unblocks CI after fetch 0.1.1)
+- Image HEALTHCHECK + `gateway|approve|deny|audit|policy-*|preview` entrypoint
 - Docs: npm install path for agents; gateway remains clone-and-run or GHCR
 - Add Release workflow stub for future npm Trusted Publishing (dry-run by default)
 - Short READMEs for `@agenttab/{core,dflow,x402}`
@@ -21,6 +19,13 @@
 - GitHub environment `npm` exists; Trusted Publishing (OIDC) is deferred (needs WebAuthn)
 - Live npm releases use `pnpm release:publish` with a short-lived GAT, then revoke
 - CI Release workflow is dry-run only (no standing `NPM_TOKEN` secret)
+
+## 0.1.2
+
+- [`@agenttab/fetch@0.1.2`](https://www.npmjs.com/package/@agenttab/fetch): public SDK
+  catches up to the live gateway — `preview()` (never funds), `deny()`,
+  `onApprovalRequired: "deny"`, and `isAgentTabFundingDeniedError`.
+  `@agenttab/{core,dflow,x402}` stay at 0.1.0.
 
 ## 0.1.1
 
