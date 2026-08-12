@@ -16,6 +16,7 @@ import { createGatewayClient } from "./gateway-api.js";
 import {
   createGatewayAuditRecorder,
   createGatewayFundingCoordinator,
+  resolveGatewayHeaders,
   type AgentTabAuditRecorder,
   type GatewayHttpOptions
 } from "./gateway-client.js";
@@ -67,7 +68,10 @@ export interface CreateAgentTabFetchOptions {
    */
   gatewayBaseUrl?: string;
 
-  /** Optional extra headers for gateway HTTP calls (funding + audit). */
+  /**
+   * Extra headers for gateway HTTP (funding + audit + helper client).
+   * Defaults to `Authorization: Bearer $AGENTTAB_AGENT_TOKEN` when that env is set.
+   */
   gatewayHeaders?: Record<string, string>;
 
   /** Underlying fetch used for merchant resource requests. Defaults to global fetch. */
@@ -141,10 +145,11 @@ function gatewayHttpOptions(
   if (options.gatewayBaseUrl === undefined || options.gatewayBaseUrl.length === 0) {
     return undefined;
   }
+  const headers = resolveGatewayHeaders(options.gatewayHeaders);
   return {
     baseUrl: options.gatewayBaseUrl,
     fetchImpl: options.gatewayFetchImpl ?? options.fetchImpl ?? fetch,
-    ...(options.gatewayHeaders === undefined ? {} : { headers: options.gatewayHeaders })
+    ...(headers === undefined ? {} : { headers })
   };
 }
 

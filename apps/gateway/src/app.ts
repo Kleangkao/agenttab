@@ -82,10 +82,15 @@ export interface GatewayRuntimeOptions {
   /**
    * When set, operator reads/writes (policy, spend, balances, unfiltered
    * execution lists, approve, deny) require `Authorization: Bearer <token>`.
-   * Agent fund/pay/fulfill and requestHash resume stay open. Leave unset for
-   * local demos; set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
+   * Leave unset for local demos; set AGENTTAB_ADMIN_TOKEN for hosted / Docker.
    */
   adminToken?: string;
+  /**
+   * When set, agent spend paths (preview, fund, pay, fulfill, requestHash
+   * resume, get-by-id) require this bearer or the admin bearer. Leave unset
+   * for local demos; set AGENTTAB_AGENT_TOKEN before exposing the port.
+   */
+  agentToken?: string;
   /**
    * Optional webhook for first-time park / approve / deny.
    * Fail-open: notify errors never change funding.
@@ -277,14 +282,29 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
 
   const app = new Hono();
   const adminRequired = adminToken !== undefined && adminToken.length > 0;
+  const agentRequired = options.agentToken !== undefined && options.agentToken.length > 0;
+  const hasAdminBearer = (header: string | undefined): boolean =>
+    adminRequired && header === `Bearer ${adminToken}`;
+  const hasAgentBearer = (header: string | undefined): boolean =>
+    agentRequired && header === `Bearer ${options.agentToken}`;
   const isAdmin = (header: string | undefined): boolean => {
     if (!adminRequired) return true;
-    return header === `Bearer ${adminToken}`;
+    return hasAdminBearer(header);
+  };
+  const isAgent = (header: string | undefined): boolean => {
+    if (!agentRequired) return true;
+    return hasAgentBearer(header) || hasAdminBearer(header);
   };
 
   app.get("/", (c) => c.redirect("/ui", 302));
   app.get("/ui", (c) =>
-    c.html(operatorHtml({ adminRequired, policyMode: policies.get().mode }))
+    c.html(
+      operatorHtml({
+        adminRequired,
+        agentRequired,
+        policyMode: policies.get().mode
+      })
+    )
   );
   app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));
 
@@ -300,6 +320,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       policyDurable,
       policyMode: policy.mode,
       policyWriteAuth: adminRequired,
+      agentAuth: agentRequired,
       operatorUi: "/ui",
       preview: "/v1/preview",
       openapi: "/openapi.json",
@@ -369,7 +390,10 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     }
     const reusable = reusableRaw === "1" || reusableRaw === "true";
     const listingWithoutHash = requestHash === undefined || requestHash.length === 0;
-    if (listingWithoutHash && !isAdmin(c.req.header("authorization"))) {
+    const auth = c.req.header("authorization");
+    if (listingWithoutHash) {
+      if (!isAdmin(auth)) return c.json({ error: "unauthorized" }, 401);
+    } else if (!isAgent(auth)) {
       return c.json({ error: "unauthorized" }, 401);
     }
     const executions = await store.listRecent({
@@ -382,18 +406,27 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/executions", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const body = paymentIntentSchema.parse(await c.req.json());
     const result = await store.createOrGet(body);
     return c.json(result, result.created ? 201 : 200);
   });
 
   app.get("/v1/executions/:operationId", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const record = await store.get(c.req.param("operationId"));
     if (record === undefined) return c.json({ error: "not_found" }, 404);
     return c.json(record);
   });
 
   app.post("/v1/preview", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const parsed = paymentIntentSchema.safeParse(await c.req.json());
     if (!parsed.success) {
       return c.json({ error: "invalid_intent", message: parsed.error.message }, 400);
@@ -416,6 +449,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/fund", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const intent = paymentIntentSchema.parse(await c.req.json());
     const outcome = await coordinator.ensurePaymentAsset({ intent });
     const record = await store.get(intent.operationId);
@@ -462,6 +498,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/executions/:operationId/pay", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const operationId = c.req.param("operationId");
     let record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
@@ -546,6 +585,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/executions/:operationId/fulfill", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const operationId = c.req.param("operationId");
     let record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
@@ -574,6 +616,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/settlements/verify", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const body = (await c.req.json()) as { token?: string };
     if (!body.token) return c.json({ error: "token_required" }, 400);
     try {

@@ -18,9 +18,9 @@ pnpm demo:adopt          # one-shot HTTP preview / approve / deny
 `pnpm policy:get|set|mode|allow|cap`, `pnpm parked`, `pnpm approve`, `pnpm deny`,
 `pnpm preview`, `pnpm audit:recent`, `pnpm notify:sink`.
 
-When `AGENTTAB_ADMIN_TOKEN` is set, those operator reads/writes need
-`Authorization: Bearer …`. Agent `fund` / `pay` / `fulfill` and
-`requestHash` resume stay open.
+When `AGENTTAB_ADMIN_TOKEN` is set, operator reads/writes need
+`Authorization: Bearer …`. When `AGENTTAB_AGENT_TOKEN` is set, preview / fund /
+pay / fulfill need the agent bearer (admin also works).
 
 ## Notify
 

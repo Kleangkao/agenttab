@@ -219,6 +219,7 @@ describe("operator control spine", () => {
     const html = await ui.text();
     expect(html).toContain("AgentTab operator");
     expect(html).toContain("adminRequired = true");
+    expect(html).toContain("Gateway token");
     expect(html).toContain("Allow origin");
     expect(html).toContain("Set mode");
     expect(html).toContain("Save caps");

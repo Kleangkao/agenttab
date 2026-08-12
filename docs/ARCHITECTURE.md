@@ -37,8 +37,9 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
   - Read-only `POST /v1/preview` (policy only; no execution, no fund).
   - Operator UI at `/ui` (merchant / amount / resource, mode select, auto-refresh).
   - Optional `AGENTTAB_ADMIN_TOKEN` gates operator reads/writes (policy, spend,
-    balances, unfiltered lists, approve, deny). Agent fund/pay/fulfill and
-    `requestHash` resume stay open.
+    balances, unfiltered lists, approve, deny).
+  - Optional `AGENTTAB_AGENT_TOKEN` gates preview/fund/pay/fulfill/get-by-id
+    and `requestHash` resume. Admin bearer is also accepted on those routes.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
     `AGENTTAB_NOTIFY_SECRET` adds `x-agenttab-signature` (HMAC-SHA256).

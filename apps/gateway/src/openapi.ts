@@ -9,6 +9,7 @@ type HttpMethod = "get" | "post" | "put";
 export interface GatewayOpenApiOperation {
   summary: string;
   admin?: boolean;
+  agent?: boolean;
   funds?: boolean;
 }
 
@@ -42,16 +43,23 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
         "Recent execution summaries. Unfiltered lists require admin when AGENTTAB_ADMIN_TOKEN is set; requestHash lookup stays available for agent resume.",
       admin: true
     },
-    post: { summary: "Create or replay an execution from a PaymentIntent", funds: false }
+    post: {
+      summary: "Create or replay an execution from a PaymentIntent",
+      funds: false,
+      agent: true
+    }
   },
   "/v1/executions/{operationId}": {
-    get: { summary: "Full execution record and events" }
+    get: { summary: "Full execution record and events", agent: true }
   },
   "/v1/preview": {
-    post: { summary: "Evaluate policy only. Never creates an execution or funds." }
+    post: {
+      summary: "Evaluate policy only. Never creates an execution or funds.",
+      agent: true
+    }
   },
   "/v1/fund": {
-    post: { summary: "Ensure payment asset (may park, fund, or deny)", funds: true }
+    post: { summary: "Ensure payment asset (may park, fund, or deny)", funds: true, agent: true }
   },
   "/v1/approvals/{operationId}": {
     post: { summary: "Human approve a parked execution, then fund", admin: true, funds: true }
@@ -60,13 +68,17 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
     post: { summary: "Terminal reject. Same operationId will not fund later.", admin: true }
   },
   "/v1/executions/{operationId}/pay": {
-    post: { summary: "Record x402 settlement or issue local HMAC token", funds: false }
+    post: {
+      summary: "Record x402 settlement or issue local HMAC token",
+      funds: false,
+      agent: true
+    }
   },
   "/v1/executions/{operationId}/fulfill": {
-    post: { summary: "Mark resource fulfilled after settle" }
+    post: { summary: "Mark resource fulfilled after settle", agent: true }
   },
   "/v1/settlements/verify": {
-    post: { summary: "Verify a local HMAC payment token" }
+    post: { summary: "Verify a local HMAC payment token", agent: true }
   }
 };
 
@@ -80,10 +92,20 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
       item[method] = {
         operationId: `${method}_${path.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "")}`,
         summary: op.summary,
-        ...(op.admin === true
+        ...(op.admin === true || op.agent === true
           ? {
-              security: [{ bearerAdmin: [] }],
-              description: `${op.summary} Requires Authorization: Bearer AGENTTAB_ADMIN_TOKEN when that env is set.`
+              security: [
+                ...(op.admin === true ? [{ bearerAdmin: [] }] : []),
+                ...(op.agent === true ? [{ bearerAgent: [] }] : [])
+              ],
+              description:
+                `${op.summary} ` +
+                (op.admin === true
+                  ? "Requires AGENTTAB_ADMIN_TOKEN when that env is set. "
+                  : "") +
+                (op.agent === true
+                  ? "Requires AGENTTAB_AGENT_TOKEN (or admin) when that env is set."
+                  : "")
             }
           : {}),
         ...(op.funds === true ? { "x-agenttab-funds": true } : {}),
@@ -121,6 +143,11 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
           type: "http",
           scheme: "bearer",
           description: "AGENTTAB_ADMIN_TOKEN when configured"
+        },
+        bearerAgent: {
+          type: "http",
+          scheme: "bearer",
+          description: "AGENTTAB_AGENT_TOKEN when configured (admin bearer also accepted)"
         }
       }
     },

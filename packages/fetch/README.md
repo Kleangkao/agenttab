@@ -72,6 +72,8 @@ in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`).
 
 ## Options worth knowing
 
+- `gatewayHeaders` / `AGENTTAB_AGENT_TOKEN` — bearer for a hosted gateway that
+  sets `AGENTTAB_AGENT_TOKEN`.
 - `gatewayFetchImpl` — HTTP client used only for gateway fund/pay/fulfill.
   Keep it separate from `fetchImpl` when you intercept merchant traffic in tests.
 - `createAgentTabClient` — paid fetch + `getExecution` / policy / preview / deny /

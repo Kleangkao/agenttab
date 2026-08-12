@@ -39,6 +39,7 @@ export interface AgentTabGatewayHealth {
   operatorUi?: string;
   preview?: string;
   openapi?: string;
+  agentAuth?: boolean;
 }
 
 export interface AgentTabGatewayClient {

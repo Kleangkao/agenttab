@@ -20,6 +20,7 @@ export {
 export {
   createGatewayAuditRecorder,
   createGatewayFundingCoordinator,
+  resolveGatewayHeaders,
   type AgentTabAuditRecorder,
   type GatewayHttpOptions
 } from "./gateway-client.js";

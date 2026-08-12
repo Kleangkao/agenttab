@@ -38,6 +38,12 @@ results in `deny` or `approval_required`; it never results in autopay.
 Merchant content and model output cannot modify policies. Policy changes use a
 separate authenticated control plane and require a human action.
 
+### Exposed gateway without agent auth
+
+`POST /v1/fund` can spend under a live policy. When the process is reachable
+beyond loopback, set `AGENTTAB_AGENT_TOKEN` (and `AGENTTAB_ADMIN_TOKEN` for
+operator routes). Unset tokens keep the local-demo trust model.
+
 ### Key exfiltration
 
 Core packages accept a signer interface. Raw keys are not accepted by public

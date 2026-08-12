@@ -20,7 +20,9 @@ export function gatewayHeaders(env: NodeJS.ProcessEnv = process.env): Record<str
   const headers: Record<string, string> = {
     "content-type": "application/json"
   };
-  const token = env.AGENTTAB_ADMIN_TOKEN?.trim();
+  const admin = env.AGENTTAB_ADMIN_TOKEN?.trim();
+  const agent = env.AGENTTAB_AGENT_TOKEN?.trim();
+  const token = admin || agent;
   if (token) {
     headers.authorization = `Bearer ${token}`;
   }

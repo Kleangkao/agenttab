@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldAuditOverHttp } from "../src/cli/gateway-http.js";
+import { gatewayHeaders, shouldAuditOverHttp } from "../src/cli/gateway-http.js";
 import { resolveIntentPath } from "../src/cli/preview-args.js";
 import { resolveOperationId } from "../src/cli/operation-id.js";
 import { resolvePolicyMode } from "../src/cli/policy-mode-args.js";
@@ -17,6 +17,13 @@ describe("operator CLI HTTP helpers", () => {
       })
     ).toBe(true);
     expect(shouldAuditOverHttp({ AGENTTAB_DB_PATH: ".data/gateway.sqlite" })).toBe(false);
+  });
+
+  it("prefers admin bearer, then agent bearer", () => {
+    expect(gatewayHeaders({ AGENTTAB_AGENT_TOKEN: "ag" }).authorization).toBe("Bearer ag");
+    expect(
+      gatewayHeaders({ AGENTTAB_ADMIN_TOKEN: "adm", AGENTTAB_AGENT_TOKEN: "ag" }).authorization
+    ).toBe("Bearer adm");
   });
 });
 

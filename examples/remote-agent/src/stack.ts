@@ -35,6 +35,9 @@ const gateway = createGatewayRuntime({
   ...(process.env.AGENTTAB_ADMIN_TOKEN
     ? { adminToken: process.env.AGENTTAB_ADMIN_TOKEN }
     : {}),
+  ...(process.env.AGENTTAB_AGENT_TOKEN
+    ? { agentToken: process.env.AGENTTAB_AGENT_TOKEN }
+    : {}),
   ...(process.env.AGENTTAB_NOTIFY_URL
     ? { notifyUrl: process.env.AGENTTAB_NOTIFY_URL }
     : {}),

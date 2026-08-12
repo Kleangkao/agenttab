@@ -1,14 +1,18 @@
 export function operatorHtml(input: {
   adminRequired: boolean;
+  agentRequired?: boolean;
   policyMode: string;
 }): string {
   const observe =
     input.policyMode === "observe"
       ? `<p class="warn">Mode is <strong>observe</strong>. That is not a dry-run. Approving still funds.</p>`
       : "";
-  const tokenHint = input.adminRequired
-    ? `<label>Admin token <input id="token" type="password" autocomplete="off" placeholder="AGENTTAB_ADMIN_TOKEN" /></label>`
-    : `<p class="muted">No admin token configured — policy writes and approve are open on this process.</p>`;
+  const tokenRequired = input.adminRequired || input.agentRequired === true;
+  const tokenHint = tokenRequired
+    ? `<label>Gateway token <input id="token" type="password" autocomplete="off" placeholder="${
+        input.adminRequired ? "AGENTTAB_ADMIN_TOKEN" : "AGENTTAB_AGENT_TOKEN"
+      }" /></label>`
+    : `<p class="muted">No admin or agent token configured — this process is open on the loopback trust model.</p>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -153,6 +157,7 @@ async function health() {
     "<span>broadcast <strong>" + (b.broadcastEnabled ? "on" : "off") + "</strong></span>" +
     "<span>policy " + (b.policyDurable ? "durable" : "memory") + "</span>" +
     (b.policyWriteAuth ? "<span>admin token required</span>" : "") +
+    (b.agentAuth ? "<span>agent token required</span>" : "") +
     (b.notifyConfigured ? "<span>notify " + (b.notifySigned ? "signed" : "on") + "</span>" : "") +
     "<span>parked <strong>" + (b.parkedCount ?? 0) + "</strong></span>" +
     "<span>spend 24h <strong>" + (b.spentUsdMicrosLast24h ?? "0") + "</strong> / " +

@@ -6,6 +6,8 @@
 - `GET /health` includes `parkedCount` and rolling 24h spend
 - `GET /openapi.json` locked to live Hono routes
 - `pnpm parked` / `pnpm policy:mode` / `pnpm policy:allow` / `pnpm policy:cap`
+- Optional `AGENTTAB_AGENT_TOKEN` gates preview/fund/pay/fulfill. Local demos
+  stay open; hosted Docker should set both admin and agent tokens.
 - Operator UI shows a token hint on gated lists and reloads after the admin
   token is entered; health strip notes signed notify
 - `pnpm notify:sink` local webhook; optional `AGENTTAB_NOTIFY_SECRET` HMAC

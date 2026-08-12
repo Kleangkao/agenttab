@@ -3,8 +3,18 @@ import type { FundingOutcome, PaymentFundingCoordinator, PaymentIntent } from "@
 export interface GatewayHttpOptions {
   baseUrl: string;
   fetchImpl?: typeof fetch;
-  /** Optional bearer token for future gated gateway routes. Unused by /v1/fund today. */
+  /** Bearer token for AGENTTAB_AGENT_TOKEN / admin when the gateway requires it. */
   headers?: Record<string, string>;
+}
+
+/** Explicit headers win; otherwise `AGENTTAB_AGENT_TOKEN` if set. */
+export function resolveGatewayHeaders(
+  headers?: Record<string, string>
+): Record<string, string> | undefined {
+  if (headers !== undefined) return headers;
+  const token = process.env.AGENTTAB_AGENT_TOKEN?.trim();
+  if (token === undefined || token.length === 0) return undefined;
+  return { authorization: `Bearer ${token}` };
 }
 
 function joinUrl(baseUrl: string, path: string): string {

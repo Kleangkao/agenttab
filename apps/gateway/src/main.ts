@@ -52,6 +52,9 @@ const runtime = createGatewayRuntime({
   ...(process.env.AGENTTAB_ADMIN_TOKEN
     ? { adminToken: process.env.AGENTTAB_ADMIN_TOKEN }
     : {}),
+  ...(process.env.AGENTTAB_AGENT_TOKEN
+    ? { agentToken: process.env.AGENTTAB_AGENT_TOKEN }
+    : {}),
   ...(process.env.AGENTTAB_INITIAL_USDC_ATOMIC
     ? { initialUsdcAtomic: process.env.AGENTTAB_INITIAL_USDC_ATOMIC }
     : {}),

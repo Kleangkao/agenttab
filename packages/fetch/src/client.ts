@@ -6,6 +6,7 @@ import {
   type CreateAgentTabFetchOptions
 } from "./create-fetch.js";
 import { createGatewayClient, type AgentTabGatewayClient } from "./gateway-api.js";
+import { resolveGatewayHeaders } from "./gateway-client.js";
 import type { AgentTabApprovalRequiredError } from "./errors.js";
 import { isAgentTabApprovalRequiredError } from "./errors.js";
 
@@ -33,14 +34,13 @@ export function createAgentTabClient(
   options: CreateAgentTabFetchOptions
 ): AgentTabClient {
   const fetchPaid = createAgentTabFetch(options);
+  const gatewayHeaders = resolveGatewayHeaders(options.gatewayHeaders);
   const gateway =
     options.gatewayBaseUrl !== undefined && options.gatewayBaseUrl.length > 0
       ? createGatewayClient({
           baseUrl: options.gatewayBaseUrl,
           fetchImpl: options.gatewayFetchImpl ?? options.fetchImpl ?? fetch,
-          ...(options.gatewayHeaders === undefined
-            ? {}
-            : { headers: options.gatewayHeaders })
+          ...(gatewayHeaders === undefined ? {} : { headers: gatewayHeaders })
         })
       : undefined;
 

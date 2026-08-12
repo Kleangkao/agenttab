@@ -2,10 +2,25 @@ import { describe, expect, it, vi } from "vitest";
 import type { FundingOutcome, PaymentIntent } from "@agenttab/core";
 import {
   createGatewayAuditRecorder,
-  createGatewayFundingCoordinator
+  createGatewayFundingCoordinator,
+  resolveGatewayHeaders
 } from "../src/gateway-client.js";
 import { createGatewayClient } from "../src/gateway-api.js";
 import { hashHttpRequest } from "../src/hash.js";
+
+describe("resolveGatewayHeaders", () => {
+  it("uses AGENTTAB_AGENT_TOKEN only when headers are omitted", () => {
+    const previous = process.env.AGENTTAB_AGENT_TOKEN;
+    process.env.AGENTTAB_AGENT_TOKEN = "from-env";
+    try {
+      expect(resolveGatewayHeaders()).toEqual({ authorization: "Bearer from-env" });
+      expect(resolveGatewayHeaders({ "x-test": "1" })).toEqual({ "x-test": "1" });
+    } finally {
+      if (previous === undefined) delete process.env.AGENTTAB_AGENT_TOKEN;
+      else process.env.AGENTTAB_AGENT_TOKEN = previous;
+    }
+  });
+});
 
 describe("hashHttpRequest", () => {
   it("matches the demo canonical format", () => {
