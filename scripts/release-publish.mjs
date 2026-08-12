@@ -4,8 +4,10 @@
  * Current AgentTab release path (Trusted Publishing is deferred — it needs
  * account WebAuthn this machine cannot complete):
  *   1. Create a 7-day npm granular token (write, @agenttab, 2FA bypass)
- *   2. NPM_TOKEN=... pnpm release:publish
- *   3. Revoke the token immediately
+ *   2. On Windows, `powershell -STA -File scripts/prompt-npm-token.ps1`
+ *      can collect NPM_TOKEN locally (hidden) without pasting into chat
+ *   3. NPM_TOKEN=... pnpm release:publish
+ *   4. Revoke the token immediately
  *
  * 2FA-bypass GATs can still publish until January 2027. Do not store the
  * token in git or a standing GitHub secret.

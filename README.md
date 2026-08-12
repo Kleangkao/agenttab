@@ -79,7 +79,7 @@ Libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
 
 Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 
-1. `pnpm add @agenttab/fetch` in the agent process
+1. `pnpm add @agenttab/fetch@0.1.2` in the agent process
 2. Start a gateway (`docker compose up --build` or clone this repo) and set policy
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
 4. Use `/ui`, `POST /v1/preview`, `pnpm policy:set`, `pnpm approve`, `pnpm deny`, `pnpm audit:recent`

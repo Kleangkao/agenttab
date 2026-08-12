@@ -32,7 +32,7 @@ Split the two roles:
 | **Operator / control plane** | Gateway image/UI + `agenttab-approve` / policy / audit CLIs | GHCR, `docker compose`, or this repo |
 
 - Node.js ≥ 22
-- Agent SDK (npm): `pnpm add @agenttab/fetch @x402/core @x402/fetch @x402/svm`
+- Agent SDK (npm): `pnpm add @agenttab/fetch@0.1.2 @x402/core @x402/fetch @x402/svm`
 - Gateway/CLIs: `git clone https://github.com/Kleangkao/agenttab.git` then
   `pnpm install && pnpm --filter @agenttab/gateway build`
 
