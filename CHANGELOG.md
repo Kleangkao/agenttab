@@ -18,6 +18,7 @@
 - GHCR package is public; `latest` is published from `main` / version tags
 - GitHub environment `npm` exists; Trusted Publishing (OIDC) is deferred (needs WebAuthn)
 - Live npm releases use `pnpm release:publish` with a short-lived GAT, then revoke
+  (local publish disables provenance; OIDC Trusted Publishing can re-enable it)
 - CI Release workflow is dry-run only (no standing `NPM_TOKEN` secret)
 
 ## 0.1.2

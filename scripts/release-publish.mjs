@@ -10,6 +10,10 @@
  * 2FA-bypass GATs can still publish until January 2027. Do not store the
  * token in git or a standing GitHub secret.
  *
+ * Local GAT publish cannot attest provenance (no GitHub OIDC), so this
+ * script passes --provenance=false. package.json still requests provenance
+ * for a future Trusted Publishing / CI path.
+ *
  * Never prints the token. Refuses to run without NPM_TOKEN.
  */
 import { execSync } from "node:child_process";
@@ -74,7 +78,9 @@ try {
       throw new Error(`pnpm pack did not print a tarball for ${pkg.name}`);
     }
     console.log(`--- npm publish ${tgz} ---`);
-    execSync(`npm publish ${JSON.stringify(tgz)} --access public`, {
+    execSync(
+      `npm publish ${JSON.stringify(tgz)} --access public --provenance=false`,
+      {
       cwd: root,
       env,
       stdio: "inherit"
