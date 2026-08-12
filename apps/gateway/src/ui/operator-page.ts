@@ -50,6 +50,10 @@ export function operatorHtml(input: {
   <div class="card">
     <textarea id="policy" spellcheck="false"></textarea>
     <div class="row" style="margin-top:10px">
+      <label>Add merchant origin <input id="addOrigin" placeholder="http://127.0.0.1:8791" /></label>
+      <button class="ghost" id="allowOrigin" type="button">Allow origin</button>
+    </div>
+    <div class="row" style="margin-top:10px">
       <button id="savePolicy" type="button">Save policy</button>
       <button class="ghost" id="reloadPolicy" type="button">Reload</button>
       <span id="policyStatus" class="muted"></span>
@@ -131,6 +135,18 @@ async function loadPolicy() {
   $("policy").value = JSON.stringify(await r.json(), null, 2);
 }
 $("reloadPolicy").onclick = () => loadPolicy();
+$("allowOrigin").onclick = async () => {
+  const origin = $("addOrigin").value.trim();
+  if (!origin) { $("policyStatus").className = "bad"; $("policyStatus").textContent = "origin required"; return; }
+  let policy;
+  try { policy = JSON.parse($("policy").value); }
+  catch (e) { $("policyStatus").className = "bad"; $("policyStatus").textContent = "invalid JSON"; return; }
+  const list = Array.isArray(policy.allowedMerchantOrigins) ? policy.allowedMerchantOrigins : [];
+  if (!list.includes(origin)) list.push(origin);
+  policy.allowedMerchantOrigins = list;
+  $("policy").value = JSON.stringify(policy, null, 2);
+  $("savePolicy").click();
+};
 $("savePolicy").onclick = async () => {
   $("policyStatus").textContent = "saving…";
   let body;

@@ -197,6 +197,7 @@ describe("operator control spine", () => {
     const html = await ui.text();
     expect(html).toContain("AgentTab operator");
     expect(html).toContain("adminRequired = true");
+    expect(html).toContain("Allow origin");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
