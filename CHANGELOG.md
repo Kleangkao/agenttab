@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Operator `/ui` is a product console (Needs you, Activity, Rules, Ask) with
+  human-readable USD, confirm-before-release, and `/ui/app.css` + `/ui/app.js`
 - Operator UI shows merchant / µUSD / resource, Set mode, parked count, 5s refresh
 - `GET /health` includes `parkedCount` and rolling 24h spend
 - `GET /openapi.json` locked to live Hono routes

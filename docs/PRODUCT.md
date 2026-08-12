@@ -98,7 +98,8 @@ denial, not a permissive default.
 - When `AGENTTAB_ADMIN_TOKEN` is set, operator reads (policy/spend/balances/lists)
   use the same bearer as approve/deny. When `AGENTTAB_AGENT_TOKEN` is set,
   preview/fund/pay/fulfill and requestHash resume require that bearer (or admin).
-- Operator control is `/ui` + HTTP + CLI (`policy:get|set|mode`, `approve`,
+- Operator product is the `/ui` console (Needs you / Activity / Rules / Ask)
+  plus HTTP + CLI (`policy:get|set|mode`, `approve`,
   `deny`, `parked`, `audit:recent`, `POST /v1/preview`, `GET /openapi.json`), seeded from `AGENTTAB_POLICY_PATH` /
   `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with

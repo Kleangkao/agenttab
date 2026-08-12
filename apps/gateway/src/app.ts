@@ -12,7 +12,7 @@ import {
   type PaymentPolicy,
   type PolicyDecision
 } from "@agenttab/core";
-import { operatorHtml } from "./ui/operator-page.js";
+import { operatorCss, operatorHtml, operatorJs } from "./ui/operator-page.js";
 import { gatewayOpenApiDocument } from "./openapi.js";
 import {
   createOperatorNotifier,
@@ -305,6 +305,16 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
         policyMode: policies.get().mode
       })
     )
+  );
+  app.get("/ui/app.css", (c) =>
+    c.text(operatorCss(), 200, {
+      "Content-Type": "text/css; charset=utf-8"
+    })
+  );
+  app.get("/ui/app.js", (c) =>
+    c.text(operatorJs(), 200, {
+      "Content-Type": "text/javascript; charset=utf-8"
+    })
   );
   app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));
 

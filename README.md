@@ -65,7 +65,7 @@ Packages and apps:
 - `examples/neutral-merchant` + `examples/remote-agent`: AgentTab-agnostic
   merchant + remote `@agenttab/fetch` agent (mock smoke and Devnet facilitator)
 - Setup + safety tools under `tools/` (`mainnet:facilitators`, live broadcast gate)
-- Durable policy + spend in on-disk SQLite; operator UI `/ui` plus CLIs:
+- Durable policy + spend in on-disk SQLite; operator console `/ui` plus CLIs:
   `pnpm policy:get|set|mode|allow|cap`, `pnpm parked`, `pnpm notify:sink`,
   `pnpm approve`, `pnpm audit:recent`
 - Example policies under `examples/policies/`; start guide in `docs/ADOPT.md`

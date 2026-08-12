@@ -26,7 +26,7 @@
   "files": ["dist", "!dist/**/*.test.*"],
   "scripts": {
     "clean": "node ../../scripts/clean-dist.mjs",
-    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json && node scripts/copy-ui.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "tsx src/main.ts",
     "devnet": "tsx src/devnet-main.ts",

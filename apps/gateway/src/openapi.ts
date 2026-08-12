@@ -22,7 +22,14 @@ export interface GatewayOpenApiPath {
 
 export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   "/": { get: { summary: "Redirect to /ui" } },
-  "/ui": { get: { summary: "Operator HTML (preview never funds; approve funds)" } },
+  "/ui": {
+    get: {
+      summary:
+        "Operator console. Preview never funds; Release still spends under the live policy."
+    }
+  },
+  "/ui/app.css": { get: { summary: "Operator console stylesheet" } },
+  "/ui/app.js": { get: { summary: "Operator console client" } },
   "/health": {
     get: { summary: "Liveness plus policyMode, parkedCount, 24h spend" }
   },

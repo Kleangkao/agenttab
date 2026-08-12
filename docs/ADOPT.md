@@ -56,8 +56,9 @@ docker run --rm -p 8787:8787 \
   ghcr.io/kleangkao/agenttab-gateway:latest
 ```
 
-Open `http://127.0.0.1:8787/ui` (machine contract: `/openapi.json`). Preview is
-read-only; **approve still funds**. Observe mode is not a dry-run. Trailing
+Open `http://127.0.0.1:8787/ui` — the operator console for parked spends, rules,
+and receipts (machine contract: `/openapi.json`). Preview is
+read-only; **Release still funds**. Observe mode is not a dry-run. Trailing
 slashes on merchant origins are ignored (`http://127.0.0.1:8791/` = `:8791`).
 
 Or build locally: `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`

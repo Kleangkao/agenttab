@@ -35,7 +35,8 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
   - Read-only audit: `GET /v1/executions?limit=&state=&requestHash=&reusable=`
     + `pnpm audit:recent` / `pnpm parked` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
   - Read-only `POST /v1/preview` (policy only; no execution, no fund).
-  - Operator UI at `/ui` (merchant / amount / resource, mode select, auto-refresh).
+  - Operator console at `/ui` (`/ui/app.css`, `/ui/app.js`): inbox of parked
+    spends, activity receipts, human rules, read-only Ask/preview.
   - Optional `AGENTTAB_ADMIN_TOKEN` gates operator reads/writes (policy, spend,
     balances, unfiltered lists, approve, deny).
   - Optional `AGENTTAB_AGENT_TOKEN` gates preview/fund/pay/fulfill/get-by-id
@@ -51,9 +52,9 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
 
 ## Planned / not required for the core thesis
 
-- A richer hosted dashboard can still consume the same APIs. `/ui` covers
-  policy (including mode without rewriting JSON), preview, parked approve/deny
-  with merchant/amount, recent executions, and spend.
+- Separate SPA hosting is optional. The first product surface is the gateway
+  console at `/ui`, served from the same process as the control plane so Docker
+  and `demo:stack` stay one product.
 
 ## Execution state machine
 

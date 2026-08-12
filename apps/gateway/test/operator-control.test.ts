@@ -217,17 +217,23 @@ describe("operator control spine", () => {
     const ui = await gateway.app.request("/ui");
     expect(ui.status).toBe(200);
     const html = await ui.text();
-    expect(html).toContain("AgentTab operator");
-    expect(html).toContain("adminRequired = true");
+    expect(html).toContain("AgentTab");
+    expect(html).toContain('"adminRequired":true');
     expect(html).toContain("Gateway token");
-    expect(html).toContain("Allow origin");
-    expect(html).toContain("Set mode");
-    expect(html).toContain("Save caps");
-    expect(html).toContain("admin token required");
-    expect(html).toContain("notifySigned");
+    expect(html).toContain("Needs you");
+    expect(html).toContain("Allow this merchant");
+    expect(html).toContain("Save limits");
+    expect(html).toContain("Observe is not a dry-run");
     expect(html).toContain("µUSD");
-    expect(html).toContain("<th>last</th>");
+    expect(html).toContain("/ui/app.js");
     expect(html).toContain("/openapi.json");
+
+    const js = await (await gateway.app.request("/ui/app.js")).text();
+    expect(js).toContain("admin token required");
+    expect(js).toContain("notifySigned");
+    expect(js).toContain("/v1/approvals/");
+    expect(js).toContain("/v1/denials/");
+    expect(js).toContain("/v1/preview");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
@@ -369,7 +375,9 @@ describe("operator control spine", () => {
     expect(await client.findReusableOperationId(intent.requestHash)).toBeUndefined();
 
     const ui = await gateway.app.request("/ui");
-    expect(await ui.text()).toContain("Deny");
+    expect(await ui.text()).toContain("Reject");
+    const js = await (await gateway.app.request("/ui/app.js")).text();
+    expect(js).toContain("/v1/denials/");
     gateway.close();
   });
 });
