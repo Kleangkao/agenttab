@@ -96,13 +96,15 @@ denial, not a permissive default.
 - Read-only audit is available via `GET /v1/executions` and `pnpm audit:recent`
   (including the fulfilled Mainnet receipt DB under `.data/mainnet/`).
 - Operator control is `/ui` + HTTP + CLI (`policy:get|set`, `approve`,
-  `audit:recent`, `POST /v1/preview`), seeded from `AGENTTAB_POLICY_PATH` /
+  `deny`, `audit:recent`, `POST /v1/preview`), seeded from `AGENTTAB_POLICY_PATH` /
   `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with
   `operationId` so agents can approve and retry the **same** operation, including
-  across process restarts via gateway `requestHash` lookup.
+  across process restarts via gateway `requestHash` lookup. Deny is terminal
+  for that id. `pnpm demo:adopt` proves the HTTP loop in one command.
 - Gateway exposes `agenttab-*` binaries after build (`agenttab-gateway`,
-  `agenttab-approve`, …) and ships them in `ghcr.io/kleangkao/agenttab-gateway`.
-  Agent libraries `@agenttab/{core,dflow,x402,fetch}` are on npm.
+  `agenttab-approve`, `agenttab-deny`, …) and ships them in
+  `ghcr.io/kleangkao/agenttab-gateway`.
+  Agent libraries are on npm; `@agenttab/fetch@0.1.2` includes preview and deny.
 - Preview never funds. Observe is not a dry-run — approving still funds.
 

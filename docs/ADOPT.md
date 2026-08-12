@@ -144,6 +144,12 @@ const result = await requestPaidResource(agent, resourceUrl, { method: "GET" }, 
 
 Smoke without wiring your own snippet: `pnpm demo:remote-agent`.
 
+One-command HTTP proof (preview → approve → fulfill → deny, then exit):
+
+```bash
+pnpm demo:adopt
+```
+
 ## 5. Approve loop (same operationId)
 
 1. Agent fetch throws `AgentTabApprovalRequiredError` with `error.operationId`

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `pnpm demo:adopt`: one-command HTTP proof of preview / approve / deny
 - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny (fail-open)
 - Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `/ui` Deny
 - `GET /v1/spend` rolling 24h spend for the operator UI

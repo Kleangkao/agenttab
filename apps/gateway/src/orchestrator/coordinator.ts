@@ -153,7 +153,9 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     this.#signer = deps.signer;
     this.#spend = deps.spend;
     this.#wallet = deps.wallet ?? DEMO_WALLET;
-    this.#notifyParked = deps.notifyParked;
+    if (deps.notifyParked !== undefined) {
+      this.#notifyParked = deps.notifyParked;
+    }
   }
 
   async ensurePaymentAsset(input: {

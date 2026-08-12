@@ -33,6 +33,7 @@
     "demo:neutral-merchant": "pnpm --filter @agenttab/example-neutral-merchant dev",
     "demo:neutral-merchant:devnet": "pnpm --filter @agenttab/example-neutral-merchant devnet",
     "demo:stack": "pnpm --filter @agenttab/example-remote-agent stack",
+    "demo:adopt": "pnpm --filter @agenttab/example-remote-agent adopt",
     "demo:remote-agent": "pnpm --filter @agenttab/example-remote-agent demo",
     "demo:remote-agent:devnet": "pnpm --filter @agenttab/example-remote-agent devnet",
     "devnet:setup": "tsx tools/devnet-setup/src/setup.ts",

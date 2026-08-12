@@ -1,43 +1,14 @@
-import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
-import { serve } from "@hono/node-server";
-import type { Hono } from "hono";
 import { createNeutralMerchant } from "@agenttab/example-neutral-merchant";
 import {
   createGatewayRuntime,
   createDemoPolicy
 } from "@agenttab/gateway";
 import { createRemoteAgent, purchasePaidResource } from "../src/agent.js";
+import { listenApp } from "../src/listen.js";
 import { createSmokePaymentScheme } from "../src/smoke-scheme.js";
 
 const LOCAL_NETWORK = "solana:local" as const;
-
-async function listenApp(
-  app: Hono
-): Promise<{ baseUrl: string; close: () => Promise<void> }> {
-  const server = serve({
-    fetch: app.fetch.bind(app),
-    port: 0,
-    hostname: "127.0.0.1"
-  });
-
-  if (!server.listening) {
-    await new Promise<void>((resolve, reject) => {
-      server.once("listening", () => resolve());
-      server.once("error", reject);
-    });
-  }
-
-  const address = server.address() as AddressInfo;
-  return {
-    baseUrl: `http://127.0.0.1:${address.port}`,
-    close: async () => {
-      await new Promise<void>((resolve, reject) => {
-        server.close((error) => (error ? reject(error) : resolve()));
-      });
-    }
-  };
-}
 
 describe("remote agent adoption smoke", () => {
   it("buys from a neutral merchant via remote gateway HTTP only", async () => {
