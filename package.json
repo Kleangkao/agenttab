@@ -21,6 +21,7 @@
     "check": "pnpm -r build && pnpm -r check",
     "test": "pnpm -r build && pnpm -r test",
     "pack:check": "node scripts/pack-check.mjs",
+    "release:dry": "node scripts/release-dry.mjs",
     "demo:gateway": "pnpm --filter @agenttab/gateway dev",
     "demo:gateway:devnet": "pnpm --filter @agenttab/gateway devnet",
     "demo:paid-api": "pnpm --filter @agenttab/example-paid-api dev",

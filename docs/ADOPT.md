@@ -136,6 +136,7 @@ Live policy changes: `pnpm policy:set -- examples/policies/autopay.local.json`
 | Devnet + facilitator | `pnpm integration:devnet-remote` |
 | Prior Mainnet receipt | `AGENTTAB_DB_PATH=.data/mainnet/gateway-mainnet.sqlite pnpm audit:recent` |
 | Pack libraries locally (no publish) | `pnpm pack:check` |
+| Publish dry-run (no registry write) | `pnpm release:dry` |
 
 No Mainnet spend without explicit human approval and the triple broadcast gates.
 
