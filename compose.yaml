@@ -1,7 +1,8 @@
 # Local operator control plane. No Mainnet broadcast.
 #   docker compose up --build
 # UI: http://127.0.0.1:8787/ui
-# CLIs: docker exec <id> node dist/bin/docker-entrypoint.js approve|deny|audit|preview
+# UI: http://127.0.0.1:8787/ui   OpenAPI: /openapi.json
+# CLIs: docker exec <id> node dist/bin/docker-entrypoint.js approve|deny|audit|parked|preview|policy-mode|policy-allow
 services:
   gateway:
     image: ghcr.io/kleangkao/agenttab-gateway:latest

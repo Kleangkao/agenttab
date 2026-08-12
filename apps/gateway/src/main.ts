@@ -75,6 +75,7 @@ serve({ fetch: runtime.app.fetch, port, hostname: host }, (info) => {
         phase: "gateway-listen",
         url: `http://${host}:${info.port}`,
         operatorUi: `http://${host}:${info.port}/ui`,
+        openapi: `http://${host}:${info.port}/openapi.json`,
         fundingMode,
         wallet: runtime.wallet,
         broadcastEnabled: runtime.broadcastEnabled,

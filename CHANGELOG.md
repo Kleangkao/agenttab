@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Operator UI shows merchant / µUSD / resource, Set mode, parked count, 5s refresh
+- `GET /health` includes `parkedCount` and rolling 24h spend
+- `GET /openapi.json` locked to live Hono routes
+- `pnpm parked` / `pnpm policy:mode` / `pnpm policy:allow`
+- Canonicalize http(s) merchant origins (trailing slash / default port) in policy
+- `@agenttab/fetch` workspace: `getSpend()`, `getHealth()`, `listParked()`,
+  `allowMerchantOrigin()` (unreleased until next fetch publish)
 - `pnpm demo:adopt`: one-command HTTP proof of preview / approve / deny
 - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny (fail-open)
 - Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `/ui` Deny

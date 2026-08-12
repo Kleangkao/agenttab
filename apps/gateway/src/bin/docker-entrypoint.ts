@@ -17,7 +17,10 @@ const commands: Record<string, string> = {
   audit: join(dist, "cli/audit-recent.js"),
   "policy-get": join(dist, "cli/policy-get.js"),
   "policy-set": join(dist, "cli/policy-set.js"),
-  preview: join(dist, "cli/preview.js")
+  "policy-mode": join(dist, "cli/policy-mode.js"),
+  "policy-allow": join(dist, "cli/policy-allow.js"),
+  preview: join(dist, "cli/preview.js"),
+  parked: join(dist, "cli/parked.js")
 };
 
 const argv = process.argv.slice(2);
@@ -27,7 +30,7 @@ const script = commands[verb];
 
 if (script === undefined) {
   console.error(
-    `Unknown command ${verb}. Use: gateway | approve | deny | audit | policy-get | policy-set | preview`
+    `Unknown command ${verb}. Use: gateway | approve | deny | audit | parked | policy-get | policy-set | policy-mode | policy-allow | preview`
   );
   process.exit(2);
 }

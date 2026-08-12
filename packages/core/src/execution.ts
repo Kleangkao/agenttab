@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { PaymentIntent } from "./types.js";
+import { canonicalizeHttpOrigin } from "./origin.js";
 
 export const EXECUTION_STATES = [
   "discovered",
@@ -96,13 +97,21 @@ export function assertAllowedExecutionTransition(from: ExecutionState, to: Execu
   }
 }
 
+function originForKey(value: string): string {
+  try {
+    return canonicalizeHttpOrigin(value);
+  } catch {
+    return value;
+  }
+}
+
 export function createIdempotencyKey(intent: PaymentIntent): string {
   const material = JSON.stringify([
     intent.operationId,
     intent.requestHash,
     intent.protocol,
     intent.network,
-    intent.merchantOrigin,
+    originForKey(intent.merchantOrigin),
     intent.destination,
     intent.assetMint,
     intent.amountAtomic,

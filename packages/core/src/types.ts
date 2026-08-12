@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { httpOriginSchema } from "./origin.js";
 
 export const atomicAmountSchema = z.string().regex(/^\d+$/, "must be atomic units");
 
@@ -8,7 +9,7 @@ export const paymentIntentSchema = z.object({
   protocol: z.string().min(1).max(32),
   network: z.string().min(1).max(128),
   merchantId: z.string().min(1).max(256),
-  merchantOrigin: z.url(),
+  merchantOrigin: httpOriginSchema,
   destination: z.string().min(16).max(128),
   assetMint: z.string().min(16).max(128),
   amountAtomic: atomicAmountSchema,
@@ -72,8 +73,8 @@ export interface PaymentPolicy {
 
 export const paymentPolicySchema = z.object({
   mode: z.enum(["observe", "approve", "autopay"]),
-  allowedMerchantOrigins: z.array(z.url()).min(1),
-  deniedMerchantOrigins: z.array(z.url()).optional(),
+  allowedMerchantOrigins: z.array(httpOriginSchema).min(1),
+  deniedMerchantOrigins: z.array(httpOriginSchema).optional(),
   allowedNetworks: z.array(z.string().min(1).max(128)).min(1),
   allowedPaymentAssets: z.array(z.string().min(16).max(128)).min(1),
   allowedFundingAssets: z.array(z.string().min(16).max(128)).min(1),

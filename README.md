@@ -66,7 +66,7 @@ Packages and apps:
   merchant + remote `@agenttab/fetch` agent (mock smoke and Devnet facilitator)
 - Setup + safety tools under `tools/` (`mainnet:facilitators`, live broadcast gate)
 - Durable policy + spend in on-disk SQLite; operator UI `/ui` plus CLIs:
-  `pnpm policy:get|set`, `pnpm approve`, `pnpm audit:recent`
+  `pnpm policy:get|set|mode`, `pnpm parked`, `pnpm approve`, `pnpm audit:recent`
 - Example policies under `examples/policies/`; start guide in `docs/ADOPT.md`
 
 Do not send real Mainnet funds without an explicit budget approval and the
@@ -83,7 +83,7 @@ Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 1. `pnpm add @agenttab/fetch@0.1.2` in the agent process
 2. Start a gateway (`docker compose up --build` or clone this repo) and set policy
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
-4. Use `/ui`, `POST /v1/preview`, `pnpm policy:set`, `pnpm approve`, `pnpm deny`, `pnpm audit:recent`
+4. Use `/ui`, `/openapi.json`, `POST /v1/preview`, `pnpm policy:set`, `pnpm policy:mode`, `pnpm policy:allow`, `pnpm parked`, `pnpm approve`, `pnpm deny`, `pnpm audit:recent`
 
 ## Fastest convincing demo (one command)
 

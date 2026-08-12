@@ -162,4 +162,74 @@ describe("createGatewayClient.preview", () => {
       record: { state: "denied" }
     });
   });
+
+  it("appends a merchant origin to policy", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const parsed = new URL(String(input));
+      if (parsed.pathname === "/v1/policy" && (init?.method ?? "GET") === "GET") {
+        return Response.json({
+          mode: "approve",
+          allowedMerchantOrigins: ["http://merchant.local"],
+          maxDailyUsdMicros: "1000000",
+          maxPaymentUsdMicros: "10000"
+        });
+      }
+      if (parsed.pathname === "/v1/policy" && init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as { allowedMerchantOrigins: string[] };
+        expect(body.allowedMerchantOrigins).toContain("http://new.example");
+        return Response.json(body);
+      }
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    });
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch
+    });
+    await expect(client.allowMerchantOrigin("http://new.example/foo")).resolves.toMatchObject({
+      allowedMerchantOrigins: ["http://merchant.local", "http://new.example"]
+    });
+  });
+
+  it("reads spend, health, and parked lists", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+      const parsed = new URL(String(input));
+      if (parsed.pathname === "/v1/spend") {
+        return Response.json({
+          spentUsdMicrosLast24h: "0",
+          maxDailyUsdMicros: "1000000",
+          maxPaymentUsdMicros: "10000"
+        });
+      }
+      if (parsed.pathname === "/health") {
+        return Response.json({ ok: true, parkedCount: 1, policyMode: "approve" });
+      }
+      if (
+        parsed.pathname === "/v1/executions" &&
+        parsed.searchParams.get("state") === "approval_required"
+      ) {
+        return Response.json({
+          executions: [
+            {
+              operationId: "op-parked",
+              state: "approval_required",
+              merchantOrigin: "http://merchant.local",
+              amountUsdMicros: "1000"
+            }
+          ],
+          count: 1
+        });
+      }
+      return Response.json({ error: "unexpected", url: String(input) }, { status: 500 });
+    });
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch
+    });
+    await expect(client.getSpend()).resolves.toMatchObject({ spentUsdMicrosLast24h: "0" });
+    await expect(client.getHealth()).resolves.toMatchObject({ parkedCount: 1 });
+    await expect(client.listParked()).resolves.toMatchObject({
+      count: 1,
+      executions: [{ operationId: "op-parked" }]
+    });
+  });
 });

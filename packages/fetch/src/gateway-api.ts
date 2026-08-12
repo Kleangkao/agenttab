@@ -15,6 +15,27 @@ export interface AgentTabExecutionSummary {
   operationId: string;
   state: string;
   requestHash?: string;
+  merchantOrigin?: string;
+  resource?: string;
+  amountAtomic?: string;
+  amountUsdMicros?: string;
+  lastEventKind?: string | null;
+}
+
+export interface AgentTabSpendSnapshot {
+  spentUsdMicrosLast24h: string;
+  maxDailyUsdMicros: string;
+  maxPaymentUsdMicros: string;
+}
+
+export interface AgentTabGatewayHealth {
+  ok: boolean;
+  policyMode?: string;
+  parkedCount?: number;
+  spentUsdMicrosLast24h?: string;
+  maxDailyUsdMicros?: string;
+  notifyConfigured?: boolean;
+  operatorUi?: string;
 }
 
 export interface AgentTabGatewayClient {
@@ -27,9 +48,14 @@ export interface AgentTabGatewayClient {
     requestHash?: string;
     reusable?: boolean;
   }): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
+  listParked(): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
   findReusableOperationId(requestHash: string): Promise<string | undefined>;
   getPolicy(): Promise<PaymentPolicy>;
   putPolicy(policy: PaymentPolicy): Promise<PaymentPolicy>;
+  /** Append one origin to allowedMerchantOrigins (idempotent). */
+  allowMerchantOrigin(origin: string): Promise<PaymentPolicy>;
+  getSpend(): Promise<AgentTabSpendSnapshot>;
+  getHealth(): Promise<AgentTabGatewayHealth>;
   approve(operationId: string): Promise<unknown>;
   /** Terminal reject. Same operationId will not fund later. */
   deny(operationId: string, reason?: string): Promise<unknown>;
@@ -77,6 +103,34 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
     };
   };
 
+  const getPolicy: AgentTabGatewayClient["getPolicy"] = async () => {
+    const response = await fetchImpl(`${baseUrl}/v1/policy`, {
+      headers: { ...headers }
+    });
+    if (!response.ok) {
+      throw new Error(`AgentTab gateway get policy failed (${response.status})`);
+    }
+    return (await response.json()) as PaymentPolicy;
+  };
+
+  const putPolicy: AgentTabGatewayClient["putPolicy"] = async (policy) => {
+    const response = await fetchImpl(`${baseUrl}/v1/policy`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...headers
+      },
+      body: JSON.stringify(policy)
+    });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(
+        `AgentTab gateway put policy failed (${response.status}): ${JSON.stringify(body)}`
+      );
+    }
+    return (await response.json()) as PaymentPolicy;
+  };
+
   return {
     funding,
     audit,
@@ -87,6 +141,7 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
       return audit.getExecution(operationId);
     },
     listExecutions,
+    listParked: () => listExecutions({ state: "approval_required", limit: 50 }),
     findReusableOperationId: async (requestHash) => {
       try {
         const listed = await listExecutions({
@@ -102,31 +157,36 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
         return undefined;
       }
     },
-    getPolicy: async () => {
-      const response = await fetchImpl(`${baseUrl}/v1/policy`, {
+    getPolicy,
+    putPolicy,
+    allowMerchantOrigin: async (origin) => {
+      const canonical = new URL(origin).origin;
+      const policy = await getPolicy();
+      if (policy.allowedMerchantOrigins.includes(canonical)) {
+        return policy;
+      }
+      return putPolicy({
+        ...policy,
+        allowedMerchantOrigins: [...policy.allowedMerchantOrigins, canonical]
+      });
+    },
+    getSpend: async () => {
+      const response = await fetchImpl(`${baseUrl}/v1/spend`, {
         headers: { ...headers }
       });
       if (!response.ok) {
-        throw new Error(`AgentTab gateway get policy failed (${response.status})`);
+        throw new Error(`AgentTab gateway get spend failed (${response.status})`);
       }
-      return (await response.json()) as PaymentPolicy;
+      return (await response.json()) as AgentTabSpendSnapshot;
     },
-    putPolicy: async (policy) => {
-      const response = await fetchImpl(`${baseUrl}/v1/policy`, {
-        method: "PUT",
-        headers: {
-          "content-type": "application/json",
-          ...headers
-        },
-        body: JSON.stringify(policy)
+    getHealth: async () => {
+      const response = await fetchImpl(`${baseUrl}/health`, {
+        headers: { ...headers }
       });
       if (!response.ok) {
-        const body = await response.json().catch(() => ({}));
-        throw new Error(
-          `AgentTab gateway put policy failed (${response.status}): ${JSON.stringify(body)}`
-        );
+        throw new Error(`AgentTab gateway health failed (${response.status})`);
       }
-      return (await response.json()) as PaymentPolicy;
+      return (await response.json()) as AgentTabGatewayHealth;
     },
     approve: async (operationId) => {
       const response = await fetchImpl(

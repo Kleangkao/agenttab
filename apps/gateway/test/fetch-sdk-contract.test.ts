@@ -85,6 +85,18 @@ describe("@agenttab/fetch gateway HTTP contract", () => {
       decision: { kind: "allow" }
     });
     expect(await gateway.store.get("fetch-sdk-preview-1")).toBeUndefined();
+    await expect(client.getSpend()).resolves.toMatchObject({
+      spentUsdMicrosLast24h: expect.any(String),
+      maxDailyUsdMicros: expect.any(String)
+    });
+    await expect(client.getHealth()).resolves.toMatchObject({
+      ok: true,
+      parkedCount: 0
+    });
+    await expect(client.listParked()).resolves.toMatchObject({
+      count: 0,
+      executions: []
+    });
     gateway.close();
   });
 });

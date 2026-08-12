@@ -46,6 +46,7 @@ export interface ExecutionSummary {
   resource: string;
   requestHash: string;
   amountAtomic: string;
+  amountUsdMicros?: string;
   assetMint: string;
   network: string;
   lastEventKind: string | null;
@@ -171,6 +172,9 @@ export class SqliteExecutionStore implements ExecutionStore {
         resource: intent.resource,
         requestHash: intent.requestHash,
         amountAtomic: intent.amountAtomic,
+        ...(intent.amountUsdMicros === undefined
+          ? {}
+          : { amountUsdMicros: intent.amountUsdMicros }),
         assetMint: intent.assetMint,
         network: intent.network,
         lastEventKind: lastEvent?.kind ?? null

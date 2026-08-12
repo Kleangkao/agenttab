@@ -33,12 +33,13 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
 - `apps/gateway`: control plane with persistence, funding modes, Mainnet helpers.
   - Durable SQLite: executions, events, spend ledger, **policy** (when `dbPath` is on disk).
   - Read-only audit: `GET /v1/executions?limit=&state=&requestHash=&reusable=`
-    + `pnpm audit:recent` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
+    + `pnpm audit:recent` / `pnpm parked` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
   - Read-only `POST /v1/preview` (policy only; no execution, no fund).
-  - Operator UI at `/ui`.
+  - Operator UI at `/ui` (merchant / amount / resource, mode select, auto-refresh).
   - Policy writes, approvals, and denials gated by optional `AGENTTAB_ADMIN_TOKEN`.
-  - `GET /v1/spend` for rolling 24h spend vs daily cap.
+  - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
+  - `GET /openapi.json` is the live HTTP contract (test-locked to Hono routes).
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
 - `tools/*`: Devnet/Mainnet wallet setup, preflight, facilitator health, broadcast gate.
@@ -46,7 +47,8 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
 ## Planned / not required for the core thesis
 
 - A richer hosted dashboard can still consume the same APIs. `/ui` covers
-  policy, preview, parked approve/deny, recent executions, and spend.
+  policy (including mode without rewriting JSON), preview, parked approve/deny
+  with merchant/amount, recent executions, and spend.
 
 ## Execution state machine
 

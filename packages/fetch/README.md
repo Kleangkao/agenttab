@@ -74,7 +74,8 @@ in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`).
 
 - `gatewayFetchImpl` — HTTP client used only for gateway fund/pay/fulfill.
   Keep it separate from `fetchImpl` when you intercept merchant traffic in tests.
-- `createAgentTabClient` — paid fetch + `getExecution` / policy / preview / deny helpers.
+- `createAgentTabClient` — paid fetch + `getExecution` / policy / preview / deny /
+  `getSpend` / `getHealth` / `listParked` helpers.
   `gateway.preview(intent)` is read-only and never funds. `gateway.deny(id)` is terminal.
 - Prefer `schemes` over reusing a shared `x402Client` (x402 appends hooks).
 - `createLocalSmokeScheme()` is for local/CI only; production needs a real SVM signer.

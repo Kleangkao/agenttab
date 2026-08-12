@@ -95,8 +95,8 @@ denial, not a permissive default.
 - Policy and spend caps survive gateway restarts when using an on-disk SQLite path.
 - Read-only audit is available via `GET /v1/executions` and `pnpm audit:recent`
   (including the fulfilled Mainnet receipt DB under `.data/mainnet/`).
-- Operator control is `/ui` + HTTP + CLI (`policy:get|set`, `approve`,
-  `deny`, `audit:recent`, `POST /v1/preview`), seeded from `AGENTTAB_POLICY_PATH` /
+- Operator control is `/ui` + HTTP + CLI (`policy:get|set|mode`, `approve`,
+  `deny`, `parked`, `audit:recent`, `POST /v1/preview`, `GET /openapi.json`), seeded from `AGENTTAB_POLICY_PATH` /
   `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with
   `operationId` so agents can approve and retry the **same** operation, including

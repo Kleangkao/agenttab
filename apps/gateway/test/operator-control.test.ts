@@ -129,6 +129,28 @@ describe("operator control spine", () => {
     expect(denied.decision.reason).toBe("merchant_not_allowed");
     expect(denied.hint).toMatch(/allowedMerchantOrigins/);
 
+    const gatewayFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const raw = String(input instanceof Request ? input.url : input);
+      const path = raw.startsWith("http")
+        ? `${new URL(raw).pathname}${new URL(raw).search}`
+        : raw;
+      return gateway.app.request(path, init);
+    }) as typeof fetch;
+    const client = createGatewayClient({
+      baseUrl: "http://agenttab.local",
+      fetchImpl: gatewayFetch
+    });
+    const allowed = await client.allowMerchantOrigin("http://evil.example/ignored");
+    expect(allowed.allowedMerchantOrigins).toContain("http://evil.example");
+    const admitted = await (
+      await gateway.app.request("/v1/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...intent, merchantOrigin: "http://evil.example" })
+      })
+    ).json();
+    expect(admitted.decision.reason).not.toBe("merchant_not_allowed");
+
     const observePolicy = loadPolicyFile(
       resolve(process.cwd(), "../../examples/policies/observe.local.json")
     );
@@ -198,12 +220,18 @@ describe("operator control spine", () => {
     expect(html).toContain("AgentTab operator");
     expect(html).toContain("adminRequired = true");
     expect(html).toContain("Allow origin");
+    expect(html).toContain("Set mode");
+    expect(html).toContain("µUSD");
+    expect(html).toContain("<th>last</th>");
+    expect(html).toContain("/openapi.json");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
       operatorUi: "/ui",
       preview: "/v1/preview",
-      policyWriteAuth: true
+      policyWriteAuth: true,
+      parkedCount: 0,
+      spentUsdMicrosLast24h: "0"
     });
     const spend = await gateway.app.request("/v1/spend");
     expect(await spend.json()).toMatchObject({
@@ -226,6 +254,18 @@ describe("operator control spine", () => {
     };
     const parked = await gateway.coordinator.ensurePaymentAsset({ intent });
     expect(parked.status).toBe("approval_required");
+    expect(await (await gateway.app.request("/health")).json()).toMatchObject({
+      parkedCount: 1
+    });
+    const listed = await (
+      await gateway.app.request("/v1/executions?state=approval_required")
+    ).json();
+    expect(listed.executions[0]).toMatchObject({
+      operationId: intent.operationId,
+      merchantOrigin: intent.merchantOrigin,
+      amountUsdMicros: "1000",
+      resource: intent.resource
+    });
 
     const denied = await gateway.app.request(`/v1/approvals/${intent.operationId}`, {
       method: "POST",
@@ -244,6 +284,9 @@ describe("operator control spine", () => {
     });
     expect(allowed.status).toBe(200);
     expect((await gateway.store.get(intent.operationId))?.state).toBe("funded");
+    expect(await (await gateway.app.request("/health")).json()).toMatchObject({
+      parkedCount: 0
+    });
     gateway.close();
   });
 

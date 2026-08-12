@@ -53,8 +53,9 @@ docker run --rm -p 8787:8787 \
   ghcr.io/kleangkao/agenttab-gateway:latest
 ```
 
-Open `http://127.0.0.1:8787/ui`. Preview is read-only; **approve still funds**.
-Observe mode is not a dry-run.
+Open `http://127.0.0.1:8787/ui` (machine contract: `/openapi.json`). Preview is
+read-only; **approve still funds**. Observe mode is not a dry-run. Trailing
+slashes on merchant origins are ignored (`http://127.0.0.1:8791/` = `:8791`).
 
 Or build locally: `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`
 
@@ -65,6 +66,9 @@ pnpm demo:stack            # gateway :8787 + merchant :8791 in one process
 # or: pnpm demo:gateway  and  pnpm demo:neutral-merchant
 pnpm policy:get
 pnpm policy:set -- examples/policies/approve.local.json
+pnpm policy:mode -- approve
+pnpm policy:allow -- http://127.0.0.1:8791
+pnpm parked
 pnpm approve -- <operationId>
 pnpm deny -- <operationId>
 pnpm audit:recent
@@ -76,7 +80,7 @@ or denied from `/ui`.
 
 After `pnpm --filter @agenttab/gateway build`, the same binaries are available as
 `agenttab-gateway`, `agenttab-policy-*`, `agenttab-approve`, `agenttab-deny`,
-`agenttab-audit` via the package `bin` field.
+`agenttab-parked`, `agenttab-audit` via the package `bin` field.
 
 ## 1. Choose a policy
 

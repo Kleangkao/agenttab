@@ -30,6 +30,9 @@ describe("execution state", () => {
     expect(first.created).toBe(true);
     expect(second.created).toBe(false);
     expect(second.record.idempotencyKey).toBe(createIdempotencyKey(intent));
+    expect(createIdempotencyKey({ ...intent, merchantOrigin: "https://data.example/" })).toBe(
+      createIdempotencyKey(intent)
+    );
   });
 
   it("tracks funding, payment and fulfillment as separate phases", async () => {

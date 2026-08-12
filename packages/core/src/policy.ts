@@ -6,6 +6,7 @@ import {
   type PolicyDecision,
   type SpendSnapshot
 } from "./types.js";
+import { canonicalizeHttpOrigin } from "./origin.js";
 
 const decision = (
   kind: PolicyDecision["kind"],
@@ -28,18 +29,38 @@ export function evaluatePaymentPolicy(input: {
     return decision("deny", "invalid_intent", "Payment intent failed validation.");
   }
 
-  const { intent, policy, spend, fundingCandidate } = input;
+  const intent = parsed.data;
+  const { policy, spend, fundingCandidate } = input;
   const now = input.now ?? new Date();
+  const merchantOrigin = canonicalizeHttpOrigin(intent.merchantOrigin);
+  const deniedOrigins = new Set(
+    (policy.deniedMerchantOrigins ?? []).flatMap((origin) => {
+      try {
+        return [canonicalizeHttpOrigin(origin)];
+      } catch {
+        return [];
+      }
+    })
+  );
+  const allowedOrigins = new Set(
+    policy.allowedMerchantOrigins.flatMap((origin) => {
+      try {
+        return [canonicalizeHttpOrigin(origin)];
+      } catch {
+        return [];
+      }
+    })
+  );
 
   if (intent.expiresAt !== undefined && new Date(intent.expiresAt) <= now) {
     return decision("deny", "challenge_expired", "Payment challenge has expired.");
   }
 
-  if (policy.deniedMerchantOrigins?.includes(intent.merchantOrigin)) {
+  if (deniedOrigins.has(merchantOrigin)) {
     return decision("deny", "merchant_denied", "Merchant is explicitly denied.");
   }
 
-  if (!policy.allowedMerchantOrigins.includes(intent.merchantOrigin)) {
+  if (!allowedOrigins.has(merchantOrigin)) {
     return decision("deny", "merchant_not_allowed", "Merchant is not allowlisted.");
   }
 

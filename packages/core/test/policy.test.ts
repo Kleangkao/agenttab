@@ -54,6 +54,24 @@ describe("evaluatePaymentPolicy", () => {
     expect(result).toMatchObject({ kind: "deny", reason: "usd_value_unknown" });
   });
 
+  it("treats trailing slashes and default ports as the same origin", () => {
+    expect(
+      evaluatePaymentPolicy({
+        intent: { ...intent, merchantOrigin: "https://merchant.example/" },
+        policy: {
+          ...policy,
+          allowedMerchantOrigins: ["https://merchant.example:443"]
+        },
+        spend: { spentUsdMicrosLast24h: "0" },
+        fundingCandidate: { mint: SOL, balanceAtomic: "100000000", verified: true }
+      }).kind
+    ).toBe("allow");
+    expect(paymentPolicySchema.parse({
+      ...policy,
+      allowedMerchantOrigins: ["https://merchant.example/v1"]
+    }).allowedMerchantOrigins).toEqual(["https://merchant.example"]);
+  });
+
   it("denies a merchant outside the allowlist", () => {
     const result = evaluatePaymentPolicy({
       intent: { ...intent, merchantOrigin: "https://evil.example" },

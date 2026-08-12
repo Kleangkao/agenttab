@@ -56,6 +56,7 @@ serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: host }, (info) =>
         phase: "stack-gateway-listen",
         url: `http://${host}:${info.port}`,
         operatorUi: `http://${host}:${info.port}/ui`,
+        openapi: `http://${host}:${info.port}/openapi.json`,
         policyMode: gateway.policies.get().mode,
         next: `RESOURCE_URL=${merchantOrigin}/v1/market-snapshot pnpm demo:remote-agent`
       },

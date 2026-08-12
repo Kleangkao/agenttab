@@ -13,6 +13,7 @@ import {
   type PolicyDecision
 } from "@agenttab/core";
 import { operatorHtml } from "./ui/operator-page.js";
+import { gatewayOpenApiDocument } from "./openapi.js";
 import {
   createOperatorNotifier,
   operatorNotifyPayload,
@@ -279,22 +280,29 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   app.get("/ui", (c) =>
     c.html(operatorHtml({ adminRequired, policyMode: policies.get().mode }))
   );
+  app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));
 
-  app.get("/health", (c) =>
-    c.json({
+  app.get("/health", async (c) => {
+    const parked = await store.listRecent({ state: "approval_required", limit: 100 });
+    const policy = policies.get();
+    return c.json({
       ok: true,
       service: "agenttab-gateway",
       fundingMode,
       wallet,
       broadcastEnabled,
       policyDurable,
-      policyMode: policies.get().mode,
+      policyMode: policy.mode,
       policyWriteAuth: adminRequired,
       operatorUi: "/ui",
       preview: "/v1/preview",
-      notifyConfigured: notify !== undefined
-    })
-  );
+      openapi: "/openapi.json",
+      notifyConfigured: notify !== undefined,
+      parkedCount: parked.length,
+      spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      maxDailyUsdMicros: policy.maxDailyUsdMicros
+    });
+  });
 
   app.get("/v1/spend", (c) => {
     const policy = policies.get();
