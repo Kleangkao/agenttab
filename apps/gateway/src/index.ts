@@ -58,6 +58,12 @@ export {
   loadPolicyFromEnv
 } from "./policy/load-policy-file.js";
 export {
+  createOperatorNotifier,
+  operatorNotifyPayload,
+  type OperatorNotifyEvent,
+  type OperatorNotifyEventName
+} from "./notify.js";
+export {
   createDevnetGatewayRuntime,
   createDevnetPolicy,
   loadDevnetGatewayPaths,

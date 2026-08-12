@@ -2,6 +2,7 @@
 
 ## 0.1.2-dev
 
+- Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny (fail-open)
 - Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `createGatewayClient().deny`, `/ui` Deny
 - `GET /v1/spend` rolling 24h spend for the operator UI
 - `pnpm demo:stack` starts gateway + neutral merchant in one process

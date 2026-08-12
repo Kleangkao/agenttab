@@ -57,6 +57,9 @@ const runtime = createGatewayRuntime({
     : {}),
   ...(process.env.AGENTTAB_INITIAL_SOL_ATOMIC
     ? { initialSolAtomic: process.env.AGENTTAB_INITIAL_SOL_ATOMIC }
+    : {}),
+  ...(process.env.AGENTTAB_NOTIFY_URL
+    ? { notifyUrl: process.env.AGENTTAB_NOTIFY_URL }
     : {})
 });
 
@@ -79,7 +82,8 @@ serve({ fetch: runtime.app.fetch, port, hostname: host }, (info) => {
         policyMode: policy.mode,
         policySource: policyFromFile?.path ?? "demo-seed",
         policyReplaced: policyFromFile?.replace === true,
-        allowedMerchantOrigins: policy.allowedMerchantOrigins
+        allowedMerchantOrigins: policy.allowedMerchantOrigins,
+        notifyUrl: process.env.AGENTTAB_NOTIFY_URL ?? null
       },
       null,
       2

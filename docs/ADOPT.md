@@ -170,6 +170,10 @@ Live policy changes: `pnpm policy:set -- examples/policies/autopay.local.json`
 evaluates policy without creating an execution or funding. Deny is terminal
 for that `operationId`; a later fetch of the same URL starts a new execution.
 
+Optional `AGENTTAB_NOTIFY_URL` receives a fail-open JSON POST on first park,
+approve, and deny (`{ event, operationId, state, merchantOrigin, resource, … }`).
+Preview never notifies.
+
 ## 6. Higher fidelity
 
 | Goal | Command |

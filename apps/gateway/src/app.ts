@@ -13,6 +13,11 @@ import {
   type PolicyDecision
 } from "@agenttab/core";
 import { operatorHtml } from "./ui/operator-page.js";
+import {
+  createOperatorNotifier,
+  operatorNotifyPayload,
+  type OperatorNotifyEvent
+} from "./notify.js";
 import { DFlowClient, DFLOW_DEV_BASE_URL } from "@agenttab/dflow";
 import { Connection } from "@solana/web3.js";
 import { Hono } from "hono";
@@ -79,6 +84,12 @@ export interface GatewayRuntimeOptions {
    * set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
    */
   adminToken?: string;
+  /**
+   * Optional webhook for first-time park / approve / deny.
+   * Fail-open: notify errors never change funding.
+   */
+  notifyUrl?: string;
+  notifyFetch?: typeof fetch;
 }
 
 export interface GatewayRuntime {
@@ -185,6 +196,24 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   const fundingMode = options.fundingMode ?? "mock";
   const broadcastEnabled = options.broadcastEnabled ?? false;
   const adminToken = options.adminToken;
+  const notify =
+    options.notifyUrl !== undefined && options.notifyUrl.length > 0
+      ? createOperatorNotifier({
+          url: options.notifyUrl,
+          ...(options.notifyFetch === undefined ? {} : { fetchImpl: options.notifyFetch })
+        })
+      : undefined;
+  const emitNotify = async (
+    event: OperatorNotifyEvent["event"],
+    record: ExecutionRecord
+  ): Promise<void> => {
+    if (notify === undefined) return;
+    try {
+      await notify(operatorNotifyPayload(event, record));
+    } catch {
+      // Fail-open.
+    }
+  };
   const wallet =
     options.wallet ?? (fundingMode === "live-sim" ? LIVE_SIM_WALLET : DEMO_WALLET);
   const balances =
@@ -228,7 +257,14 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     dflow,
     signer,
     spend: durableSpend,
-    wallet
+    wallet,
+    ...(notify === undefined
+      ? {}
+      : {
+          notifyParked: async (record) => {
+            await notify(operatorNotifyPayload("approval_required", record));
+          }
+        })
   });
   const paymentHmacSecret = options.paymentHmacSecret ?? "local-dev-only-change-me";
 
@@ -255,7 +291,8 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       policyMode: policies.get().mode,
       policyWriteAuth: adminRequired,
       operatorUi: "/ui",
-      preview: "/v1/preview"
+      preview: "/v1/preview",
+      notifyConfigured: notify !== undefined
     })
   );
 
@@ -363,6 +400,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "not_awaiting_approval", state: record.state }, 409);
     }
     record = await transitionPayment(store, record, "approved", "approval.granted");
+    await emitNotify("approved", record);
     const outcome = await coordinator.ensurePaymentAsset({ intent: record.intent });
     record = (await store.get(operationId))!;
     return c.json({ outcome, record });
@@ -382,6 +420,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     record = await transitionPayment(store, record, "denied", "approval.denied", {
       reason: body.reason ?? "operator_denied"
     });
+    await emitNotify("denied", record);
     return c.json({
       denied: true,
       funded: false,

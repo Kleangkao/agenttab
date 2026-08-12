@@ -38,6 +38,7 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
   - Operator UI at `/ui`.
   - Policy writes, approvals, and denials gated by optional `AGENTTAB_ADMIN_TOKEN`.
   - `GET /v1/spend` for rolling 24h spend vs daily cap.
+  - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
 - `tools/*`: Devnet/Mainnet wallet setup, preflight, facilitator health, broadcast gate.

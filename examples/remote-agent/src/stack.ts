@@ -34,6 +34,9 @@ const gateway = createGatewayRuntime({
   initialSolAtomic: process.env.AGENTTAB_INITIAL_SOL_ATOMIC ?? "5000000000",
   ...(process.env.AGENTTAB_ADMIN_TOKEN
     ? { adminToken: process.env.AGENTTAB_ADMIN_TOKEN }
+    : {}),
+  ...(process.env.AGENTTAB_NOTIFY_URL
+    ? { notifyUrl: process.env.AGENTTAB_NOTIFY_URL }
     : {})
 });
 const live = gateway.policies.get();

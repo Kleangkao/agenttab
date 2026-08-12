@@ -115,6 +115,8 @@ export interface CoordinatorDeps {
   signer: SignerBoundary;
   spend: SpendLedger;
   wallet?: string;
+  /** Fire-and-forget; must not throw into the funding path. */
+  notifyParked?: (record: ExecutionRecord) => Promise<void>;
 }
 
 async function transition(
@@ -141,6 +143,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
   readonly #signer: SignerBoundary;
   readonly #spend: SpendLedger;
   readonly #wallet: string;
+  readonly #notifyParked?: (record: ExecutionRecord) => Promise<void>;
 
   constructor(deps: CoordinatorDeps) {
     this.#store = deps.store;
@@ -150,6 +153,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     this.#signer = deps.signer;
     this.#spend = deps.spend;
     this.#wallet = deps.wallet ?? DEMO_WALLET;
+    this.#notifyParked = deps.notifyParked;
   }
 
   async ensurePaymentAsset(input: {
@@ -234,6 +238,13 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         record = await transition(this.#store, record, "approval_required", "policy.approval_required", {
           reason: decision.reason
         });
+        if (this.#notifyParked !== undefined) {
+          try {
+            await this.#notifyParked(record);
+          } catch {
+            // Notify is fail-open: parking still wins.
+          }
+        }
       }
       return { status: "approval_required", reason: decision.message };
     }
