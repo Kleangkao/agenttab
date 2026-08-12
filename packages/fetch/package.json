@@ -1,6 +1,6 @@
 {
   "name": "@agenttab/fetch",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drop-in fetch wrapper for AgentTab policy, funding, x402 pay, and audit",
   "license": "MIT",
   "repository": {

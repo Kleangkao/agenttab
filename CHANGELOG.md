@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- `@agenttab/fetch`: refresh published README now that packages are on npm
+
 ## 0.1.0
 
 Published to npm under the `@agenttab` org:
