@@ -1,39 +1,32 @@
-# npm Trusted Publishing (OIDC) for @agenttab libraries.
-# Does NOT publish until a human chooses "publish" on workflow_dispatch.
+# Release dry-run. Live npm publish is NOT done here.
 #
-# One-time npmjs.com setup (password / 2FA required — cannot be done from CI):
-#   For each of: @agenttab/core, @agenttab/dflow, @agenttab/x402, @agenttab/fetch
-#   open https://www.npmjs.com/package/<name>/access → Trusted Publisher
-#   GitHub Actions:
-#     Organization or user: Kleangkao
-#     Repository:           agenttab
-#     Workflow filename:    release.yml
-#     Environment name:     npm
-#     Allowed actions:      npm publish
+# Chosen path (2026-08): short-lived local GAT + `pnpm release:publish`.
+# Trusted Publishing (OIDC) is deferred — npm account WebAuthn cannot be
+# completed on the current operator machine, and `npm trust` requires it.
+# 2FA-bypass GATs can still publish until January 2027; revoke after each use.
 #
-# The GitHub environment `npm` already exists (no required reviewers).
+# Do not store NPM_TOKEN as a standing GitHub secret. When WebAuthn is
+# available, configure Trusted Publisher on each package (release.yml / env npm)
+# and switch this workflow's publish job to OIDC.
 
 name: Release
 
 on:
   workflow_dispatch:
     inputs:
-      publish:
-        description: "Set to 'publish' to attempt a live npm publish (requires Trusted Publishing)"
+      mode:
+        description: "dry-run only (live publish is local: pnpm release:publish)"
         required: true
         default: "dry-run"
         type: choice
         options:
           - dry-run
-          - publish
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   dry-run:
-    if: ${{ inputs.publish != 'publish' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -50,39 +43,3 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Pack check + publish dry-run
         run: pnpm release:dry
-
-  publish:
-    if: ${{ inputs.publish == 'publish' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    environment: npm
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11.16.0
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-      - name: npm CLI for trusted publishing
-        run: npm install -g npm@11.6.2
-      - name: Install
-        run: pnpm install --frozen-lockfile
-      - name: Pack check
-        run: pnpm pack:check
-      - name: Publish public libraries (OIDC)
-        # Pack with pnpm (rewrites workspace:*) then npm publish for OIDC.
-        # Order: dependents resolve already-published versions.
-        run: |
-          set -euo pipefail
-          npm --version
-          staging="$(mktemp -d)"
-          for name in @agenttab/core @agenttab/dflow @agenttab/x402 @agenttab/fetch; do
-            echo "Packing ${name}"
-            mapfile -t lines < <(pnpm --filter "${name}" pack --pack-destination "${staging}")
-            tgz="${lines[-1]}"
-            echo "Publishing ${tgz}"
-            npm publish "${tgz}" --access public --provenance
-          done

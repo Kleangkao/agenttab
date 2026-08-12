@@ -37,10 +37,10 @@ console.log(
       versions,
       packages: packages.map((pkg) => pkg.name),
       next: [
-        "Prefer GitHub Actions trusted publishing (OIDC) once package provenance is configured on npm — see .github/workflows/release.yml",
-        "Or short-lived granular access token with 2FA bypass + all packages + agenttab org, then revoke immediately",
+        "Live publish is local: create a 7-day @agenttab write GAT, then NPM_TOKEN=... pnpm release:publish, then revoke",
+        "Trusted Publishing (OIDC) waits until npm account WebAuthn can be completed",
         "Publish order: core → dflow → x402 → fetch",
-        "Human approval still required before any live `pnpm publish`"
+        "2FA-bypass GATs lose direct publish in January 2027 — migrate to OIDC before then"
       ]
     },
     null,

@@ -8,7 +8,9 @@
 - Short READMEs for `@agenttab/{core,dflow,x402}`
 - Gateway Dockerfile + GHCR workflow (`ghcr.io/kleangkao/agenttab-gateway`)
 - GHCR package is public; `latest` is published from `main` / version tags
-- GitHub environment `npm` + Release workflow ready for Trusted Publishing OIDC
+- GitHub environment `npm` exists; Trusted Publishing (OIDC) is deferred (needs WebAuthn)
+- Live npm releases use `pnpm release:publish` with a short-lived GAT, then revoke
+- CI Release workflow is dry-run only (no standing `NPM_TOKEN` secret)
 
 ## 0.1.1
 
