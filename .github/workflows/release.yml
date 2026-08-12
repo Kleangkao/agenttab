@@ -1,12 +1,17 @@
-# Trusted-publishing stub for @agenttab libraries.
-# Does NOT publish until a human arms the live publish step and npm Trusted
-# Publishing is configured for each package (OIDC from this repo).
+# npm Trusted Publishing (OIDC) for @agenttab libraries.
+# Does NOT publish until a human chooses "publish" on workflow_dispatch.
 #
-# Setup later (human, one-time per package on npmjs.com):
-#   Package → Settings → Trusted Publisher → GitHub Actions
-#   owner: Kleangkao, repo: agenttab, workflow: release.yml, environment: npm
+# One-time npmjs.com setup (password / 2FA required — cannot be done from CI):
+#   For each of: @agenttab/core, @agenttab/dflow, @agenttab/x402, @agenttab/fetch
+#   open https://www.npmjs.com/package/<name>/access → Trusted Publisher
+#   GitHub Actions:
+#     Organization or user: Kleangkao
+#     Repository:           agenttab
+#     Workflow filename:    release.yml
+#     Environment name:     npm
+#     Allowed actions:      npm publish
 #
-# Until then this workflow only dry-runs pack + publish.
+# The GitHub environment `npm` already exists (no required reviewers).
 
 name: Release
 
@@ -24,7 +29,6 @@ on:
 
 permissions:
   contents: read
-  # Required for npm Trusted Publishing / provenance once armed.
   id-token: write
 
 jobs:
@@ -62,15 +66,23 @@ jobs:
           node-version: 22
           cache: pnpm
           registry-url: https://registry.npmjs.org
+      - name: npm CLI for trusted publishing
+        run: npm install -g npm@11.6.2
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Pack check
         run: pnpm pack:check
       - name: Publish public libraries (OIDC)
-        # Order matters: dependents resolve published versions.
+        # Pack with pnpm (rewrites workspace:*) then npm publish for OIDC.
+        # Order: dependents resolve already-published versions.
         run: |
           set -euo pipefail
-          for pkg in @agenttab/core @agenttab/dflow @agenttab/x402 @agenttab/fetch; do
-            echo "Publishing $pkg"
-            pnpm --filter "$pkg" publish --access public --no-git-checks --provenance
+          npm --version
+          staging="$(mktemp -d)"
+          for name in @agenttab/core @agenttab/dflow @agenttab/x402 @agenttab/fetch; do
+            echo "Packing ${name}"
+            mapfile -t lines < <(pnpm --filter "${name}" pack --pack-destination "${staging}")
+            tgz="${lines[-1]}"
+            echo "Publishing ${tgz}"
+            npm publish "${tgz}" --access public --provenance
           done

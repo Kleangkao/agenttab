@@ -35,7 +35,7 @@ Split the two roles:
   `pnpm install && pnpm --filter @agenttab/gateway build`
 
 The gateway remains a workspace app (not on npm) until a later release.
-A container image is also published to GHCR on version tags:
+A public image is on GHCR (`ghcr.io/kleangkao/agenttab-gateway`).
 
 ```bash
 docker pull ghcr.io/kleangkao/agenttab-gateway:latest
@@ -48,8 +48,7 @@ docker run --rm -p 8787:8787 \
   ghcr.io/kleangkao/agenttab-gateway:latest
 ```
 
-(Build locally with `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`
-from the repo root if the GHCR package is not public yet.)
+Or build locally: `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`
 
 From the **cloned repo** root:
 

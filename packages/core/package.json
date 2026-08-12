@@ -24,7 +24,8 @@
   },
   "files": ["dist", "!dist/**/*.test.*"],
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "clean": "node ../../scripts/clean-dist.mjs",
