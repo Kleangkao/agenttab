@@ -223,6 +223,7 @@ describe("operator control spine", () => {
     expect(html).toContain("Set mode");
     expect(html).toContain("Save caps");
     expect(html).toContain("admin token required");
+    expect(html).toContain("notifySigned");
     expect(html).toContain("µUSD");
     expect(html).toContain("<th>last</th>");
     expect(html).toContain("/openapi.json");

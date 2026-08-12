@@ -153,7 +153,7 @@ async function health() {
     "<span>broadcast <strong>" + (b.broadcastEnabled ? "on" : "off") + "</strong></span>" +
     "<span>policy " + (b.policyDurable ? "durable" : "memory") + "</span>" +
     (b.policyWriteAuth ? "<span>admin token required</span>" : "") +
-    (b.notifyConfigured ? "<span>notify on</span>" : "") +
+    (b.notifyConfigured ? "<span>notify " + (b.notifySigned ? "signed" : "on") + "</span>" : "") +
     "<span>parked <strong>" + (b.parkedCount ?? 0) + "</strong></span>" +
     "<span>spend 24h <strong>" + (b.spentUsdMicrosLast24h ?? "0") + "</strong> / " +
     (b.maxDailyUsdMicros ?? "?") + " µUSD</span>";
@@ -264,6 +264,11 @@ function esc(value) {
 }
 async function loadRecent() {
   const r = await fetch("/v1/executions?limit=20", { headers: headers() });
+  if (!r.ok) {
+    $("recent").innerHTML = "<tr><td colspan=\\"6\\" class=\\"bad\\">" +
+      (r.status === 401 ? "admin token required" : r.status) + "</td></tr>";
+    return;
+  }
   const b = await r.json();
   const rows = (b.executions || []).map((ex) =>
     "<tr><td>" + esc(ex.state) + "</td><td class=\\"muted\\">" + esc(ex.lastEventKind) +
@@ -276,6 +281,13 @@ async function loadRecent() {
 }
 async function loadParked() {
   const r = await fetch("/v1/executions?state=approval_required&limit=20", { headers: headers() });
+  if (!r.ok) {
+    $("execStatus").className = "bad";
+    $("execStatus").textContent = r.status === 401 ? "admin token required" : String(r.status);
+    $("parked").innerHTML = "<tr><td colspan=\\"5\\" class=\\"bad\\">" +
+      (r.status === 401 ? "admin token required" : r.status) + "</td></tr>";
+    return;
+  }
   const b = await r.json();
   const rows = (b.executions || []).map((ex) => {
     const id = esc(ex.operationId);
@@ -305,6 +317,9 @@ async function loadParked() {
   loadRecent();
 }
 $("refreshExec").onclick = () => { loadParked(); health(); };
+if ($("token")) {
+  $("token").onchange = () => { loadPolicy(); loadParked(); health(); };
+}
 health().then(loadPolicy).then(loadParked).catch((e) => { $("health").textContent = String(e); });
 setInterval(() => { loadParked(); health(); }, 5000);
 </script>
