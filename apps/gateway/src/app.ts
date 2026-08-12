@@ -80,9 +80,10 @@ export interface GatewayRuntimeOptions {
    */
   balances?: BalanceProvider;
   /**
-   * When set, PUT /v1/policy, POST /v1/approvals, and POST /v1/denials
-   * require `Authorization: Bearer <token>`. Leave unset for local demos;
-   * set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
+   * When set, operator reads/writes (policy, spend, balances, unfiltered
+   * execution lists, approve, deny) require `Authorization: Bearer <token>`.
+   * Agent fund/pay/fulfill and requestHash resume stay open. Leave unset for
+   * local demos; set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
    */
   adminToken?: string;
   /**
@@ -305,6 +306,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.get("/v1/spend", (c) => {
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const policy = policies.get();
     return c.json({
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
@@ -313,7 +317,12 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     });
   });
 
-  app.get("/v1/policy", (c) => c.json(policies.get()));
+  app.get("/v1/policy", (c) => {
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+    return c.json(policies.get());
+  });
 
   app.put("/v1/policy", async (c) => {
     if (!isAdmin(c.req.header("authorization"))) {
@@ -326,7 +335,12 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     return c.json(policies.set(parsed.data));
   });
 
-  app.get("/v1/balances", (c) => c.json({ wallet, balances: balances.list() }));
+  app.get("/v1/balances", (c) => {
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+    return c.json({ wallet, balances: balances.list() });
+  });
 
   app.get("/v1/executions", async (c) => {
     const limitRaw = c.req.query("limit");
@@ -347,6 +361,10 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "invalid_request_hash" }, 400);
     }
     const reusable = reusableRaw === "1" || reusableRaw === "true";
+    const listingWithoutHash = requestHash === undefined || requestHash.length === 0;
+    if (listingWithoutHash && !isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const executions = await store.listRecent({
       limit,
       ...(stateRaw === undefined ? {} : { state: stateRaw }),

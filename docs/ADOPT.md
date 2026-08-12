@@ -40,7 +40,9 @@ The gateway remains a workspace app (not on npm) until a later release.
 A public image is on GHCR (`ghcr.io/kleangkao/agenttab-gateway`). It bakes
 `examples/policies/approve.local.json` (merchant `8791`), serves `/ui`, and
 ships the operator CLIs. `AGENTTAB_POLICY_JSON` can seed policy without a
-mounted file. Set `AGENTTAB_ADMIN_TOKEN` before exposing the port.
+mounted file. Set `AGENTTAB_ADMIN_TOKEN` before exposing the port — it gates
+policy/spend/balances/unfiltered audit lists plus approve/deny. Agent
+fund/pay/fulfill and `requestHash` resume stay open.
 
 ```bash
 docker pull ghcr.io/kleangkao/agenttab-gateway:latest

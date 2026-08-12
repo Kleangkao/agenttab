@@ -2,6 +2,7 @@
 #   docker compose up --build
 # UI: http://127.0.0.1:8787/ui
 # UI: http://127.0.0.1:8787/ui   OpenAPI: /openapi.json
+# Set AGENTTAB_ADMIN_TOKEN to gate operator reads/writes before exposing the port.
 # CLIs: docker exec <id> node dist/bin/docker-entrypoint.js approve|deny|audit|parked|preview|policy-mode|policy-allow
 services:
   gateway:

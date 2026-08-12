@@ -158,7 +158,7 @@ async function health() {
     "<span>spend 24h <strong>" + (b.spentUsdMicrosLast24h ?? "0") + "</strong> / " +
     (b.maxDailyUsdMicros ?? "?") + " µUSD</span>";
   try {
-    const bal = await (await fetch("/v1/balances")).json();
+    const bal = await (await fetch("/v1/balances", { headers: headers() })).json();
     const usdc = (bal.balances || []).find((x) => x.symbol === "USDC");
     if (usdc && usdc.balanceAtomic !== undefined) {
       $("health").innerHTML += "<span>USDC <strong>" + usdc.balanceAtomic + "</strong></span>";
@@ -177,7 +177,12 @@ function fillCaps(policy) {
   $("approveAbove").value = policy.requireApprovalAboveUsdMicros ?? "";
 }
 async function loadPolicy() {
-  const r = await fetch("/v1/policy");
+  const r = await fetch("/v1/policy", { headers: headers() });
+  if (!r.ok) {
+    $("policyStatus").className = "bad";
+    $("policyStatus").textContent = r.status === 401 ? "admin token required" : String(r.status);
+    return;
+  }
   const policy = await r.json();
   $("policy").value = JSON.stringify(policy, null, 2);
   if (policy.mode) $("mode").value = policy.mode;
@@ -258,7 +263,7 @@ function esc(value) {
   }[ch]));
 }
 async function loadRecent() {
-  const r = await fetch("/v1/executions?limit=20");
+  const r = await fetch("/v1/executions?limit=20", { headers: headers() });
   const b = await r.json();
   const rows = (b.executions || []).map((ex) =>
     "<tr><td>" + esc(ex.state) + "</td><td class=\\"muted\\">" + esc(ex.lastEventKind) +
@@ -270,7 +275,7 @@ async function loadRecent() {
   $("recent").innerHTML = rows || "<tr><td colspan=\\"6\\" class=\\"muted\\">None yet</td></tr>";
 }
 async function loadParked() {
-  const r = await fetch("/v1/executions?state=approval_required&limit=20");
+  const r = await fetch("/v1/executions?state=approval_required&limit=20", { headers: headers() });
   const b = await r.json();
   const rows = (b.executions || []).map((ex) => {
     const id = esc(ex.operationId);

@@ -6,6 +6,9 @@
 - `GET /health` includes `parkedCount` and rolling 24h spend
 - `GET /openapi.json` locked to live Hono routes
 - `pnpm parked` / `pnpm policy:mode` / `pnpm policy:allow`
+- When `AGENTTAB_ADMIN_TOKEN` is set, operator reads (policy, spend, balances,
+  unfiltered execution lists) require the same bearer token. Agent fund/pay/fulfill
+  and `requestHash` resume stay open.
 - Operator UI Save caps (payment / daily / approve-above) without rewriting JSON
 - `pnpm demo:adopt` also checks `/openapi.json` and leftover parked count
 - `AUDIT_REQUEST_HASH` on `pnpm audit:recent`

@@ -222,6 +222,7 @@ describe("operator control spine", () => {
     expect(html).toContain("Allow origin");
     expect(html).toContain("Set mode");
     expect(html).toContain("Save caps");
+    expect(html).toContain("admin token required");
     expect(html).toContain("µUSD");
     expect(html).toContain("<th>last</th>");
     expect(html).toContain("/openapi.json");
@@ -234,7 +235,10 @@ describe("operator control spine", () => {
       parkedCount: 0,
       spentUsdMicrosLast24h: "0"
     });
-    const spend = await gateway.app.request("/v1/spend");
+    expect((await gateway.app.request("/v1/spend")).status).toBe(401);
+    const spend = await gateway.app.request("/v1/spend", {
+      headers: { authorization: "Bearer secret-admin" }
+    });
     expect(await spend.json()).toMatchObject({
       spentUsdMicrosLast24h: "0",
       maxDailyUsdMicros: policy.maxDailyUsdMicros
@@ -258,8 +262,21 @@ describe("operator control spine", () => {
     expect(await (await gateway.app.request("/health")).json()).toMatchObject({
       parkedCount: 1
     });
+    expect(
+      (
+        await gateway.app.request("/v1/executions?state=approval_required")
+      ).status
+    ).toBe(401);
+    expect((await gateway.app.request("/v1/policy")).status).toBe(401);
+    expect(
+      (
+        await gateway.app.request("/v1/executions?requestHash=" + intent.requestHash)
+      ).status
+    ).toBe(200);
     const listed = await (
-      await gateway.app.request("/v1/executions?state=approval_required")
+      await gateway.app.request("/v1/executions?state=approval_required", {
+        headers: { authorization: "Bearer secret-admin" }
+      })
     ).json();
     expect(listed.executions[0]).toMatchObject({
       operationId: intent.operationId,

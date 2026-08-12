@@ -36,7 +36,9 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     + `pnpm audit:recent` / `pnpm parked` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
   - Read-only `POST /v1/preview` (policy only; no execution, no fund).
   - Operator UI at `/ui` (merchant / amount / resource, mode select, auto-refresh).
-  - Policy writes, approvals, and denials gated by optional `AGENTTAB_ADMIN_TOKEN`.
+  - Optional `AGENTTAB_ADMIN_TOKEN` gates operator reads/writes (policy, spend,
+    balances, unfiltered lists, approve, deny). Agent fund/pay/fulfill and
+    `requestHash` resume stay open.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
   - `GET /openapi.json` is the live HTTP contract (test-locked to Hono routes).

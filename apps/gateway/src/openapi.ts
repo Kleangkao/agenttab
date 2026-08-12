@@ -26,14 +26,22 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
     get: { summary: "Liveness plus policyMode, parkedCount, 24h spend" }
   },
   "/openapi.json": { get: { summary: "This OpenAPI document" } },
-  "/v1/spend": { get: { summary: "Rolling 24h spend vs daily and per-payment caps" } },
+  "/v1/spend": {
+    get: { summary: "Rolling 24h spend vs daily and per-payment caps", admin: true }
+  },
   "/v1/policy": {
-    get: { summary: "Current payment policy" },
+    get: { summary: "Current payment policy", admin: true },
     put: { summary: "Replace payment policy", admin: true }
   },
-  "/v1/balances": { get: { summary: "Buyer wallet balances as seen by the coordinator" } },
+  "/v1/balances": {
+    get: { summary: "Buyer wallet balances as seen by the coordinator", admin: true }
+  },
   "/v1/executions": {
-    get: { summary: "Recent execution summaries (merchant, amount, resource, state)" },
+    get: {
+      summary:
+        "Recent execution summaries. Unfiltered lists require admin when AGENTTAB_ADMIN_TOKEN is set; requestHash lookup stays available for agent resume.",
+      admin: true
+    },
     post: { summary: "Create or replay an execution from a PaymentIntent", funds: false }
   },
   "/v1/executions/{operationId}": {
