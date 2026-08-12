@@ -57,6 +57,12 @@ export interface AgentTabGatewayClient {
   putPolicy(policy: PaymentPolicy): Promise<PaymentPolicy>;
   /** Append one origin to allowedMerchantOrigins (idempotent). */
   allowMerchantOrigin(origin: string): Promise<PaymentPolicy>;
+  /** Patch spend caps. `requireApprovalAboveUsdMicros: null` clears the threshold. */
+  setPolicyCaps(caps: {
+    maxPaymentUsdMicros?: string;
+    maxDailyUsdMicros?: string;
+    requireApprovalAboveUsdMicros?: string | null;
+  }): Promise<PaymentPolicy>;
   getSpend(): Promise<AgentTabSpendSnapshot>;
   getHealth(): Promise<AgentTabGatewayHealth>;
   approve(operationId: string): Promise<unknown>;
@@ -172,6 +178,33 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
         ...policy,
         allowedMerchantOrigins: [...policy.allowedMerchantOrigins, canonical]
       });
+    },
+    setPolicyCaps: async (caps) => {
+      const policy = await getPolicy();
+      const {
+        requireApprovalAboveUsdMicros: previousAbove,
+        ...base
+      } = policy;
+      const nextBase = {
+        ...base,
+        ...(caps.maxPaymentUsdMicros === undefined
+          ? {}
+          : { maxPaymentUsdMicros: caps.maxPaymentUsdMicros }),
+        ...(caps.maxDailyUsdMicros === undefined
+          ? {}
+          : { maxDailyUsdMicros: caps.maxDailyUsdMicros })
+      };
+      const above =
+        caps.requireApprovalAboveUsdMicros === undefined
+          ? previousAbove
+          : caps.requireApprovalAboveUsdMicros === null
+            ? undefined
+            : caps.requireApprovalAboveUsdMicros;
+      return putPolicy(
+        above === undefined
+          ? nextBase
+          : { ...nextBase, requireApprovalAboveUsdMicros: above }
+      );
     },
     getSpend: async () => {
       const response = await fetchImpl(`${baseUrl}/v1/spend`, {

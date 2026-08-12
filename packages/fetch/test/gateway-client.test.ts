@@ -190,6 +190,44 @@ describe("createGatewayClient.preview", () => {
     });
   });
 
+  it("patches spend caps without requiring a full policy rewrite", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const parsed = new URL(String(input));
+      if (parsed.pathname === "/v1/policy" && (init?.method ?? "GET") === "GET") {
+        return Response.json({
+          mode: "approve",
+          allowedMerchantOrigins: ["http://merchant.local"],
+          allowedNetworks: ["solana:local"],
+          allowedPaymentAssets: ["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"],
+          allowedFundingAssets: ["So11111111111111111111111111111111111111112"],
+          requireVerifiedFundingAssets: true,
+          maxDailyUsdMicros: "1000000",
+          maxPaymentUsdMicros: "10000",
+          requireApprovalAboveUsdMicros: "5000",
+          maxSlippageBps: 50,
+          maxPriceImpactPct: 1
+        });
+      }
+      if (parsed.pathname === "/v1/policy" && init?.method === "PUT") {
+        const body = JSON.parse(String(init.body)) as {
+          maxDailyUsdMicros: string;
+          requireApprovalAboveUsdMicros?: string;
+        };
+        expect(body.maxDailyUsdMicros).toBe("2000000");
+        expect(body.requireApprovalAboveUsdMicros).toBeUndefined();
+        return Response.json(body);
+      }
+      return Response.json({ error: "unexpected" }, { status: 500 });
+    });
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch
+    });
+    await expect(
+      client.setPolicyCaps({ maxDailyUsdMicros: "2000000", requireApprovalAboveUsdMicros: null })
+    ).resolves.toMatchObject({ maxDailyUsdMicros: "2000000" });
+  });
+
   it("reads spend, health, and parked lists", async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
       const parsed = new URL(String(input));

@@ -16,7 +16,7 @@
 - `AUDIT_REQUEST_HASH` on `pnpm audit:recent`
 - Canonicalize http(s) merchant origins (trailing slash / default port) in policy
 - `@agenttab/fetch` workspace: `getSpend()`, `getHealth()`, `listParked()`,
-  `allowMerchantOrigin()` (unreleased until next fetch publish)
+  `allowMerchantOrigin()`, `setPolicyCaps()` (unreleased until next fetch publish)
 - `pnpm demo:adopt`: one-command HTTP proof of preview / approve / deny
 - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny (fail-open)
 - Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `/ui` Deny
