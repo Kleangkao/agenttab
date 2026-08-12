@@ -42,3 +42,30 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Make GHCR package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          owner="${GITHUB_REPOSITORY_OWNER}"
+          pkg="agenttab-gateway"
+          for path in \
+            "users/${owner}/packages/container/${pkg}" \
+            "user/packages/container/${pkg}"; do
+            echo "Trying GET ${path}"
+            if gh api "$path" --jq '{name,visibility,html_url}' ; then
+              vis="$(gh api "$path" --jq '.visibility')"
+              if [ "$vis" = "public" ]; then
+                echo "Already public via ${path}"
+                exit 0
+              fi
+              echo "PATCH ${path} visibility=public"
+              if gh api --method PATCH "$path" -f visibility=public; then
+                echo "Visibility updated via ${path}"
+                exit 0
+              fi
+            fi
+          done
+          echo "Could not change visibility via REST; listing packages for diagnostics"
+          gh api "users/${owner}/packages?package_type=container" --jq '.' || true
+          exit 1
