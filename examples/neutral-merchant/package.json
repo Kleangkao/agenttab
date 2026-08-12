@@ -23,7 +23,7 @@
     "dev": "tsx src/main.ts",
     "devnet": "tsx src/devnet.ts",
     "start": "node dist/main.js",
-    "test": "vitest run --passWithNoTests --exclude dist/**"
+    "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

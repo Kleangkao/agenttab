@@ -10,7 +10,7 @@
     "oneshot": "tsx src/oneshot.ts",
     "payment-only": "tsx src/payment-only.ts",
     "start": "node dist/main.js",
-    "test": "vitest run --passWithNoTests --exclude dist/**"
+    "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
   "dependencies": {
     "@agenttab/dflow": "workspace:*",

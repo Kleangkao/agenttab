@@ -17,7 +17,7 @@
     "devnet": "tsx src/devnet.ts",
     "devnet:e2e": "tsx src/devnet-e2e.ts",
     "start": "node dist/main.js",
-    "test": "vitest run --exclude dist/**"
+    "test": "vitest run --exclude 'dist/**'"
   },
   "dependencies": {
     "@agenttab/fetch": "workspace:*",

@@ -32,7 +32,7 @@
     "devnet": "tsx src/devnet-main.ts",
     "start": "node dist/main.js",
     "audit:recent": "tsx src/cli/audit-recent.ts",
-    "test": "vitest run --passWithNoTests --exclude dist/**"
+    "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
   "bin": {
     "agenttab-gateway": "./dist/bin/agenttab-gateway.js",
