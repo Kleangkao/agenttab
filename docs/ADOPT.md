@@ -70,6 +70,7 @@ pnpm policy:get
 pnpm policy:set -- examples/policies/approve.local.json
 pnpm policy:mode -- approve
 pnpm policy:allow -- http://127.0.0.1:8791
+pnpm policy:cap -- daily 2000000
 pnpm parked
 pnpm approve -- <operationId>
 pnpm deny -- <operationId>

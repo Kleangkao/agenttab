@@ -19,6 +19,7 @@ const commands: Record<string, string> = {
   "policy-set": join(dist, "cli/policy-set.js"),
   "policy-mode": join(dist, "cli/policy-mode.js"),
   "policy-allow": join(dist, "cli/policy-allow.js"),
+  "policy-cap": join(dist, "cli/policy-cap.js"),
   preview: join(dist, "cli/preview.js"),
   parked: join(dist, "cli/parked.js")
 };
@@ -30,7 +31,7 @@ const script = commands[verb];
 
 if (script === undefined) {
   console.error(
-    `Unknown command ${verb}. Use: gateway | approve | deny | audit | parked | policy-get | policy-set | policy-mode | policy-allow | preview`
+    `Unknown command ${verb}. Use: gateway | approve | deny | audit | parked | policy-get | policy-set | policy-mode | policy-allow | policy-cap | preview`
   );
   process.exit(2);
 }

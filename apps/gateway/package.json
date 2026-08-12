@@ -35,6 +35,7 @@
     "parked": "tsx src/cli/parked.ts",
     "policy:mode": "tsx src/cli/policy-mode.ts",
     "policy:allow": "tsx src/cli/policy-allow.ts",
+    "policy:cap": "tsx src/cli/policy-cap.ts",
     "preview": "tsx src/cli/preview.ts",
     "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
@@ -45,6 +46,7 @@
     "agenttab-policy-set": "./dist/cli/policy-set.js",
     "agenttab-policy-mode": "./dist/cli/policy-mode.js",
     "agenttab-policy-allow": "./dist/cli/policy-allow.js",
+    "agenttab-policy-cap": "./dist/cli/policy-cap.js",
     "agenttab-approve": "./dist/cli/approve.js",
     "agenttab-deny": "./dist/cli/deny.js",
     "agenttab-audit": "./dist/cli/audit-recent.js",

@@ -51,6 +51,7 @@
     "policy:set": "tsx apps/gateway/src/cli/policy-set.ts",
     "policy:mode": "tsx apps/gateway/src/cli/policy-mode.ts",
     "policy:allow": "tsx apps/gateway/src/cli/policy-allow.ts",
+    "policy:cap": "tsx apps/gateway/src/cli/policy-cap.ts",
     "approve": "tsx apps/gateway/src/cli/approve.ts",
     "deny": "tsx apps/gateway/src/cli/deny.ts",
     "preview": "tsx apps/gateway/src/cli/preview.ts",
