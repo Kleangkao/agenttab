@@ -41,12 +41,21 @@ function parsePolicyJson(raw: string, source: string): PaymentPolicy {
 }
 
 /**
- * Resolve optional AGENTTAB_POLICY_PATH for standalone gateway boot.
- * Returns undefined when unset (caller keeps demo seed).
+ * Resolve optional policy for standalone gateway boot.
+ * `AGENTTAB_POLICY_JSON` wins (Docker/env bootstrap). Else `AGENTTAB_POLICY_PATH`.
+ * Returns undefined when neither is set (caller keeps demo seed).
  */
 export function loadPolicyFromEnv(
   env: NodeJS.ProcessEnv = process.env
 ): { policy: PaymentPolicy; path: string; replace: boolean } | undefined {
+  const json = env.AGENTTAB_POLICY_JSON?.trim();
+  if (json !== undefined && json.length > 0) {
+    return {
+      policy: parsePolicyJson(json, "AGENTTAB_POLICY_JSON"),
+      path: "AGENTTAB_POLICY_JSON",
+      replace: env.AGENTTAB_POLICY_REPLACE === "1"
+    };
+  }
   const path = env.AGENTTAB_POLICY_PATH?.trim();
   if (path === undefined || path.length === 0) return undefined;
   return {

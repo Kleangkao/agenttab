@@ -1,0 +1,33 @@
+# Local operator control plane. No Mainnet broadcast.
+#   docker compose up --build
+# UI: http://127.0.0.1:8787/ui
+services:
+  gateway:
+    image: ghcr.io/kleangkao/agenttab-gateway:latest
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    ports:
+      - "8787:8787"
+    environment:
+      HOST: "0.0.0.0"
+      AGENTTAB_POLICY_PATH: /policy/approve.local.json
+      AGENTTAB_ADMIN_TOKEN: ${AGENTTAB_ADMIN_TOKEN:-}
+      AGENTTAB_GATEWAY_URL: http://127.0.0.1:8787
+    volumes:
+      - agenttab-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 8
+      start_period: 8s
+
+volumes:
+  agenttab-data:

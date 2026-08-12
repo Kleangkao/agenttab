@@ -33,7 +33,8 @@ cold-start control path (policy file → remote agent → approve/audit CLI).
 
 Source: [github.com/Kleangkao/agenttab](https://github.com/Kleangkao/agenttab).
 Agent libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
-`@agenttab/dflow`). The gateway is still run from this repo.
+`@agenttab/dflow`). The gateway is run from this repo or
+`ghcr.io/kleangkao/agenttab-gateway` (`docker compose up --build`; UI at `/ui`).
 
 ## Current status
 
@@ -62,7 +63,7 @@ Packages and apps:
 - `examples/neutral-merchant` + `examples/remote-agent`: AgentTab-agnostic
   merchant + remote `@agenttab/fetch` agent (mock smoke and Devnet facilitator)
 - Setup + safety tools under `tools/` (`mainnet:facilitators`, live broadcast gate)
-- Durable policy + spend in on-disk SQLite; operator CLIs:
+- Durable policy + spend in on-disk SQLite; operator UI `/ui` plus CLIs:
   `pnpm policy:get|set`, `pnpm approve`, `pnpm audit:recent`
 - Example policies under `examples/policies/`; start guide in `docs/ADOPT.md`
 
@@ -72,15 +73,15 @@ triple broadcast gates below.
 ## Fastest path to adopt (operators + developers)
 
 Libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
-`@agenttab/dflow`). The gateway is still clone-and-run from this repo
-(or Docker: `ghcr.io/kleangkao/agenttab-gateway`).
+`@agenttab/dflow`). The gateway is clone-and-run from this repo or the public GHCR image
+(`ghcr.io/kleangkao/agenttab-gateway`).
 
 Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 
 1. `pnpm add @agenttab/fetch` in the agent process
-2. Start a gateway (clone this repo **or** pull the GHCR image) and set policy
+2. Start a gateway (`docker compose up --build` or clone this repo) and set policy
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
-4. Use `pnpm policy:set`, `pnpm approve`, `pnpm audit:recent` as the control surface
+4. Use `/ui`, `POST /v1/preview`, `pnpm policy:set`, `pnpm approve`, `pnpm audit:recent`
 
 ## Fastest convincing demo (one command)
 

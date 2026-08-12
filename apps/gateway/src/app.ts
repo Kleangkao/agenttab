@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
+  evaluatePaymentPolicy,
   ExecutionVersionConflictError,
   InvalidExecutionTransitionError,
   isExecutionState,
@@ -8,8 +9,10 @@ import {
   paymentPolicySchema,
   type ExecutionRecord,
   type PaymentIntent,
-  type PaymentPolicy
+  type PaymentPolicy,
+  type PolicyDecision
 } from "@agenttab/core";
+import { operatorHtml } from "./ui/operator-page.js";
 import { DFlowClient, DFLOW_DEV_BASE_URL } from "@agenttab/dflow";
 import { Connection } from "@solana/web3.js";
 import { Hono } from "hono";
@@ -71,8 +74,9 @@ export interface GatewayRuntimeOptions {
    */
   balances?: BalanceProvider;
   /**
-   * When set, PUT /v1/policy requires `Authorization: Bearer <token>`.
-   * Leave unset for local demos; set AGENTTAB_ADMIN_TOKEN for hosted use.
+   * When set, PUT /v1/policy and POST /v1/approvals require
+   * `Authorization: Bearer <token>`. Leave unset for local demos;
+   * set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
    */
   adminToken?: string;
 }
@@ -172,6 +176,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   ensureDbDir(dbPath);
   const store = new SqliteExecutionStore(dbPath);
   const merchantOrigin = options.merchantOrigin ?? "http://127.0.0.1:8790";
+  // 8790 = in-process HMAC paid-api demo. Adopt/neutral-merchant/Docker use 8791.
   const seedPolicy = options.policy ?? createDemoPolicy(merchantOrigin);
   const policyDurable = dbPath !== ":memory:";
   const policies: PolicyStore = policyDurable
@@ -228,6 +233,16 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   const paymentHmacSecret = options.paymentHmacSecret ?? "local-dev-only-change-me";
 
   const app = new Hono();
+  const adminRequired = adminToken !== undefined && adminToken.length > 0;
+  const isAdmin = (header: string | undefined): boolean => {
+    if (!adminRequired) return true;
+    return header === `Bearer ${adminToken}`;
+  };
+
+  app.get("/", (c) => c.redirect("/ui", 302));
+  app.get("/ui", (c) =>
+    c.html(operatorHtml({ adminRequired, policyMode: policies.get().mode }))
+  );
 
   app.get("/health", (c) =>
     c.json({
@@ -238,19 +253,17 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       broadcastEnabled,
       policyDurable,
       policyMode: policies.get().mode,
-      policyWriteAuth: adminToken !== undefined && adminToken.length > 0
+      policyWriteAuth: adminRequired,
+      operatorUi: "/ui",
+      preview: "/v1/preview"
     })
   );
 
   app.get("/v1/policy", (c) => c.json(policies.get()));
 
   app.put("/v1/policy", async (c) => {
-    if (adminToken !== undefined && adminToken.length > 0) {
-      const header = c.req.header("authorization") ?? "";
-      const expected = `Bearer ${adminToken}`;
-      if (header !== expected) {
-        return c.json({ error: "unauthorized" }, 401);
-      }
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
     }
     const parsed = paymentPolicySchema.safeParse(await c.req.json());
     if (!parsed.success) {
@@ -301,6 +314,28 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     return c.json(record);
   });
 
+  app.post("/v1/preview", async (c) => {
+    const parsed = paymentIntentSchema.safeParse(await c.req.json());
+    if (!parsed.success) {
+      return c.json({ error: "invalid_intent", message: parsed.error.message }, 400);
+    }
+    const policy = policies.get();
+    const spend = { spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h() };
+    const decision = evaluatePaymentPolicy({
+      intent: parsed.data,
+      policy,
+      spend
+    });
+    return c.json({
+      preview: true,
+      funded: false,
+      policyMode: policy.mode,
+      decision,
+      hint: previewHint(decision, parsed.data.merchantOrigin),
+      observeIsNotDryRun: policy.mode === "observe"
+    });
+  });
+
   app.post("/v1/fund", async (c) => {
     const intent = paymentIntentSchema.parse(await c.req.json());
     const outcome = await coordinator.ensurePaymentAsset({ intent });
@@ -309,6 +344,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   });
 
   app.post("/v1/approvals/:operationId", async (c) => {
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
     const operationId = c.req.param("operationId");
     let record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
@@ -479,6 +517,26 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     policyDurable,
     close: () => store.close()
   };
+}
+
+function previewHint(decision: PolicyDecision, merchantOrigin: string): string {
+  switch (decision.reason) {
+    case "merchant_not_allowed":
+      return `Add ${merchantOrigin} to allowedMerchantOrigins (PUT /v1/policy or the operator UI).`;
+    case "network_not_allowed":
+      return "Add this CAIP-2 network to allowedNetworks on the live policy.";
+    case "payment_asset_not_allowed":
+      return "Add this mint to allowedPaymentAssets on the live policy.";
+    case "usd_value_unknown":
+      return "Provide amountUsdMicros. observe parks; approve/autopay deny. Approving still funds.";
+    case "approval_threshold_exceeded":
+    case "allowed":
+      return decision.kind === "approval_required"
+        ? "Policy would park. POST /v1/approvals/:id still funds — this preview did not."
+        : "Policy would allow funding. This preview did not create an execution or fund.";
+    default:
+      return decision.message;
+  }
 }
 
 export type { PaymentIntent };

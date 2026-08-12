@@ -12,7 +12,8 @@ export {
 export {
   createGatewayClient,
   type AgentTabExecutionSummary,
-  type AgentTabGatewayClient
+  type AgentTabGatewayClient,
+  type AgentTabPreviewResult
 } from "./gateway-api.js";
 export {
   createGatewayAuditRecorder,

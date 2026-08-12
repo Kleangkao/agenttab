@@ -48,6 +48,7 @@
     "policy:get": "tsx apps/gateway/src/cli/policy-get.ts",
     "policy:set": "tsx apps/gateway/src/cli/policy-set.ts",
     "approve": "tsx apps/gateway/src/cli/approve.ts",
+    "preview": "tsx apps/gateway/src/cli/preview.ts",
     "test:watch": "pnpm --filter @agenttab/core test:watch"
   },
   "devDependencies": {

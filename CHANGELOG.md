@@ -2,8 +2,14 @@
 
 ## 0.1.2-dev
 
+- Operator control plane without a clone: GHCR image + `compose.yaml` + `/ui`
+- Bake `/policy/approve.local.json` in the gateway image; `AGENTTAB_POLICY_JSON` env bootstrap
+- `POST /v1/preview`, `pnpm preview`, and `createGatewayClient().preview` evaluate policy without funding
+- `AGENTTAB_ADMIN_TOKEN` also gates `POST /v1/approvals`
+- Operator CLIs use `AGENTTAB_GATEWAY_URL` even when `AGENTTAB_DB_PATH` is set (Docker)
+- Image HEALTHCHECK + `gateway|approve|audit|policy-*` entrypoint
 - Fix `pack:check` to read each package version (unblocks CI after fetch 0.1.1)
-- Docs: npm install path for agents; gateway remains clone-and-run
+- Docs: npm install path for agents; gateway remains clone-and-run or GHCR
 - Add Release workflow stub for future npm Trusted Publishing (dry-run by default)
 - Short READMEs for `@agenttab/{core,dflow,x402}`
 - Gateway Dockerfile + GHCR workflow (`ghcr.io/kleangkao/agenttab-gateway`)

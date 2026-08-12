@@ -3,6 +3,16 @@ name: Gateway image
 on:
   workflow_dispatch:
   push:
+    branches: [main]
+    paths:
+      - "apps/gateway/**"
+      - "packages/core/**"
+      - "packages/dflow/**"
+      - "examples/policies/**"
+      - "examples/intents/**"
+      - "compose.yaml"
+      - ".dockerignore"
+      - ".github/workflows/gateway-image.yml"
     tags:
       - "v*"
 

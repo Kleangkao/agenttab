@@ -93,14 +93,14 @@ denial, not a permissive default.
 - Policy and spend caps survive gateway restarts when using an on-disk SQLite path.
 - Read-only audit is available via `GET /v1/executions` and `pnpm audit:recent`
   (including the fulfilled Mainnet receipt DB under `.data/mainnet/`).
-- Operator control is CLI + HTTP (`policy:get|set`, `approve`, `audit:recent`),
-  seeded from `AGENTTAB_POLICY_PATH` / `examples/policies/*`. See `docs/ADOPT.md`.
+- Operator control is `/ui` + HTTP + CLI (`policy:get|set`, `approve`,
+  `audit:recent`, `POST /v1/preview`), seeded from `AGENTTAB_POLICY_PATH` /
+  `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with
   `operationId` so agents can approve and retry the **same** operation, including
   across process restarts via gateway `requestHash` lookup.
 - Gateway exposes `agenttab-*` binaries after build (`agenttab-gateway`,
-  `agenttab-approve`, …). Agent libraries `@agenttab/{core,dflow,x402,fetch}` are
-  on npm; the gateway is still clone + pnpm for now.
-- A web Observe / Approve dashboard remains optional later; it can consume the
-  same APIs without changing the control plane.
+  `agenttab-approve`, …) and ships them in `ghcr.io/kleangkao/agenttab-gateway`.
+  Agent libraries `@agenttab/{core,dflow,x402,fetch}` are on npm.
+- Preview never funds. Observe is not a dry-run — approving still funds.
 

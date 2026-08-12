@@ -1,4 +1,9 @@
-import type { PaymentFundingCoordinator, PaymentPolicy } from "@agenttab/core";
+import type {
+  PaymentFundingCoordinator,
+  PaymentIntent,
+  PaymentPolicy,
+  PolicyDecision
+} from "@agenttab/core";
 import {
   createGatewayAuditRecorder,
   createGatewayFundingCoordinator,
@@ -26,6 +31,17 @@ export interface AgentTabGatewayClient {
   getPolicy(): Promise<PaymentPolicy>;
   putPolicy(policy: PaymentPolicy): Promise<PaymentPolicy>;
   approve(operationId: string): Promise<unknown>;
+  /** Read-only policy check. Never creates an execution or funds. */
+  preview(intent: PaymentIntent): Promise<AgentTabPreviewResult>;
+}
+
+export interface AgentTabPreviewResult {
+  preview: true;
+  funded: false;
+  policyMode: PaymentPolicy["mode"];
+  decision: PolicyDecision;
+  hint: string;
+  observeIsNotDryRun: boolean;
 }
 
 /**
@@ -129,6 +145,23 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
         );
       }
       return response.json();
+    },
+    preview: async (intent) => {
+      const response = await fetchImpl(`${baseUrl}/v1/preview`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...headers
+        },
+        body: JSON.stringify(intent)
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          `AgentTab gateway preview failed (${response.status}): ${JSON.stringify(body)}`
+        );
+      }
+      return (await response.json()) as AgentTabPreviewResult;
     }
   };
 }

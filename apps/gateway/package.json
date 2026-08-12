@@ -32,6 +32,7 @@
     "devnet": "tsx src/devnet-main.ts",
     "start": "node dist/main.js",
     "audit:recent": "tsx src/cli/audit-recent.ts",
+    "preview": "tsx src/cli/preview.ts",
     "test": "vitest run --passWithNoTests --exclude 'dist/**'"
   },
   "bin": {
@@ -40,7 +41,8 @@
     "agenttab-policy-get": "./dist/cli/policy-get.js",
     "agenttab-policy-set": "./dist/cli/policy-set.js",
     "agenttab-approve": "./dist/cli/approve.js",
-    "agenttab-audit": "./dist/cli/audit-recent.js"
+    "agenttab-audit": "./dist/cli/audit-recent.js",
+    "agenttab-preview": "./dist/cli/preview.js"
   },
   "dependencies": {
     "@agenttab/core": "workspace:*",

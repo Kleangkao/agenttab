@@ -5,9 +5,10 @@ not just run a Buildathon demo.
 
 Today the supported product surface is:
 
-1. Run the gateway (policy + funding + audit)
+1. Run the gateway (policy + funding + audit) — clone, Docker, or compose
 2. Wrap agent HTTP with `@agenttab/fetch`
-3. Operate with policy / approve / audit CLIs
+3. Operate from `/ui`, HTTP (`/v1/preview`, policy, approve, audit), or CLIs
+   (`pnpm preview -- examples/intents/preview.local.json` never funds)
 
 ```text
 policy JSON
@@ -27,7 +28,7 @@ Split the two roles:
 | Role | What you install | Where |
 |------|------------------|--------|
 | **Agent process** | `@agenttab/fetch` (+ `@x402/*` scheme client) | Your app (`pnpm add …`) |
-| **Operator / control plane** | Gateway + `agenttab-approve` / policy / audit CLIs | This repo (clone-and-run) |
+| **Operator / control plane** | Gateway image/UI + `agenttab-approve` / policy / audit CLIs | GHCR, `docker compose`, or this repo |
 
 - Node.js ≥ 22
 - Agent SDK (npm): `pnpm add @agenttab/fetch @x402/core @x402/fetch @x402/svm`
@@ -35,18 +36,24 @@ Split the two roles:
   `pnpm install && pnpm --filter @agenttab/gateway build`
 
 The gateway remains a workspace app (not on npm) until a later release.
-A public image is on GHCR (`ghcr.io/kleangkao/agenttab-gateway`).
+A public image is on GHCR (`ghcr.io/kleangkao/agenttab-gateway`). It bakes
+`examples/policies/approve.local.json` (merchant `8791`), serves `/ui`, and
+ships the operator CLIs. `AGENTTAB_POLICY_JSON` can seed policy without a
+mounted file. Set `AGENTTAB_ADMIN_TOKEN` before exposing the port.
 
 ```bash
 docker pull ghcr.io/kleangkao/agenttab-gateway:latest
+docker compose up --build
+# or:
 docker run --rm -p 8787:8787 \
   -e HOST=0.0.0.0 \
-  -e AGENTTAB_POLICY_PATH=/policy/approve.local.json \
-  -e AGENTTAB_POLICY_REPLACE=1 \
-  -v "$PWD/examples/policies:/policy:ro" \
+  -e AGENTTAB_ADMIN_TOKEN=change-me \
   -v agenttab-data:/data \
   ghcr.io/kleangkao/agenttab-gateway:latest
 ```
+
+Open `http://127.0.0.1:8787/ui`. Preview is read-only; **approve still funds**.
+Observe mode is not a dry-run.
 
 Or build locally: `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`
 
@@ -138,8 +145,7 @@ Smoke without wiring your own snippet: `pnpm demo:remote-agent`.
    `operationId` is reused from memory **or** looked up on the gateway by
    `requestHash`, so a one-shot CLI can just be run again after approve
 4. `pnpm audit:recent` (local SQLite, or `GET /v1/executions` when
-   `AGENTTAB_GATEWAY_URL` is set and `AGENTTAB_DB_PATH` is not) or
-   `agent.gateway?.getExecution(operationId)`
+   `AGENTTAB_GATEWAY_URL` is set) or `agent.gateway?.getExecution(operationId)`
 
 `requestPaidResource(..., { onApprovalRequired: () => "approve" })` does steps
 2–3 in-process when the agent process is allowed to approve (tests, trusted ops).
@@ -150,7 +156,10 @@ id on every call, or if the previous execution already reached `fulfilled` /
 `denied` / `failed`.
 
 Live policy changes: `pnpm policy:set -- examples/policies/autopay.local.json`
-(no restart). Optional `AGENTTAB_ADMIN_TOKEN` gates `PUT /v1/policy`.
+(no restart), the operator UI, or `PUT /v1/policy`.
+`AGENTTAB_ADMIN_TOKEN` gates policy writes **and** `POST /v1/approvals`.
+`POST /v1/preview` / `agent.gateway?.preview(intent)` evaluates policy without
+creating an execution or funding.
 
 ## 6. Higher fidelity
 
@@ -168,5 +177,5 @@ No Mainnet spend without explicit human approval and the triple broadcast gates.
 
 - Not a hosted SaaS — you run the gateway locally (or your own host)
 - Not a custodial signer or merchant SDK — merchants keep standard x402
-- Not a web dashboard — HTTP + CLI is the operator surface
-- Gateway is not on npm yet (clone the repo); agent libraries are `@agenttab/*` on npm
+- Operator surface is `/ui` + HTTP + CLI (same control plane; preview does not fund)
+- Gateway is not on npm yet (GHCR image or clone); agent libraries are `@agenttab/*` on npm

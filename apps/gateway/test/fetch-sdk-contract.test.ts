@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createGatewayAuditRecorder,
+  createGatewayClient,
   createGatewayFundingCoordinator,
   hashHttpRequest
 } from "@agenttab/fetch";
@@ -69,6 +70,21 @@ describe("@agenttab/fetch gateway HTTP contract", () => {
 
     const record = await gateway.store.get(operationId);
     expect(record?.state).toBe("fulfilled");
+
+    const client = createGatewayClient({
+      baseUrl: "http://agenttab.local",
+      fetchImpl: gatewayFetch
+    });
+    const preview = await client.preview({
+      ...intent,
+      operationId: "fetch-sdk-preview-1"
+    });
+    expect(preview).toMatchObject({
+      preview: true,
+      funded: false,
+      decision: { kind: "allow" }
+    });
+    expect(await gateway.store.get("fetch-sdk-preview-1")).toBeUndefined();
     gateway.close();
   });
 });

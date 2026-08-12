@@ -5,8 +5,8 @@
  *   pnpm audit:recent
  *   agenttab-audit (after gateway package build)
  *
- * Uses GET /v1/executions when AGENTTAB_GATEWAY_URL is set and AGENTTAB_DB_PATH
- * is not. Otherwise opens local SQLite (default `.data/gateway.sqlite`).
+ * Uses GET /v1/executions when AGENTTAB_GATEWAY_URL is set. Otherwise opens
+ * local SQLite (default `.data/gateway.sqlite`).
  */
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";

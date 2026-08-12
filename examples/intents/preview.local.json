@@ -1,0 +1,14 @@
+{
+  "notes": "Read-only POST /v1/preview payload. Does not fund.",
+  "operationId": "preview-local-1",
+  "requestHash": "sha256:previewpreviewpreviewpreviewpreviewpreviewpreviewpreview",
+  "protocol": "x402",
+  "network": "solana:local",
+  "merchantId": "127.0.0.1:8791",
+  "merchantOrigin": "http://127.0.0.1:8791",
+  "destination": "NeutralMerchant111111111111111111111111111",
+  "assetMint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "amountAtomic": "1000",
+  "amountUsdMicros": "1000",
+  "resource": "http://127.0.0.1:8791/v1/market-snapshot"
+}

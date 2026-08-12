@@ -5,12 +5,15 @@ export function gatewayBaseUrl(env: NodeJS.ProcessEnv = process.env): string {
   return (env.AGENTTAB_GATEWAY_URL ?? "http://127.0.0.1:8787").replace(/\/$/, "");
 }
 
-/** HTTP audit when a remote gateway is named and local DB path is not. */
+/**
+ * Prefer HTTP whenever a gateway URL is set (Docker image always has
+ * AGENTTAB_DB_PATH=/data/gateway.sqlite; that must not hide the live server).
+ * Use a local DB only when no URL is set.
+ */
 export function shouldAuditOverHttp(env: NodeJS.ProcessEnv = process.env): boolean {
-  const dbExplicit = env.AGENTTAB_DB_PATH !== undefined && env.AGENTTAB_DB_PATH.length > 0;
   const gatewayExplicit =
     env.AGENTTAB_GATEWAY_URL !== undefined && env.AGENTTAB_GATEWAY_URL.length > 0;
-  return gatewayExplicit && !dbExplicit;
+  return gatewayExplicit;
 }
 
 export function gatewayHeaders(env: NodeJS.ProcessEnv = process.env): Record<string, string> {

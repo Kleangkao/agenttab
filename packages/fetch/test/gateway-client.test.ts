@@ -4,6 +4,7 @@ import {
   createGatewayAuditRecorder,
   createGatewayFundingCoordinator
 } from "../src/gateway-client.js";
+import { createGatewayClient } from "../src/gateway-api.js";
 import { hashHttpRequest } from "../src/hash.js";
 
 describe("hashHttpRequest", () => {
@@ -104,5 +105,44 @@ describe("createGatewayAuditRecorder", () => {
       transaction: "settle-1"
     });
     expect(calls[1]?.url).toBe("http://gateway.test/v1/executions/op-3/fulfill");
+  });
+});
+
+describe("createGatewayClient.preview", () => {
+  it("posts to /v1/preview and returns the decision", async () => {
+    const intent: PaymentIntent = {
+      operationId: "preview-1",
+      requestHash: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      protocol: "x402",
+      network: "solana:local",
+      merchantId: "merchant.local",
+      merchantOrigin: "http://merchant.local",
+      destination: "Destination1111111111111111111111111111111",
+      assetMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      amountAtomic: "1000",
+      amountUsdMicros: "1000",
+      resource: "http://merchant.local/v1/x"
+    };
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("http://gateway.test/v1/preview");
+      expect(init?.method).toBe("POST");
+      return Response.json({
+        preview: true,
+        funded: false,
+        policyMode: "approve",
+        decision: { kind: "approval_required", reason: "allowed", message: "needs review" },
+        hint: "did not fund",
+        observeIsNotDryRun: false
+      });
+    });
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch
+    });
+    await expect(client.preview(intent)).resolves.toMatchObject({
+      preview: true,
+      funded: false,
+      decision: { kind: "approval_required" }
+    });
   });
 });

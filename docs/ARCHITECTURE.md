@@ -34,16 +34,17 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
   - Durable SQLite: executions, events, spend ledger, **policy** (when `dbPath` is on disk).
   - Read-only audit: `GET /v1/executions?limit=&state=&requestHash=&reusable=`
     + `pnpm audit:recent` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
-  - Policy writes validated; optional `AGENTTAB_ADMIN_TOKEN` for `PUT /v1/policy`.
+  - Read-only `POST /v1/preview` (policy only; no execution, no fund).
+  - Operator UI at `/ui`.
+  - Policy writes and approvals gated by optional `AGENTTAB_ADMIN_TOKEN`.
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
 - `tools/*`: Devnet/Mainnet wallet setup, preflight, facilitator health, broadcast gate.
 
 ## Planned / not required for the core thesis
 
-- `apps/dashboard`: optional Observe/Approve UI. Operator control is already
-  available via HTTP + CLI (`policy:get|set`, `approve`, `audit:recent`) and
-  documented in `docs/ADOPT.md`; a dashboard can later consume the same APIs.
+- A richer hosted dashboard can still consume the same APIs. `/ui` covers
+  policy, preview, parked approvals, and the observe-is-not-dry-run warning.
 
 ## Execution state machine
 
