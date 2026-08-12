@@ -11,5 +11,7 @@ describe("HTTP adopt demo", () => {
     expect(result.deniedReusable).toBeUndefined();
     expect(result.events).toContain("funding.confirmed");
     expect(result.events).toContain("resource.fulfilled");
+    expect(result.openapiPreview).toBe(true);
+    expect(result.parkedAfter).toBe(0);
   });
 });

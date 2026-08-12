@@ -6,6 +6,9 @@
 - `GET /health` includes `parkedCount` and rolling 24h spend
 - `GET /openapi.json` locked to live Hono routes
 - `pnpm parked` / `pnpm policy:mode` / `pnpm policy:allow`
+- Operator UI Save caps (payment / daily / approve-above) without rewriting JSON
+- `pnpm demo:adopt` also checks `/openapi.json` and leftover parked count
+- `AUDIT_REQUEST_HASH` on `pnpm audit:recent`
 - Canonicalize http(s) merchant origins (trailing slash / default port) in policy
 - `@agenttab/fetch` workspace: `getSpend()`, `getHealth()`, `listParked()`,
   `allowMerchantOrigin()` (unreleased until next fetch publish)

@@ -25,6 +25,19 @@ describe("loadPolicyFile", () => {
     ).toThrow(/not found/i);
   });
 
+  it("canonicalizes trailing slashes on merchant origins", () => {
+    const fromFile = loadPolicyFile(
+      resolve(process.cwd(), "../../examples/policies/approve.local.json")
+    );
+    const loaded = loadPolicyFromEnv({
+      AGENTTAB_POLICY_JSON: JSON.stringify({
+        ...fromFile,
+        allowedMerchantOrigins: ["http://127.0.0.1:8791/v1/market-snapshot"]
+      })
+    });
+    expect(loaded?.policy.allowedMerchantOrigins).toEqual(["http://127.0.0.1:8791"]);
+  });
+
   it("loads AGENTTAB_POLICY_JSON ahead of AGENTTAB_POLICY_PATH", () => {
     const fromFile = loadPolicyFile(
       resolve(process.cwd(), "../../examples/policies/approve.local.json")

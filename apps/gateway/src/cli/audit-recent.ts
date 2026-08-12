@@ -68,6 +68,8 @@ async function auditOverHttp(): Promise<void> {
   if (stateRaw !== undefined && isExecutionState(stateRaw)) {
     params.set("state", stateRaw);
   }
+  const requestHash = process.env.AUDIT_REQUEST_HASH?.trim();
+  if (requestHash) params.set("requestHash", requestHash);
   const response = await gatewayFetch(`/v1/executions?${params.toString()}`);
   const body = await response.json();
   if (!response.ok) {
@@ -132,9 +134,11 @@ async function auditLocalSqlite(): Promise<void> {
       process.exit(2);
     }
     const state = stateRaw as ExecutionState | undefined;
+    const requestHash = process.env.AUDIT_REQUEST_HASH?.trim();
     const summaries = await store.listRecent({
       limit: Number.isFinite(limit) ? limit : 10,
-      ...(state === undefined || !isExecutionState(state) ? {} : { state })
+      ...(state === undefined || !isExecutionState(state) ? {} : { state }),
+      ...(requestHash === undefined || requestHash.length === 0 ? {} : { requestHash })
     });
 
     console.log(

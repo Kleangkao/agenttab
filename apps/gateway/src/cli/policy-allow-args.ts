@@ -1,3 +1,5 @@
+import { canonicalizeHttpOrigin } from "@agenttab/core";
+
 export function resolveMerchantOrigin(argv: string[]): string {
   const afterDash = argv.findIndex((arg) => arg === "--");
   const candidates = (afterDash >= 0 ? argv.slice(afterDash + 1) : argv).filter(
@@ -7,14 +9,9 @@ export function resolveMerchantOrigin(argv: string[]): string {
   if (raw === undefined || raw.length === 0) {
     throw new Error("Usage: pnpm policy:allow -- <https://merchant.example>");
   }
-  let parsed: URL;
   try {
-    parsed = new URL(raw);
+    return canonicalizeHttpOrigin(raw);
   } catch {
     throw new Error(`Invalid origin: ${raw}`);
   }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new Error(`Invalid origin protocol: ${raw}`);
-  }
-  return parsed.origin;
 }

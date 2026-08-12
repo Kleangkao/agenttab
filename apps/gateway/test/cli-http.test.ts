@@ -37,7 +37,7 @@ describe("policy allow CLI", () => {
       "http://127.0.0.1:8791"
     );
     expect(() => resolveMerchantOrigin([])).toThrow(/Usage: pnpm policy:allow/);
-    expect(() => resolveMerchantOrigin(["--", "ftp://x"])).toThrow(/protocol/);
+    expect(() => resolveMerchantOrigin(["--", "ftp://x"])).toThrow(/Invalid origin/);
   });
 });
 

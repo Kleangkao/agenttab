@@ -60,6 +60,12 @@ export function operatorHtml(input: {
       <button id="setMode" type="button">Set mode</button>
       <span id="modeStatus" class="muted"></span>
     </div>
+    <div class="row" style="margin-bottom:10px">
+      <label>Max payment µUSD <input id="maxPayment" /></label>
+      <label>Max daily µUSD <input id="maxDaily" /></label>
+      <label>Approve above µUSD <input id="approveAbove" placeholder="empty = always park in approve" /></label>
+      <button id="saveCaps" type="button">Save caps</button>
+    </div>
     <textarea id="policy" spellcheck="false"></textarea>
     <div class="row" style="margin-top:10px">
       <label>Add merchant origin <input id="addOrigin" placeholder="http://127.0.0.1:8791" /></label>
@@ -165,13 +171,31 @@ async function health() {
     $("health").after(p);
   }
 }
+function fillCaps(policy) {
+  $("maxPayment").value = policy.maxPaymentUsdMicros ?? "";
+  $("maxDaily").value = policy.maxDailyUsdMicros ?? "";
+  $("approveAbove").value = policy.requireApprovalAboveUsdMicros ?? "";
+}
 async function loadPolicy() {
   const r = await fetch("/v1/policy");
   const policy = await r.json();
   $("policy").value = JSON.stringify(policy, null, 2);
   if (policy.mode) $("mode").value = policy.mode;
+  fillCaps(policy);
 }
 $("reloadPolicy").onclick = () => loadPolicy();
+$("saveCaps").onclick = async () => {
+  let policy;
+  try { policy = JSON.parse($("policy").value); }
+  catch (e) { $("policyStatus").className = "bad"; $("policyStatus").textContent = "invalid JSON"; return; }
+  policy.maxPaymentUsdMicros = $("maxPayment").value.trim();
+  policy.maxDailyUsdMicros = $("maxDaily").value.trim();
+  const above = $("approveAbove").value.trim();
+  if (above) policy.requireApprovalAboveUsdMicros = above;
+  else delete policy.requireApprovalAboveUsdMicros;
+  $("policy").value = JSON.stringify(policy, null, 2);
+  $("savePolicy").click();
+};
 $("setMode").onclick = async () => {
   let policy;
   try { policy = JSON.parse($("policy").value); }
@@ -206,7 +230,7 @@ $("savePolicy").onclick = async () => {
   $("policyStatus").textContent = r.ok ? "saved " + b.mode : (b.error || r.status);
   $("modeStatus").className = $("policyStatus").className;
   $("modeStatus").textContent = r.ok ? "mode " + b.mode : ($("policyStatus").textContent);
-  if (r.ok) { $("policy").value = JSON.stringify(b, null, 2); if (b.mode) $("mode").value = b.mode; health(); }
+  if (r.ok) { $("policy").value = JSON.stringify(b, null, 2); if (b.mode) $("mode").value = b.mode; fillCaps(b); health(); }
 };
 $("preview").onclick = async () => {
   const intent = {

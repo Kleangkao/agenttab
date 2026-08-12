@@ -30,6 +30,8 @@ export interface AdoptDemoResult {
   deniedOperationId: string;
   deniedReusable: string | undefined;
   events: string[];
+  openapiPreview: boolean;
+  parkedAfter: number;
 }
 
 export async function runAdoptDemo(): Promise<AdoptDemoResult> {
@@ -72,6 +74,16 @@ export async function runAdoptDemo(): Promise<AdoptDemoResult> {
     const preview = await client.preview(previewIntent);
     if (preview.funded !== false || (await gateway.store.get("adopt-preview")) !== undefined) {
       throw new Error("preview created or funded an execution");
+    }
+    const spec = (await (await fetch(`${gatewayHttp.baseUrl}/openapi.json`)).json()) as {
+      paths?: Record<string, unknown>;
+    };
+    if (spec.paths?.["/v1/preview"] === undefined || spec.paths?.["/v1/denials/{operationId}"] === undefined) {
+      throw new Error("openapi.json is missing preview or deny");
+    }
+    const health = await client.getHealth();
+    if (health.openapi !== "/openapi.json") {
+      throw new Error("health is missing openapi");
     }
 
     const agent = createRemoteAgent({
@@ -128,6 +140,7 @@ export async function runAdoptDemo(): Promise<AdoptDemoResult> {
     const deniedReusable = await client.findReusableOperationId(
       deniedRecord.intent.requestHash
     );
+    const parkedAfter = (await client.listParked()).count;
 
     return {
       previewFunded: preview.funded,
@@ -135,7 +148,9 @@ export async function runAdoptDemo(): Promise<AdoptDemoResult> {
       fulfilledState: approvedExecution.state,
       deniedOperationId,
       deniedReusable,
-      events: approvedExecution.events.map((event) => event.kind)
+      events: approvedExecution.events.map((event) => event.kind),
+      openapiPreview: true,
+      parkedAfter
     };
   } finally {
     await gatewayHttp.close();
@@ -165,6 +180,8 @@ async function main(): Promise<void> {
   console.log(`approve → fulfill:       ${result.approvedOperationId}  ${result.fulfilledState}`);
   console.log(`deny (terminal):         ${result.deniedOperationId}`);
   console.log(`denied id reusable:      ${result.deniedReusable ?? "no"}`);
+  console.log(`openapi preview/deny:    ${result.openapiPreview}`);
+  console.log(`parked leftover:         ${result.parkedAfter}`);
   console.log("");
   console.log("Approved execution events");
   for (const kind of result.events) {

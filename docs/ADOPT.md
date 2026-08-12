@@ -163,7 +163,8 @@ pnpm demo:adopt
    `operationId` is reused from memory **or** looked up on the gateway by
    `requestHash`, so a one-shot CLI can just be run again after approve
 4. `pnpm audit:recent` (local SQLite, or `GET /v1/executions` when
-   `AGENTTAB_GATEWAY_URL` is set) or `agent.gateway?.getExecution(operationId)`
+   `AGENTTAB_GATEWAY_URL` is set; `AUDIT_REQUEST_HASH` filters reuse lookups)
+   or `agent.gateway?.getExecution(operationId)`
 
 `requestPaidResource(..., { onApprovalRequired: () => "approve" })` does steps
 2–3 in-process when the agent process is allowed to approve (tests, trusted ops).
