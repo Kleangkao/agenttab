@@ -10,14 +10,14 @@
   const statusEl = $("status");
   const parkedCountEl = $("parked-count");
   const panels = {
-    inbox: $("panel-inbox"),
-    activity: $("panel-activity"),
-    rules: $("panel-rules"),
-    ask: $("panel-ask"),
+    now: $("panel-now"),
+    ledger: $("panel-ledger"),
+    policy: $("panel-policy"),
   };
+  const aliases = { inbox: "now", activity: "ledger", rules: "policy", ask: "policy" };
 
   const state = {
-    view: "inbox",
+    view: "now",
     health: null,
     policy: null,
     parked: [],
@@ -25,7 +25,53 @@
     spend: null,
     balances: [],
     detail: {},
-    confirm: null,
+    pending: null,
+  };
+
+  const STATES = {
+    discovered: "Seen",
+    approval_required: "Waiting for you",
+    approved: "Approved",
+    funding_submitted: "Funding",
+    funded: "Ready to pay",
+    payment_submitted: "Paying",
+    paid: "Paid",
+    fulfilled: "Done",
+    fulfillment_failed: "Fulfillment failed",
+    denied: "Rejected",
+    failed: "Failed",
+  };
+
+  const EVENTS = {
+    "payment.discovered": "Agent presented a payment",
+    "policy.approval_required": "AgentTab paused it for you",
+    "approval.granted": "You approved",
+    "approval.denied": "You rejected",
+    "funding.submitted": "Buying the payment asset",
+    "funding.attempt_locked": "Funding attempt locked",
+    "funding.plan_receipt": "Funding plan received",
+    "funding.balances_applied": "Wallet balances updated",
+    "funding.confirmed": "Wallet holds enough to pay",
+    "payment.submitted": "Paying the merchant",
+    "payment.settled": "Merchant was paid",
+    "payment.token_issued": "Local payment token issued",
+    "resource.fulfilled": "Agent received the resource",
+  };
+
+  const REASONS = {
+    approval_threshold_exceeded: "Policy is set to ask you before this payment.",
+    merchant_not_allowed: "This merchant is not on the allow list.",
+    merchant_denied: "This merchant is explicitly denied.",
+    network_not_allowed: "This network is not allowed.",
+    payment_asset_not_allowed: "This payment asset is not allowed.",
+    funding_asset_not_allowed: "The funding asset is not allowed.",
+    unverified_funding_asset: "The funding asset is not verified.",
+    usd_value_unknown: "AgentTab does not have a USD value for this payment.",
+    per_payment_limit_exceeded: "This amount is over the per-payment limit.",
+    daily_limit_exceeded: "This would exceed today's spend limit.",
+    challenge_expired: "The payment challenge has expired.",
+    invalid_intent: "The payment intent is not valid.",
+    allowed: "The live policy would allow this.",
   };
 
   function bearerHeaders() {
@@ -53,7 +99,7 @@
     if (!Number.isFinite(n)) return String(raw);
     const dollars = n / 1_000_000;
     if (n === 0) return "$0.00";
-    if (Math.abs(dollars) >= 1) {
+    if (Math.abs(dollars) >= 0.01) {
       return dollars.toLocaleString(undefined, {
         style: "currency",
         currency: "USD",
@@ -62,6 +108,19 @@
       });
     }
     return `$${dollars.toFixed(4)}`;
+  }
+
+  function dollarsInput(raw) {
+    if (!raw) return "";
+    const n = Number(raw) / 1_000_000;
+    if (!Number.isFinite(n)) return "";
+    return n >= 0.01 ? n.toFixed(2) : String(n);
+  }
+
+  function toMicros(raw) {
+    const n = Number(String(raw).replace(/[$,\s]/g, ""));
+    if (!Number.isFinite(n) || n < 0) throw new Error("Enter an amount in dollars.");
+    return String(Math.round(n * 1_000_000));
   }
 
   function tokenAmount(row) {
@@ -97,6 +156,33 @@
     }
   }
 
+  function networkLabel(network) {
+    if (network === "solana:local") return "Local (no chain)";
+    if (network === "solana:devnet") return "Solana Devnet";
+    if (network === "solana:mainnet") return "Solana Mainnet";
+    return network || "Unknown network";
+  }
+
+  function assetLabel(mint) {
+    if (mint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") return "USDC";
+    if (mint === "So11111111111111111111111111111111111111112") return "SOL";
+    return mint ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : "payment asset";
+  }
+
+  function modeLabel(mode) {
+    if (mode === "autopay") return "Pay within limits";
+    if (mode === "approve") return "Ask you first";
+    return "Watch";
+  }
+
+  function reasonText(code, fallback) {
+    return REASONS[code] || fallback || "AgentTab stopped this payment for review.";
+  }
+
+  function eventText(kind) {
+    return EVENTS[kind] || kind;
+  }
+
   function setStatus(kind, text) {
     statusEl.className = `status ${kind || ""}`;
     statusEl.textContent = text || "";
@@ -129,128 +215,190 @@
 
   function showUnlock(show) {
     $("unlock").hidden = !show;
+    $("unlock").inert = !show;
     $("unlock").setAttribute("aria-hidden", show ? "false" : "true");
     $("workspace").hidden = show;
+    $("workspace").inert = show;
     $("workspace").setAttribute("aria-hidden", show ? "true" : "false");
-    $("confirm").setAttribute("aria-hidden", $("confirm").hidden ? "true" : "false");
   }
 
   function setView(view) {
-    state.view = view;
+    const next = aliases[view] || view;
+    if (!panels[next]) return;
+    state.view = next;
     for (const [name, panel] of Object.entries(panels)) {
-      const hide = name !== view;
+      const hide = name !== next;
       panel.hidden = hide;
+      panel.inert = hide;
       panel.setAttribute("aria-hidden", hide ? "true" : "false");
     }
     for (const button of document.querySelectorAll("[data-view]")) {
-      if (button.dataset.view === view) button.setAttribute("aria-current", "page");
+      if (button.dataset.view === next) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     }
-    if (location.hash.replace("#", "") !== view) {
-      location.hash = view;
-    }
+    if (location.hash.replace("#", "") !== next) location.hash = next;
   }
 
-  function renderPosture() {
+  function fundingCopy(row, record) {
+    const amount = Number(record?.intent?.amountAtomic || row.amountAtomic || 0);
+    const usdc = state.balances.find((item) => item.symbol === "USDC");
+    const have = usdc ? Number(usdc.balanceAtomic) : NaN;
+    const mode = state.health?.fundingMode;
+    const source =
+      mode === "mock"
+        ? "this local mock"
+        : mode === "live-sim"
+          ? "a simulated live quote"
+          : mode === "live-quote"
+            ? "a live quote"
+            : "the funding coordinator";
+    if (Number.isFinite(have) && have >= amount && amount > 0) {
+      return `Wallet already holds enough ${assetLabel(row.assetMint)}. Approving should not need a swap.`;
+    }
+    if (Number.isFinite(have) && amount > have) {
+      return `Wallet is short ${assetLabel(row.assetMint)}. Approving may buy only the missing amount via ${source}.`;
+    }
+    return `Approving uses ${source} to make sure the payment asset is in the wallet, then pays.`;
+  }
+
+  function parkedReason(row, record) {
+    const events = record?.events || [];
+    const last = [...events].reverse().find((event) => event.kind === "policy.approval_required") || events.at(-1);
+    const code = last?.details?.reason;
+    return reasonText(code, last ? eventText(last.kind) : row.lastEventKind);
+  }
+
+  function renderStance() {
     const health = state.health || {};
     const spend = state.spend || {};
-    const used = Number(spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0);
-    const daily = Number(spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0);
-    const pct = daily > 0 ? Math.min(100, Math.round((used / daily) * 100)) : 0;
-    $("spend-used").textContent = money(used);
-    $("spend-copy").textContent = daily
-      ? `${money(daily)} daily ceiling · ${money(Math.max(0, daily - used))} left`
-      : "No daily ceiling on file";
-    $("spend-bar").style.width = `${pct}%`;
-
-    const usdc = state.balances.find((row) => row.symbol === "USDC") || state.balances[0];
-    $("wallet-value").textContent = usdc ? tokenAmount(usdc) : "—";
-    $("wallet-copy").textContent = usdc?.mint
-      ? `${usdc.verified ? "verified" : "unverified"} · ${usdc.mint.slice(0, 4)}…${usdc.mint.slice(-4)}`
-      : "Buyer wallet the coordinator can fund from";
-
-    const mode = state.policy?.mode || health.policyMode || boot.policyMode;
-    $("mode-value").textContent =
-      mode === "autopay" ? "Within limits" : mode === "approve" ? "Ask me" : "Watch";
-    $("mode-copy").textContent =
-      mode === "autopay"
-        ? "Matching intents pay without asking you"
-        : mode === "approve"
-          ? "Agents wait here when a payment needs a person"
-          : "Observe is not a dry-run. Matching payments can still spend.";
-    $("observe-banner").hidden = mode !== "observe";
-    parkedCountEl.textContent = String(state.parked.length || health.parkedCount || 0);
-
-    const flags = [];
-    if (health.policyWriteAuth) flags.push("console locked");
-    if (health.agentAuth) flags.push("agent token required");
-    if (health.notifyConfigured) flags.push(health.notifySigned ? "signed alerts" : "alerts on");
-    flags.push(health.broadcastEnabled ? "Mainnet broadcast on" : "not broadcasting");
-    $("flags").textContent = flags.join(" · ");
+    const used = money(spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0);
+    const daily = money(spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0);
+    const usdc = state.balances.find((row) => row.symbol === "USDC");
+    const ready = usdc ? tokenAmount(usdc) : "wallet unknown";
+    const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
+    const rail = health.broadcastEnabled ? "Mainnet broadcast on" : "not broadcasting";
+    const fund =
+      health.fundingMode === "mock"
+        ? "local mock"
+        : health.fundingMode === "live-sim"
+          ? "live sim"
+          : health.fundingMode || "gateway";
+    const notifySigned = health.notifySigned;
+    const alerts = health.notifyConfigured
+      ? notifySigned
+        ? " · signed alerts"
+        : " · alerts on"
+      : "";
+    $("stance").innerHTML = `Spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today · ${esc(ready)} ready · <strong>${esc(mode)}</strong> · ${esc(fund)}, ${esc(rail)}${esc(alerts)}`;
+    $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
+    const waiting = state.parked.length || health.parkedCount || 0;
+    parkedCountEl.textContent = waiting ? String(waiting) : "";
   }
 
-  function renderInbox() {
-    const root = $("inbox-list");
+  function renderNow() {
+    const root = $("decision-list");
     if (!state.parked.length) {
       root.innerHTML = `
         <div class="empty">
-          <h2>Nothing waiting on you</h2>
-          <p>When an agent needs a payment you have not pre-allowed, it parks here as a card: who wants money, how much, and whether to release or reject it.</p>
+          <h2>No agent is waiting on you</h2>
+          <p>When policy needs a person, the payment will appear here with the merchant, amount, and why AgentTab stopped it. Until then, agents only spend what Policy already allows.</p>
         </div>`;
       return;
     }
     root.innerHTML = state.parked
       .map((row) => {
-        const amount = money(row.amountUsdMicros || row.amountAtomic);
-        const who = originHost(row.merchantOrigin);
-        return `
-          <article class="decision" data-id="${esc(row.operationId)}">
-            <div>
-              <p class="amount">${esc(amount)}</p>
-              <p class="who">${esc(who)} is asking to be paid</p>
-              <p class="meta">${esc(pathOf(row.resource))} · ${esc(row.network)} · ${esc(row.lastEventKind || row.state)}</p>
-              <p class="id">${esc(row.operationId)}</p>
-            </div>
+        const record = state.detail[row.operationId];
+        const intent = record?.intent || row;
+        const amount = money(intent.amountUsdMicros || row.amountUsdMicros || row.amountAtomic);
+        const access = (() => {
+          try {
+            return new URL(intent.resource).origin === intent.merchantOrigin
+              ? pathOf(intent.resource)
+              : intent.resource;
+          } catch {
+            return pathOf(intent.resource);
+          }
+        })();
+        const pending = state.pending?.id === row.operationId;
+        const confirm = pending
+          ? `<div class="confirm-copy">${
+              state.pending.act === "approve"
+                ? "Approve will fund this payment and pay the merchant under the live policy. Observe is not a dry-run."
+                : "Reject is final. This payment id cannot be reused later."
+            }</div>
             <div class="actions">
-              <button class="btn primary" data-act="approve" type="button">Release</button>
+              <button class="btn ${state.pending.act === "approve" ? "primary" : "danger"}" data-act="confirm" type="button">${
+                state.pending.act === "approve" ? "Confirm approve" : "Confirm reject"
+              }</button>
+              <button class="btn ghost" data-act="cancel" type="button">Back</button>
+            </div>`
+          : `<div class="actions">
+              <button class="btn primary" data-act="approve" type="button">Approve</button>
               <button class="btn danger" data-act="deny" type="button">Reject</button>
-            </div>
+            </div>`;
+        return `
+          <article class="brief" data-id="${esc(row.operationId)}">
+            <p class="kicker">Waiting for you</p>
+            <p class="amount">${esc(amount)}</p>
+            <p class="lead">An agent is requesting ${esc(amount)} to pay this merchant for ${esc(access)}.</p>
+            <dl class="facts">
+              <dt>Merchant</dt><dd>${esc(intent.merchantOrigin)}</dd>
+              <dt>Access</dt><dd>${esc(access)}</dd>
+              <dt>Amount</dt><dd>${esc(amount)} ${esc(assetLabel(intent.assetMint))}</dd>
+              <dt>Network</dt><dd>${esc(networkLabel(intent.network))}</dd>
+              <dt>Why stopped</dt><dd>${esc(parkedReason(row, record))}</dd>
+              <dt>If approved</dt><dd>${esc(fundingCopy(row, record))}</dd>
+            </dl>
+            <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p></details>
+            <p class="meaning">Approve lets AgentTab complete this payment. Reject stops this payment only; the agent must start a new one.</p>
+            ${confirm}
           </article>`;
       })
       .join("");
   }
 
-  function renderActivity() {
-    const root = $("activity-list");
+  function renderLedger() {
+    const root = $("ledger-list");
     if (!state.recent.length) {
       root.innerHTML = `
         <div class="empty">
-          <h2>No receipts yet</h2>
-          <p>Parks, releases, rejections, and fulfilled pays land here so you can see what agents did with money.</p>
+          <h2>No payments yet</h2>
+          <p>Parks, approvals, rejections, funding, and fulfilled pays will land here as a ledger — what the agent wanted, what AgentTab decided, and what money actually did.</p>
         </div>`;
       return;
     }
     root.innerHTML = state.recent
       .map((row) => {
         const open = state.detail[row.operationId];
+        const skip = new Set([
+          "funding.attempt_locked",
+          "funding.plan_receipt",
+          "funding.balances_applied",
+        ]);
         const events = (open?.events || [])
-          .map((event) => `<div>${esc(when(event.at))} · ${esc(event.kind)}${event.to ? ` → ${esc(event.to)}` : ""}</div>`)
+          .filter((event) => !skip.has(event.kind))
+          .map(
+            (event) =>
+              `<li><time>${esc(when(event.at))}</time><span>${esc(eventText(event.kind))}${
+                event.details?.reason ? ` — ${esc(reasonText(event.details.reason, event.details.reason))}` : ""
+              }</span></li>`,
+          )
           .join("");
         return `
-          <article class="receipt" data-id="${esc(row.operationId)}">
-            <div class="state">${esc(row.state)}</div>
+          <article class="entry" data-id="${esc(row.operationId)}">
+            <div class="state">${esc(STATES[row.state] || row.state)}</div>
             <div>
-              <div>${esc(originHost(row.merchantOrigin))}</div>
-              <div class="sub">${esc(pathOf(row.resource) || row.requestHash || "")}</div>
+              <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}</div>
+              <div class="sub">${esc(when(row.updatedAt))} · ${esc(networkLabel(row.network))}</div>
             </div>
             <div class="amount">${esc(money(row.amountUsdMicros || row.amountAtomic))}</div>
-            ${open ? `<div class="timeline">${events || "No events on this receipt."}</div>` : ""}
+            ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}</ol>` : ""}
           </article>`;
       })
       .join("");
   }
 
-  function renderRules() {
+  function renderPolicy() {
     const policy = state.policy;
     if (!policy) return;
     for (const button of document.querySelectorAll("[data-mode]")) {
@@ -261,28 +409,37 @@
       ? origins
           .map(
             (origin) =>
-              `<span class="chip">${esc(origin)}<button type="button" data-remove-origin="${esc(origin)}" aria-label="Remove ${esc(origin)}">×</button></span>`,
+              `<span class="merchant">${esc(origin)}<button type="button" data-remove-origin="${esc(origin)}" aria-label="Remove ${esc(origin)}">×</button></span>`,
           )
           .join("")
-      : `<span class="help">No merchants yet. Add an origin agents are allowed to pay.</span>`;
-    $("max-payment").value = policy.maxPaymentUsdMicros || "";
-    $("max-daily").value = policy.maxDailyUsdMicros || "";
-    $("approve-above").value = policy.requireApprovalAboveUsdMicros || "";
+      : `<span class="help">Add a merchant origin agents are allowed to pay.</span>`;
+    $("max-payment").value = dollarsInput(policy.maxPaymentUsdMicros);
+    $("max-daily").value = dollarsInput(policy.maxDailyUsdMicros);
+    $("approve-above").value = dollarsInput(policy.requireApprovalAboveUsdMicros);
     $("policy-json").value = JSON.stringify(policy, null, 2);
   }
 
   function render() {
-    const tokenField = tokenInput.closest("label");
-    if (tokenField) tokenField.hidden = !needsToken();
-    $("auth-note").textContent = needsToken()
-      ? boot.adminRequired
-        ? "Operator reads and writes need the admin token."
-        : "Spend paths need the agent token. Admin also works here."
-      : "This gateway is open for local demo. Tokens stay optional.";
-    renderPosture();
-    renderInbox();
-    renderActivity();
-    renderRules();
+    renderStance();
+    if (!state.pending) renderNow();
+    renderLedger();
+    renderPolicy();
+  }
+
+  async function loadDetails(rows) {
+    const missing = rows
+      .map((row) => row.operationId)
+      .filter((id) => !state.detail[id])
+      .slice(0, 10);
+    await Promise.all(
+      missing.map(async (id) => {
+        try {
+          state.detail[id] = await api(`/v1/executions/${encodeURIComponent(id)}`);
+        } catch {
+          /* summary still renders */
+        }
+      }),
+    );
   }
 
   async function refresh() {
@@ -302,10 +459,11 @@
       state.recent = recent.executions || [];
       state.spend = spend;
       state.balances = balances.balances || [];
+      await loadDetails(state.parked);
       render();
-      setStatus("", "");
+      if (statusEl.classList.contains("bad")) setStatus("", "");
     } catch (error) {
-      renderPosture();
+      renderStance();
       if (needsToken() && /token|401|unauthorized/i.test(String(error.message))) {
         showUnlock(true);
       }
@@ -316,8 +474,8 @@
   async function savePolicy(next, done) {
     const body = await api("/v1/policy", { method: "PUT", body: JSON.stringify(next) });
     state.policy = body;
-    renderRules();
-    renderPosture();
+    renderPolicy();
+    renderStance();
     setStatus("ok", done);
     return body;
   }
@@ -330,7 +488,7 @@
       );
       if (!ok) return;
     }
-    await savePolicy({ ...state.policy, mode }, `Mode is now ${mode}.`);
+    await savePolicy({ ...state.policy, mode }, `Policy is now ${modeLabel(mode)}.`);
   }
 
   async function addOrigin(event) {
@@ -361,40 +519,34 @@
       setStatus("bad", "Keep at least one merchant. The live policy will not save an empty list.");
       return;
     }
-    await savePolicy(
-      { ...state.policy, allowedMerchantOrigins: next },
-      `${origin} removed.`,
-    );
+    await savePolicy({ ...state.policy, allowedMerchantOrigins: next }, `${origin} removed.`);
   }
 
   async function saveCaps(event) {
     event.preventDefault();
     if (!state.policy) return;
-    const maxPaymentUsdMicros = $("max-payment").value.trim();
-    const maxDailyUsdMicros = $("max-daily").value.trim();
-    const above = $("approve-above").value.trim();
-    const next = { ...state.policy, maxPaymentUsdMicros, maxDailyUsdMicros };
-    if (above) next.requireApprovalAboveUsdMicros = above;
-    else delete next.requireApprovalAboveUsdMicros;
-    await savePolicy(next, "Limits saved. Amounts are µUSD (millionths of a dollar).");
-  }
-
-  async function saveJson(event) {
-    event.preventDefault();
     try {
-      const next = JSON.parse($("policy-json").value);
-      await savePolicy(next, "Policy JSON saved.");
+      const next = {
+        ...state.policy,
+        maxPaymentUsdMicros: toMicros($("max-payment").value),
+        maxDailyUsdMicros: toMicros($("max-daily").value),
+      };
+      const above = $("approve-above").value.trim();
+      if (above) next.requireApprovalAboveUsdMicros = toMicros(above);
+      else delete next.requireApprovalAboveUsdMicros;
+      await savePolicy(next, "Limits saved.");
     } catch (error) {
       setStatus("bad", error.message);
     }
   }
 
-  function askConfirm(row) {
-    state.confirm = row;
-    $("confirm-copy").textContent =
-      `Release ${money(row.amountUsdMicros || row.amountAtomic)} to ${originHost(row.merchantOrigin)}? This uses the live coordinator. Observe is not a dry-run.`;
-    $("confirm").hidden = false;
-    $("confirm").setAttribute("aria-hidden", "false");
+  async function saveJson(event) {
+    event.preventDefault();
+    try {
+      await savePolicy(JSON.parse($("policy-json").value), "Policy JSON saved.");
+    } catch (error) {
+      setStatus("bad", error.message);
+    }
   }
 
   async function approve(id) {
@@ -402,11 +554,10 @@
       method: "POST",
       body: "{}",
     });
-    $("confirm").hidden = true;
-    $("confirm").setAttribute("aria-hidden", "true");
-    state.confirm = null;
+    state.pending = null;
+    delete state.detail[id];
     await refresh();
-    setStatus("ok", `Released · ${body.record?.state || "funded"}`);
+    setStatus("ok", `Approved · ${STATES[body.record?.state] || body.record?.state || "funded"}`);
   }
 
   async function deny(id) {
@@ -414,8 +565,10 @@
       method: "POST",
       body: JSON.stringify({ reason: "operator_denied" }),
     });
+    state.pending = null;
+    delete state.detail[id];
     await refresh();
-    setStatus("ok", "Rejected. That id cannot be reused.");
+    setStatus("ok", "Rejected. That payment cannot be reused.");
   }
 
   async function ask(event) {
@@ -424,7 +577,10 @@
     try {
       const merchantOrigin = $("ask-origin").value.trim();
       const resource = $("ask-resource").value.trim();
-      const amountUsdMicros = $("ask-usd").value.trim();
+      const amountUsdMicros = toMicros($("ask-usd").value);
+      const mint =
+        state.policy?.allowedPaymentAssets?.[0] ||
+        "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
       const body = await api("/v1/preview", {
         method: "POST",
         body: JSON.stringify({
@@ -435,37 +591,37 @@
           merchantId: new URL(merchantOrigin).host,
           merchantOrigin,
           destination: "PreviewDestination1111111111111111111111111",
-          assetMint: $("ask-mint").value.trim(),
-          amountAtomic: $("ask-atomic").value.trim(),
-          ...(amountUsdMicros ? { amountUsdMicros } : {}),
+          assetMint: mint,
+          amountAtomic: amountUsdMicros,
+          amountUsdMicros,
           resource,
         }),
       });
       const kind = body.decision?.kind;
       const title =
         kind === "allow"
-          ? "This would be allowed"
+          ? "AgentTab would allow this"
           : kind === "approval_required"
-            ? "This would wait for you"
-            : "This would be denied";
-      const detail =
+            ? "This would wait on Now"
+            : "AgentTab would deny this";
+      const detail = reasonText(body.decision?.reason, body.decision?.message);
+      const extra =
         kind === "allow"
-          ? `${body.decision?.message || ""} If an agent requested this now, funding could proceed. This Ask did not move money.`
+          ? " If an agent requested this now, funding could proceed. This check did not move money."
           : kind === "approval_required"
-            ? `${body.decision?.message || ""} It would appear under Needs you. Releasing it later still spends. This Ask did not.`
-            : body.decision?.message || body.hint || "";
+            ? " You would see it on Now. Approving later still spends. This check did not."
+            : ` ${body.hint || ""}`;
       result.hidden = false;
-      result.innerHTML = `<h3>${esc(title)}</h3><p>${esc(detail)}</p>`;
+      result.innerHTML = `<h3>${esc(title)}</h3><p>${esc(detail)}${esc(extra)}</p>`;
     } catch (error) {
       result.hidden = false;
-      result.innerHTML = `<h3>Could not ask</h3><p>${esc(error.message)}</p>`;
+      result.innerHTML = `<h3>Could not check</h3><p>${esc(error.message)}</p>`;
     }
   }
 
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => setView(button.dataset.view));
   });
-
   $("unlock-open").addEventListener("click", () => {
     persistToken();
     refresh();
@@ -474,34 +630,46 @@
     persistToken();
     refresh();
   });
-
-  $("inbox-list").addEventListener("click", (event) => {
+  $("decision-list").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-act]");
     if (!button) return;
     const card = button.closest("[data-id]");
-    const row = state.parked.find((item) => item.operationId === card.dataset.id);
+    const id = card?.dataset.id;
+    const row = state.parked.find((item) => item.operationId === id);
     if (!row) return;
-    if (button.dataset.act === "approve") askConfirm(row);
-    if (button.dataset.act === "deny") deny(row.operationId);
+    if (button.dataset.act === "approve") {
+      state.pending = { id, act: "approve" };
+      renderNow();
+    } else if (button.dataset.act === "deny") {
+      state.pending = { id, act: "deny" };
+      renderNow();
+    } else if (button.dataset.act === "cancel") {
+      state.pending = null;
+      renderNow();
+    } else if (button.dataset.act === "confirm") {
+      if (state.pending?.act === "approve") approve(id);
+      if (state.pending?.act === "deny") deny(id);
+    }
   });
-
-  $("activity-list").addEventListener("click", async (event) => {
+  $("ledger-list").addEventListener("click", async (event) => {
     const card = event.target.closest("[data-id]");
     if (!card) return;
     const id = card.dataset.id;
-    if (state.detail[id]) {
-      delete state.detail[id];
-      renderActivity();
-      return;
+    if (state.detail[id] && state.view === "ledger") {
+      const alreadyOpen = card.querySelector(".trail");
+      if (alreadyOpen) {
+        delete state.detail[id];
+        renderLedger();
+        return;
+      }
     }
     try {
       state.detail[id] = await api(`/v1/executions/${encodeURIComponent(id)}`);
-      renderActivity();
+      renderLedger();
     } catch (error) {
       setStatus("bad", error.message);
     }
   });
-
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));
   });
@@ -513,18 +681,11 @@
   $("caps-form").addEventListener("submit", saveCaps);
   $("json-form").addEventListener("submit", saveJson);
   $("ask-form").addEventListener("submit", ask);
-  $("confirm-cancel").addEventListener("click", () => {
-    $("confirm").hidden = true;
-    $("confirm").setAttribute("aria-hidden", "true");
-    state.confirm = null;
-  });
-  $("confirm-ok").addEventListener("click", () => {
-    if (state.confirm) approve(state.confirm.operationId);
-  });
 
+  $("ask-usd").value = $("ask-usd").value || "2.50";
   tokenInput.value = sessionStorage.getItem("agenttab.admin") || "";
-  const hash = location.hash.replace("#", "");
-  setView(panels[hash] ? hash : "inbox");
+  const hash = aliases[location.hash.replace("#", "")] || location.hash.replace("#", "");
+  setView(panels[hash] ? hash : "now");
   showUnlock(needsToken() && !tokenInput.value);
   refresh();
   setInterval(refresh, 5000);

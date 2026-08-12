@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Operator `/ui` is a control room (Now, Ledger, Policy): decision briefs,
+  human lifecycle copy, dollar limits, unlock only when a token is required
 - Operator `/ui` is a product console (Needs you, Activity, Rules, Ask) with
   human-readable USD, confirm-before-release, and `/ui/app.css` + `/ui/app.js`
 - Operator UI shows merchant / µUSD / resource, Set mode, parked count, 5s refresh

@@ -220,11 +220,12 @@ describe("operator control spine", () => {
     expect(html).toContain("AgentTab");
     expect(html).toContain('"adminRequired":true');
     expect(html).toContain("Gateway token");
-    expect(html).toContain("Needs you");
+    expect(html).toContain("Now");
+    expect(html).toContain("Ledger");
+    expect(html).toContain("Policy");
     expect(html).toContain("Allow this merchant");
     expect(html).toContain("Save limits");
     expect(html).toContain("Observe is not a dry-run");
-    expect(html).toContain("µUSD");
     expect(html).toContain("/ui/app.js");
     expect(html).toContain("/openapi.json");
 
@@ -234,6 +235,7 @@ describe("operator control spine", () => {
     expect(js).toContain("/v1/approvals/");
     expect(js).toContain("/v1/denials/");
     expect(js).toContain("/v1/preview");
+    expect(js).toContain("Confirm approve");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
@@ -375,9 +377,10 @@ describe("operator control spine", () => {
     expect(await client.findReusableOperationId(intent.requestHash)).toBeUndefined();
 
     const ui = await gateway.app.request("/ui");
-    expect(await ui.text()).toContain("Reject");
+    expect(await ui.text()).toContain("Ask you first");
     const js = await (await gateway.app.request("/ui/app.js")).text();
     expect(js).toContain("/v1/denials/");
+    expect(js).toContain("Reject");
     gateway.close();
   });
 });

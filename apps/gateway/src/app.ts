@@ -308,12 +308,14 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   );
   app.get("/ui/app.css", (c) =>
     c.text(operatorCss(), 200, {
-      "Content-Type": "text/css; charset=utf-8"
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "no-store"
     })
   );
   app.get("/ui/app.js", (c) =>
     c.text(operatorJs(), 200, {
-      "Content-Type": "text/javascript; charset=utf-8"
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-store"
     })
   );
   app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));

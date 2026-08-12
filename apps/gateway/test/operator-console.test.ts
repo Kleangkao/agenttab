@@ -26,13 +26,11 @@ describe("operator console", () => {
       expect(htmlRes.status).toBe(200);
       expect(htmlRes.headers.get("content-type")).toMatch(/html/);
       const html = await htmlRes.text();
-      expect(html).toContain("<h1>AgentTab</h1>");
-      expect(html).toContain("Needs you");
-      expect(html).toContain("Activity");
-      expect(html).toContain("Rules");
-      expect(html).toContain("Ask");
-      expect(html).toContain("Release");
-      expect(html).toContain("Reject");
+      expect(html).toContain("AgentTab");
+      expect(html).toContain("Now");
+      expect(html).toContain("Ledger");
+      expect(html).toContain("Policy");
+      expect(html).toContain("Control room for agent payments");
       expect(html).toContain("/ui/app.css");
       expect(html).toContain("/ui/app.js");
       expect(html).toContain('"adminRequired":true');
@@ -40,7 +38,7 @@ describe("operator console", () => {
       const css = await gateway.app.request("/ui/app.css");
       expect(css.status).toBe(200);
       expect(css.headers.get("content-type")).toMatch(/text\/css/);
-      expect(await css.text()).toContain("--gold:");
+      expect(await css.text()).toContain("--money:");
 
       const jsRes = await gateway.app.request("/ui/app.js");
       expect(jsRes.status).toBe(200);
@@ -54,6 +52,9 @@ describe("operator console", () => {
       expect(js).toContain("/v1/approvals/");
       expect(js).toContain("/v1/denials/");
       expect(js).toContain("Observe is not a dry-run");
+      expect(js).toContain("Approve");
+      expect(js).toContain("Reject");
+      expect(js).toContain("Waiting for you");
 
       const intent = {
         operationId: "console-park-1",

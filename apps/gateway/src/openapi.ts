@@ -25,7 +25,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   "/ui": {
     get: {
       summary:
-        "Operator console. Preview never funds; Release still spends under the live policy."
+        "Operator console. Preview never funds; Approve still spends under the live policy."
     }
   },
   "/ui/app.css": { get: { summary: "Operator console stylesheet" } },
