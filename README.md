@@ -32,7 +32,8 @@ See [PRODUCT.md](docs/PRODUCT.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md),
 cold-start control path (policy file → remote agent → approve/audit CLI).
 
 Source: [github.com/Kleangkao/agenttab](https://github.com/Kleangkao/agenttab).
-Packages are not on npm yet — clone the repo and use the pnpm workspace.
+Agent libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
+`@agenttab/dflow`). The gateway is still run from this repo.
 
 ## Current status
 

@@ -2,9 +2,15 @@
 
 ## 0.1.0
 
+Published to npm under the `@agenttab` org:
+
+- [`@agenttab/core`](https://www.npmjs.com/package/@agenttab/core)
+- [`@agenttab/dflow`](https://www.npmjs.com/package/@agenttab/dflow)
+- [`@agenttab/x402`](https://www.npmjs.com/package/@agenttab/x402)
+- [`@agenttab/fetch`](https://www.npmjs.com/package/@agenttab/fetch)
+
 Public source: https://github.com/Kleangkao/agenttab
-Packages are packed and `pnpm release:dry` succeeds. Not on npm yet —
-needs the `@agenttab` org plus a human publish approval.
+Gateway remains clone-and-run from the monorepo.
 
 - Buyer-side policy + exact-deficit funding around standard x402 on Solana
 - `@agenttab/fetch` wraps official `@x402/fetch` with sticky and gateway-backed

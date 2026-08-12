@@ -14,18 +14,13 @@ your agent
 
 ## Install
 
-Packages are not on npm yet. Clone this repo:
-
 ```bash
-git clone https://github.com/Kleangkao/agenttab.git
-cd agenttab
-pnpm install
-pnpm --filter @agenttab/fetch build
+pnpm add @agenttab/fetch @x402/core @x402/fetch @x402/svm
 ```
 
-Import `@agenttab/fetch` from the workspace (see `docs/ADOPT.md`).
-You still need `@x402/core`, `@x402/fetch`, and a scheme client such as
-`@x402/svm` in the agent process (bring-your-own signer).
+You still need a scheme client such as `@x402/svm` in the agent process
+(bring-your-own signer). For the gateway and operator CLIs, clone
+https://github.com/Kleangkao/agenttab (see `docs/ADOPT.md`).
 
 ## Minimal usage (remote gateway)
 

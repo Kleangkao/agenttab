@@ -23,10 +23,11 @@ policy JSON
 ## Prerequisites
 
 - Node.js ≥ 22
-- This repository: `git clone https://github.com/Kleangkao/agenttab.git`
-- `pnpm install && pnpm --filter @agenttab/gateway build`
+- Libraries: `pnpm add @agenttab/fetch` (also `@agenttab/core`, `@agenttab/x402`, `@agenttab/dflow`)
+- Gateway/CLIs: clone this repo for now (`git clone https://github.com/Kleangkao/agenttab.git`) then `pnpm install && pnpm --filter @agenttab/gateway build`
 
-Until packages are published, run the gateway and CLIs from this repo:
+Agent SDK packages are on npm under the `@agenttab` scope. The gateway remains
+a workspace app until a later release.
 
 ```bash
 pnpm demo:gateway          # or: pnpm --filter @agenttab/gateway exec agenttab-gateway
@@ -142,7 +143,7 @@ No Mainnet spend without explicit human approval and the triple broadcast gates.
 
 ## What this is not
 
-- Not an npm install story yet (clone https://github.com/Kleangkao/agenttab + pnpm workspace)
-- Not a custodial signer or hosted SaaS
-- Not a merchant SDK — merchants keep standard x402
+- Not a hosted SaaS — you run the gateway locally (or your own host)
+- Not a custodial signer or merchant SDK — merchants keep standard x402
 - Not a web dashboard — HTTP + CLI is the operator surface
+- Gateway is not on npm yet (clone the repo); agent libraries are `@agenttab/*` on npm

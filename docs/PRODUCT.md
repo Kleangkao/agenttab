@@ -99,7 +99,8 @@ denial, not a permissive default.
   `operationId` so agents can approve and retry the **same** operation, including
   across process restarts via gateway `requestHash` lookup.
 - Gateway exposes `agenttab-*` binaries after build (`agenttab-gateway`,
-  `agenttab-approve`, …). Packages are not on npm yet — clone + pnpm for now.
+  `agenttab-approve`, …). Agent libraries `@agenttab/{core,dflow,x402,fetch}` are
+  on npm; the gateway is still clone + pnpm for now.
 - A web Observe / Approve dashboard remains optional later; it can consume the
   same APIs without changing the control plane.
 
