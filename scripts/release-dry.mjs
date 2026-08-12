@@ -1,25 +1,31 @@
 /**
- * Prepare-but-do-not-publish the public 0.1.0 libraries.
+ * Prepare-but-do-not-publish the public libraries.
  * Does not talk to npm with credentials. Never broadcasts a real publish.
  */
 import { execSync } from "node:child_process";
-import { dirname, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packages = [
-  "@agenttab/core",
-  "@agenttab/dflow",
-  "@agenttab/x402",
-  "@agenttab/fetch"
+  { name: "@agenttab/core", dir: "packages/core" },
+  { name: "@agenttab/dflow", dir: "packages/dflow" },
+  { name: "@agenttab/x402", dir: "packages/x402" },
+  { name: "@agenttab/fetch", dir: "packages/fetch" }
 ];
 
 execSync("node scripts/pack-check.mjs", { cwd: root, stdio: "inherit" });
 
-for (const name of packages) {
-  console.log(`\n--- publish --dry-run ${name} ---`);
+const versions = {};
+for (const pkg of packages) {
+  const manifest = JSON.parse(
+    readFileSync(join(root, pkg.dir, "package.json"), "utf8")
+  );
+  versions[pkg.name] = manifest.version;
+  console.log(`\n--- publish --dry-run ${pkg.name}@${manifest.version} ---`);
   execSync(
-    `pnpm --filter ${name} publish --dry-run --access public --no-git-checks`,
+    `pnpm --filter ${pkg.name} publish --dry-run --access public --no-git-checks`,
     { cwd: root, stdio: "inherit" }
   );
 }
@@ -28,12 +34,13 @@ console.log(
   JSON.stringify(
     {
       ok: true,
-      version: "0.1.0",
-      packages,
+      versions,
+      packages: packages.map((pkg) => pkg.name),
       next: [
-        "Create free npm org `agenttab` (scope) after signing in at https://www.npmjs.com/org/create",
-        "Sign in this machine: npm login --auth-type=web --scope=@agenttab",
-        "Human approval required before: pnpm --filter @agenttab/core --filter @agenttab/dflow --filter @agenttab/x402 --filter @agenttab/fetch publish --access public"
+        "Prefer GitHub Actions trusted publishing (OIDC) once package provenance is configured on npm — see .github/workflows/release.yml",
+        "Or short-lived granular access token with 2FA bypass + all packages + agenttab org, then revoke immediately",
+        "Publish order: core → dflow → x402 → fetch",
+        "Human approval still required before any live `pnpm publish`"
       ]
     },
     null,

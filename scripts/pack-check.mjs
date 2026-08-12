@@ -38,11 +38,21 @@ const failures = [];
 try {
   for (const pkg of publicPackages) {
     const cwd = join(root, pkg.dir);
+    const localManifest = JSON.parse(
+      readFileSync(join(cwd, "package.json"), "utf8")
+    );
+    const version = localManifest.version;
+    if (!version || typeof version !== "string") {
+      failures.push(`${pkg.name}: package.json is missing a version`);
+      continue;
+    }
+
     execSync("pnpm pack --pack-destination " + JSON.stringify(staging), {
       cwd,
       stdio: "pipe"
     });
-    const tgzName = pkg.name.replace("@", "").replace("/", "-") + "-0.1.0.tgz";
+    const tgzName =
+      pkg.name.replace("@", "").replace("/", "-") + `-${version}.tgz`;
     const tgzPath = join(staging, tgzName);
     const entries = listTarball(tgzPath);
     const manifest = readPackedPackageJson(tgzPath);
@@ -70,10 +80,16 @@ try {
     if (manifest.license !== "MIT") {
       failures.push(`${pkg.name}: packed license is ${String(manifest.license)}`);
     }
+    if (manifest.version !== version) {
+      failures.push(
+        `${pkg.name}: packed version ${manifest.version} != local ${version}`
+      );
+    }
     console.log(
       JSON.stringify(
         {
           package: pkg.name,
+          version,
           tarball: tgzName,
           files: entries.length,
           workspaceProtocol: Object.values(deps).some((spec) =>

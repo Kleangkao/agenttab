@@ -1,0 +1,15 @@
+.git
+.github
+.data
+**/.data
+**/dist
+**/node_modules
+**/*.tgz
+.env
+.env.local
+**/.env.local
+apps/dashboard
+docs
+handoff
+*.md
+!README.md

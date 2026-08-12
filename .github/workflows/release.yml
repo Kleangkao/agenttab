@@ -1,0 +1,76 @@
+# Trusted-publishing stub for @agenttab libraries.
+# Does NOT publish until a human arms the live publish step and npm Trusted
+# Publishing is configured for each package (OIDC from this repo).
+#
+# Setup later (human, one-time per package on npmjs.com):
+#   Package → Settings → Trusted Publisher → GitHub Actions
+#   owner: Kleangkao, repo: agenttab, workflow: release.yml, environment: npm
+#
+# Until then this workflow only dry-runs pack + publish.
+
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Set to 'publish' to attempt a live npm publish (requires Trusted Publishing)"
+        required: true
+        default: "dry-run"
+        type: choice
+        options:
+          - dry-run
+          - publish
+
+permissions:
+  contents: read
+  # Required for npm Trusted Publishing / provenance once armed.
+  id-token: write
+
+jobs:
+  dry-run:
+    if: ${{ inputs.publish != 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Pack check + publish dry-run
+        run: pnpm release:dry
+
+  publish:
+    if: ${{ inputs.publish == 'publish' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: npm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Pack check
+        run: pnpm pack:check
+      - name: Publish public libraries (OIDC)
+        # Order matters: dependents resolve published versions.
+        run: |
+          set -euo pipefail
+          for pkg in @agenttab/core @agenttab/dflow @agenttab/x402 @agenttab/fetch; do
+            echo "Publishing $pkg"
+            pnpm --filter "$pkg" publish --access public --no-git-checks --provenance
+          done

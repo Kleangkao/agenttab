@@ -22,12 +22,36 @@ policy JSON
 
 ## Prerequisites
 
-- Node.js ≥ 22
-- Libraries: `pnpm add @agenttab/fetch` (also `@agenttab/core`, `@agenttab/x402`, `@agenttab/dflow`)
-- Gateway/CLIs: clone this repo for now (`git clone https://github.com/Kleangkao/agenttab.git`) then `pnpm install && pnpm --filter @agenttab/gateway build`
+Split the two roles:
 
-Agent SDK packages are on npm under the `@agenttab` scope. The gateway remains
-a workspace app until a later release.
+| Role | What you install | Where |
+|------|------------------|--------|
+| **Agent process** | `@agenttab/fetch` (+ `@x402/*` scheme client) | Your app (`pnpm add …`) |
+| **Operator / control plane** | Gateway + `agenttab-approve` / policy / audit CLIs | This repo (clone-and-run) |
+
+- Node.js ≥ 22
+- Agent SDK (npm): `pnpm add @agenttab/fetch @x402/core @x402/fetch @x402/svm`
+- Gateway/CLIs: `git clone https://github.com/Kleangkao/agenttab.git` then
+  `pnpm install && pnpm --filter @agenttab/gateway build`
+
+The gateway remains a workspace app (not on npm) until a later release.
+A container image is also published to GHCR on version tags:
+
+```bash
+docker pull ghcr.io/kleangkao/agenttab-gateway:latest
+docker run --rm -p 8787:8787 \
+  -e HOST=0.0.0.0 \
+  -e AGENTTAB_POLICY_PATH=/policy/approve.local.json \
+  -e AGENTTAB_POLICY_REPLACE=1 \
+  -v "$PWD/examples/policies:/policy:ro" \
+  -v agenttab-data:/data \
+  ghcr.io/kleangkao/agenttab-gateway:latest
+```
+
+(Build locally with `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .`
+from the repo root if the GHCR package is not public yet.)
+
+From the **cloned repo** root:
 
 ```bash
 pnpm demo:gateway          # or: pnpm --filter @agenttab/gateway exec agenttab-gateway

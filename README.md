@@ -71,10 +71,13 @@ triple broadcast gates below.
 
 ## Fastest path to adopt (operators + developers)
 
+Libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
+`@agenttab/dflow`). The gateway is still clone-and-run from this repo.
+
 Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 
-1. Edit `examples/policies/*.json` (merchants, caps, `autopay` vs `approve`)
-2. `AGENTTAB_POLICY_PATH=... pnpm demo:gateway`
+1. `pnpm add @agenttab/fetch` in the agent process
+2. Clone this repo → edit `examples/policies/*.json` → start the gateway
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
 4. Use `pnpm policy:set`, `pnpm approve`, `pnpm audit:recent` as the control surface
 
@@ -176,8 +179,13 @@ pnpm demo:judge
 
 ## Agent integration (`@agenttab/fetch`)
 
-For a real agent (not the local HMAC demo), wrap paid HTTP once. Packages are
-not on npm yet — use this workspace (see [docs/ADOPT.md](docs/ADOPT.md)).
+For a real agent (not the local HMAC demo), wrap paid HTTP once:
+
+```bash
+pnpm add @agenttab/fetch @x402/core @x402/fetch @x402/svm
+```
+
+Run a gateway from this repo (see [docs/ADOPT.md](docs/ADOPT.md)), then:
 
 ```ts
 import {

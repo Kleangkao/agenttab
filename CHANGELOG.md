@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2-dev
+
+- Fix `pack:check` to read each package version (unblocks CI after fetch 0.1.1)
+- Docs: npm install path for agents; gateway remains clone-and-run
+- Add Release workflow stub for future npm Trusted Publishing (dry-run by default)
+- Short READMEs for `@agenttab/{core,dflow,x402}`
+- Gateway Dockerfile + GHCR workflow (`ghcr.io/kleangkao/agenttab-gateway`)
+
 ## 0.1.1
 
 - `@agenttab/fetch`: refresh published README now that packages are on npm
