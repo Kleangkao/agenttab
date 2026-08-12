@@ -1,0 +1,33 @@
+{
+  "name": "@agenttab/fetch",
+  "version": "0.1.0",
+  "description": "Drop-in fetch wrapper for AgentTab policy, funding, x402 pay, and audit",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "!dist/**/*.test.*"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --exclude dist/**"
+  },
+  "dependencies": {
+    "@agenttab/core": "workspace:*",
+    "@agenttab/x402": "workspace:*",
+    "@x402/core": "^2.21.0",
+    "@x402/fetch": "^2.21.0"
+  }
+}

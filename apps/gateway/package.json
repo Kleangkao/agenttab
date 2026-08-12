@@ -1,0 +1,49 @@
+{
+  "name": "@agenttab/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentTab HTTP control plane: policy, exact-deficit funding, approve, and audit",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "!dist/**/*.test.*"],
+  "scripts": {
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "dev": "tsx src/main.ts",
+    "devnet": "tsx src/devnet-main.ts",
+    "start": "node dist/main.js",
+    "audit:recent": "tsx src/cli/audit-recent.ts",
+    "test": "vitest run --passWithNoTests --exclude dist/**"
+  },
+  "bin": {
+    "agenttab-gateway": "./dist/bin/agenttab-gateway.js",
+    "agenttab-gateway-devnet": "./dist/bin/agenttab-gateway-devnet.js",
+    "agenttab-policy-get": "./dist/cli/policy-get.js",
+    "agenttab-policy-set": "./dist/cli/policy-set.js",
+    "agenttab-approve": "./dist/cli/approve.js",
+    "agenttab-audit": "./dist/cli/audit-recent.js"
+  },
+  "dependencies": {
+    "@agenttab/core": "workspace:*",
+    "@agenttab/dflow": "workspace:*",
+    "@hono/node-server": "^1.19.9",
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "hono": "^4.11.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@agenttab/fetch": "workspace:*",
+    "tsx": "^4.21.0"
+  }
+}

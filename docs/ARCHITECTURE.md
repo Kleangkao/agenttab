@@ -1,0 +1,85 @@
+# Architecture
+
+## Position in the stack
+
+```text
+Agent / demo client
+      |
+      v
+@agenttab/fetch  (wraps official @x402/fetch + funding hook)
+  or local HMAC demo client
+      |
+      v
+apps/gateway orchestrator
+      |
+      +---- Policy engine (@agenttab/core)
+      +---- Exact-deficit planner (@agenttab/dflow)
+      +---- Idempotency + audit store (SQLite)
+      +---- Balance providers (mock | RPC)
+      +---- Funding adapters (mock | live-quote | live-sim | devnet-mint)
+      +---- Signer boundary (simulated | local keypair, broadcast gated)
+      |
+      v
+Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
+```
+
+## Packages (implemented)
+
+- `@agenttab/core`: product types, fail-closed policy, execution state machine, `paymentPolicySchema`.
+- `@agenttab/dflow`: DFlow quote/order client and exact-deficit planner.
+- `@agenttab/x402`: thin official `BeforePaymentCreation` funding hook (no wire reimplementation).
+- `@agenttab/fetch`: drop-in agent SDK (`createAgentTabFetch` /
+  `createAgentTabClient`) over `@x402/fetch` + AgentTab funding + audit.
+- `apps/gateway`: control plane with persistence, funding modes, Mainnet helpers.
+  - Durable SQLite: executions, events, spend ledger, **policy** (when `dbPath` is on disk).
+  - Read-only audit: `GET /v1/executions?limit=&state=&requestHash=&reusable=`
+    + `pnpm audit:recent` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
+  - Policy writes validated; optional `AGENTTAB_ADMIN_TOKEN` for `PUT /v1/policy`.
+- `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
+  plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
+- `tools/*`: Devnet/Mainnet wallet setup, preflight, facilitator health, broadcast gate.
+
+## Planned / not required for the core thesis
+
+- `apps/dashboard`: optional Observe/Approve UI. Operator control is already
+  available via HTTP + CLI (`policy:get|set`, `approve`, `audit:recent`) and
+  documented in `docs/ADOPT.md`; a dashboard can later consume the same APIs.
+
+## Execution state machine
+
+```text
+discovered
+  -> denied
+  -> approval_required
+  -> approved
+  -> funding_submitted
+  -> funded
+  -> payment_submitted
+  -> paid
+  -> fulfilled
+
+Any submitted state may move to failed, but never back to an earlier state.
+Retries resume from the durable state using the same idempotency key.
+```
+
+## Important design choice
+
+The production-compatible path uses two independent settlements when the
+payment asset is missing:
+
+1. DFlow funding transaction into the agent wallet.
+2. Standard x402 payment transaction through the merchant's facilitator.
+
+This preserves compatibility with existing x402 merchants. A future custom
+scheme may combine swap and settlement, but requiring merchant adoption would
+weaken the initial product.
+
+## Fidelity layers
+
+| Layer | Funding | Payment | Broadcast |
+|-------|---------|---------|-----------|
+| Local hero / `pnpm demo:judge` | mock exact-deficit | local HMAC | never |
+| `live-quote` / `live-sim` gateway | real DFlow quotes (+ sim) | local HMAC | never |
+| Devnet | mint stand-in (custom tUSDC) | official x402 + facilitator | Devnet only |
+| Mainnet dry-run | real DFlow + sim | payload build, no settle required | forced off |
+| Mainnet armed oneshot | real DFlow | real x402 settle | triple-gated |

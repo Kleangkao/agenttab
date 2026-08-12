@@ -1,0 +1,33 @@
+{
+  "name": "@agenttab/x402",
+  "version": "0.1.0",
+  "description": "Official x402 funding hook for AgentTab",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "!dist/**/*.test.*"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.json",
+    "prepack": "pnpm run build",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests --exclude dist/**"
+  },
+  "dependencies": {
+    "@agenttab/core": "workspace:*",
+    "@x402/core": "^2.21.0",
+    "@x402/fetch": "^2.21.0",
+    "@x402/svm": "^2.21.0"
+  }
+}

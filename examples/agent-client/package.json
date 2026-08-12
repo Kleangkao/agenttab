@@ -1,0 +1,37 @@
+{
+  "name": "@agenttab/example-agent-client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "demo": "tsx src/main.ts",
+    "judge": "tsx src/judge-demo.ts",
+    "start": "node dist/main.js",
+    "test": "vitest run --passWithNoTests --exclude dist/**"
+  },
+  "dependencies": {
+    "@agenttab/core": "workspace:*",
+    "@agenttab/example-paid-api": "workspace:*",
+    "@agenttab/gateway": "workspace:*",
+    "@agenttab/x402": "workspace:*",
+    "@scure/base": "^1.2.6",
+    "@solana/kit": "^5.5.1",
+    "@x402/core": "2.21.0",
+    "@x402/fetch": "2.21.0",
+    "@x402/svm": "2.21.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

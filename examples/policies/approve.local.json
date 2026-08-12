@@ -1,0 +1,16 @@
+{
+  "notes": "Require a human `pnpm approve -- <operationId>` before funding/payment.",
+  "mode": "approve",
+  "allowedMerchantOrigins": ["http://127.0.0.1:8791"],
+  "allowedNetworks": ["solana:local"],
+  "allowedPaymentAssets": ["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"],
+  "allowedFundingAssets": [
+    "So11111111111111111111111111111111111111112",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  ],
+  "requireVerifiedFundingAssets": true,
+  "maxPaymentUsdMicros": "5000000",
+  "maxDailyUsdMicros": "20000000",
+  "maxSlippageBps": 50,
+  "maxPriceImpactPct": 1
+}

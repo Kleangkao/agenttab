@@ -1,0 +1,52 @@
+{
+  "name": "agenttab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Policy-controlled funding middleware for agent-native payments on Solana",
+  "license": "MIT",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "check": "pnpm -r build && pnpm -r check",
+    "test": "pnpm -r build && pnpm -r test",
+    "pack:check": "node scripts/pack-check.mjs",
+    "demo:gateway": "pnpm --filter @agenttab/gateway dev",
+    "demo:gateway:devnet": "pnpm --filter @agenttab/gateway devnet",
+    "demo:paid-api": "pnpm --filter @agenttab/example-paid-api dev",
+    "demo:agent": "pnpm --filter @agenttab/example-agent-client demo",
+    "demo:judge": "pnpm --filter @agenttab/example-agent-client judge",
+    "integration:remote": "pnpm --filter @agenttab/example-remote-agent test",
+    "integration:devnet-remote": "pnpm --filter @agenttab/example-remote-agent devnet:e2e",
+    "demo:neutral-merchant": "pnpm --filter @agenttab/example-neutral-merchant dev",
+    "demo:neutral-merchant:devnet": "pnpm --filter @agenttab/example-neutral-merchant devnet",
+    "demo:remote-agent": "pnpm --filter @agenttab/example-remote-agent demo",
+    "demo:remote-agent:devnet": "pnpm --filter @agenttab/example-remote-agent devnet",
+    "devnet:setup": "tsx tools/devnet-setup/src/setup.ts",
+    "devnet:paid-api": "pnpm --filter @agenttab/example-devnet-paid-api dev",
+    "devnet:agent": "pnpm --filter @agenttab/example-devnet-agent-client demo",
+    "mainnet:setup": "tsx tools/mainnet-setup/src/setup.ts",
+    "mainnet:import-phantom": "tsx tools/mainnet-setup/src/import-phantom.ts",
+    "mainnet:preflight": "tsx tools/mainnet-setup/src/preflight.ts",
+    "mainnet:facilitators": "tsx tools/mainnet-setup/src/facilitator-health-cli.ts",
+    "mainnet:paid-api": "pnpm --filter @agenttab/example-mainnet-paid-api dev",
+    "mainnet:agent": "pnpm --filter @agenttab/example-mainnet-agent-client demo",
+    "mainnet:oneshot": "pnpm --filter @agenttab/example-mainnet-agent-client oneshot",
+    "audit:recent": "tsx apps/gateway/src/cli/audit-recent.ts",
+    "policy:get": "tsx apps/gateway/src/cli/policy-get.ts",
+    "policy:set": "tsx apps/gateway/src/cli/policy-set.ts",
+    "approve": "tsx apps/gateway/src/cli/approve.ts",
+    "test:watch": "pnpm --filter @agenttab/core test:watch"
+  },
+  "devDependencies": {
+    "@solana/spl-token": "^0.4.15",
+    "@solana/web3.js": "^1.98.4",
+    "@types/node": "^24.0.0",
+    "bs58": "^6.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

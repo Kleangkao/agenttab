@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  check-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck + build
+        run: pnpm check
+      - name: Unit / integration tests
+        run: pnpm test
+      - name: Judge demo (in-process)
+        run: pnpm demo:judge
+      - name: Remote adoption smoke
+        run: pnpm integration:remote
+      - name: Pack public packages (no publish)
+        run: pnpm pack:check
