@@ -37,6 +37,8 @@ export interface AgentTabGatewayHealth {
   notifyConfigured?: boolean;
   notifySigned?: boolean;
   operatorUi?: string;
+  preview?: string;
+  openapi?: string;
 }
 
 export interface AgentTabGatewayClient {
