@@ -4,6 +4,7 @@ import {
   createAgentTabClient,
   createLocalSmokeScheme,
   isAgentTabApprovalRequiredError,
+  isAgentTabFundingDeniedError,
   requestPaidResource
 } from "@agenttab/fetch";
 import {
@@ -182,6 +183,55 @@ describe("approve → retry same operationId via @agenttab/fetch", () => {
     if (!isAgentTabApprovalRequiredError(replayError)) throw replayError;
     expect(replayError.operationId).not.toBe(parkedId);
 
+    gateway.close();
+  });
+
+  it("requestPaidResource deny hook terminals the parked id without funding", async () => {
+    const policy = loadPolicyFile(
+      resolve(process.cwd(), "../../examples/policies/approve.local.json")
+    );
+    const merchantOrigin = "http://127.0.0.1:8791";
+    const gateway = createGatewayRuntime({
+      merchantOrigin,
+      policy,
+      wallet: "DenyRetryBuyer1111111111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    const merchantFetch = async (request: Request): Promise<Response> => {
+      return new Response(JSON.stringify({ error: "payment_required" }), {
+        status: 402,
+        headers: {
+          "PAYMENT-REQUIRED": encodePaymentRequired(request.url),
+          "content-type": "application/json"
+        }
+      });
+    };
+    const agent = createAgentTabClient({
+      gatewayBaseUrl: "http://gateway.test",
+      gatewayFetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        return gateway.app.request(honoRequestPath(input), init);
+      }) as typeof fetch,
+      fetchImpl: (async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(String(input), init);
+        return merchantFetch(request);
+      }) as typeof fetch,
+      schemes: [{ network: LOCAL_NETWORK, client: createLocalSmokeScheme() }],
+      getUsdValueMicros: async ({ amountAtomic }) => amountAtomic
+    });
+
+    await expect(
+      requestPaidResource(
+        agent,
+        `${merchantOrigin}/v1/market-snapshot`,
+        { method: "GET" },
+        { onApprovalRequired: async () => "deny" }
+      )
+    ).rejects.toSatisfy(isAgentTabFundingDeniedError);
+
+    const records = await gateway.store.listRecent({ limit: 5 });
+    expect(records[0]?.state).toBe("denied");
+    expect(records[0]?.lastEventKind).toBe("approval.denied");
     gateway.close();
   });
 });

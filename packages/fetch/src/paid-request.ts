@@ -1,4 +1,5 @@
 import {
+  AgentTabFundingDeniedError,
   isAgentTabApprovalRequiredError,
   type AgentTabApprovalRequiredError
 } from "./errors.js";
@@ -8,11 +9,12 @@ export interface RequestPaidResourceOptions {
   /**
    * Called when policy parks the payment. Return `"approve"` to POST
    * `/v1/approvals/:operationId` (requires `gateway` on the client) and retry
-   * the same request. Return `"abort"` (default) to rethrow.
+   * the same request. Return `"deny"` to POST `/v1/denials/:operationId` and
+   * throw `AgentTabFundingDeniedError`. Return `"abort"` (default) to rethrow.
    */
   onApprovalRequired?: (
     error: AgentTabApprovalRequiredError
-  ) => Promise<"approve" | "abort"> | "approve" | "abort";
+  ) => Promise<"approve" | "deny" | "abort"> | "approve" | "deny" | "abort";
 }
 
 export interface PaidResourceResult {
@@ -64,6 +66,21 @@ export async function requestPaidResource(
     const decision = options.onApprovalRequired
       ? await options.onApprovalRequired(error)
       : "abort";
+    if (decision === "deny") {
+      if (agent.gateway === undefined) {
+        throw new Error(
+          `Deny requested by hook but AgentTab client has no gateway (need gatewayBaseUrl) for ${error.operationId}`
+        );
+      }
+      await agent.gateway.deny(error.operationId, "hook_denied");
+      throw new AgentTabFundingDeniedError({
+        code: "denied",
+        message: "Denied by operator hook.",
+        operationId: error.operationId,
+        requestHash: error.requestHash,
+        merchantId: error.merchantId
+      });
+    }
     if (decision !== "approve") throw error;
     if (agent.gateway === undefined) {
       throw new Error(

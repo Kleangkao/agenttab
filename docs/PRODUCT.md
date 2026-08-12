@@ -56,7 +56,9 @@ Approving still runs funding — observe is **not** estimate-only / dry-run.
 ### Approve
 
 Prepare an execution plan and require a human approval for every payment
-(`pnpm approve -- <operationId>` or `POST /v1/approvals/:id`).
+(`pnpm approve -- <operationId>` or `POST /v1/approvals/:id`). Parked
+payments can also be rejected (`pnpm deny -- <operationId>` or
+`POST /v1/denials/:id`) without funding.
 
 ### Autopay
 

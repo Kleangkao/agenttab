@@ -85,6 +85,14 @@ export function operatorHtml(input: {
       <tbody id="parked"></tbody>
     </table>
   </div>
+
+  <h2>Recent executions</h2>
+  <div class="card">
+    <table>
+      <thead><tr><th>operationId</th><th>state</th></tr></thead>
+      <tbody id="recent"></tbody>
+    </table>
+  </div>
 </main>
 <script>
 const adminRequired = ${input.adminRequired ? "true" : "false"};
@@ -105,6 +113,12 @@ async function health() {
     "<span>broadcast <strong>" + (b.broadcastEnabled ? "on" : "off") + "</strong></span>" +
     "<span>policy " + (b.policyDurable ? "durable" : "memory") + "</span>" +
     (b.policyWriteAuth ? "<span>admin token required</span>" : "");
+  try {
+    const spend = await (await fetch("/v1/spend")).json();
+    $("health").innerHTML +=
+      "<span>spend 24h <strong>" + spend.spentUsdMicrosLast24h + "</strong> / " +
+      spend.maxDailyUsdMicros + " µUSD</span>";
+  } catch { /* health already shown */ }
   if (b.policyMode === "observe" && !document.querySelector(".warn")) {
     const p = document.createElement("p");
     p.className = "warn";
@@ -148,25 +162,46 @@ $("preview").onclick = async () => {
   $("previewStatus").textContent = r.ok ? (b.decision?.kind + " / " + b.decision?.reason) : (b.error || r.status);
   $("previewOut").textContent = JSON.stringify(b, null, 2);
 };
+function esc(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  }[ch]));
+}
+async function loadRecent() {
+  const r = await fetch("/v1/executions?limit=20");
+  const b = await r.json();
+  const rows = (b.executions || []).map((ex) =>
+    "<tr><td>" + esc(ex.operationId) + "</td><td>" + esc(ex.state) + "</td></tr>"
+  ).join("");
+  $("recent").innerHTML = rows || "<tr><td colspan=\\"2\\" class=\\"muted\\">None yet</td></tr>";
+}
 async function loadParked() {
   const r = await fetch("/v1/executions?state=approval_required&limit=20");
   const b = await r.json();
   const rows = (b.executions || []).map((ex) => {
-    const id = ex.operationId;
-    return "<tr><td>" + id + "</td><td>" + ex.state + "</td><td><button data-id=\\"" + id + "\\" type=\\"button\\">Approve</button></td></tr>";
+    const id = esc(ex.operationId);
+    return "<tr><td>" + id + "</td><td>" + esc(ex.state) + "</td><td>" +
+      "<button data-act=\\"approve\\" data-id=\\"" + id + "\\" type=\\"button\\">Approve</button> " +
+      "<button class=\\"ghost\\" data-act=\\"deny\\" data-id=\\"" + id + "\\" type=\\"button\\">Deny</button></td></tr>";
   }).join("");
   $("parked").innerHTML = rows || "<tr><td colspan=\\"3\\" class=\\"muted\\">None parked</td></tr>";
   $("parked").querySelectorAll("button").forEach((btn) => {
     btn.onclick = async () => {
       const id = btn.getAttribute("data-id");
-      $("execStatus").textContent = "approving " + id + "…";
-      const r = await fetch("/v1/approvals/" + encodeURIComponent(id), { method: "POST", headers: headers(true), body: "{}" });
+      const act = btn.getAttribute("data-act");
+      const path = act === "deny" ? "/v1/denials/" : "/v1/approvals/";
+      $("execStatus").textContent = act + " " + id + "…";
+      const r = await fetch(path + encodeURIComponent(id), { method: "POST", headers: headers(true), body: "{}" });
       const body = await r.json();
-      $("execStatus").className = r.ok ? "ok" : "bad";
-      $("execStatus").textContent = r.ok ? ("funded " + (body.record?.state || "")) : (body.error || r.status);
+      $("execStatus").className = r.ok ? (act === "deny" ? "warn" : "ok") : "bad";
+      $("execStatus").textContent = r.ok
+        ? (act === "deny" ? "denied" : ("funded " + (body.record?.state || "")))
+        : (body.error || r.status);
       loadParked();
+      loadRecent();
     };
   });
+  loadRecent();
 }
 $("refreshExec").onclick = loadParked;
 health().then(loadPolicy).then(loadParked).catch((e) => { $("health").textContent = String(e); });

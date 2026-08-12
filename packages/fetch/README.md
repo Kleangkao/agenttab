@@ -55,6 +55,7 @@ const receipt = await agent.getExecution(meta!.operationId);
 // await agent.gateway?.putPolicy(nextPolicy);
 // await agent.gateway?.preview(intent); // never funds
 // await agent.gateway?.approve(meta!.operationId);
+// await agent.gateway?.deny(meta!.operationId);
 ```
 
 See `examples/remote-agent` + `examples/neutral-merchant` for a reusable

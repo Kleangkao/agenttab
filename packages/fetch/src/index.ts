@@ -29,6 +29,7 @@ export {
   AgentTabFundingDeniedError,
   AgentTabFundingError,
   isAgentTabApprovalRequiredError,
+  isAgentTabFundingDeniedError,
   toAgentTabFundingError
 } from "./errors.js";
 export {

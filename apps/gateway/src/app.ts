@@ -74,8 +74,8 @@ export interface GatewayRuntimeOptions {
    */
   balances?: BalanceProvider;
   /**
-   * When set, PUT /v1/policy and POST /v1/approvals require
-   * `Authorization: Bearer <token>`. Leave unset for local demos;
+   * When set, PUT /v1/policy, POST /v1/approvals, and POST /v1/denials
+   * require `Authorization: Bearer <token>`. Leave unset for local demos;
    * set AGENTTAB_ADMIN_TOKEN for hosted / Docker use.
    */
   adminToken?: string;
@@ -259,6 +259,15 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     })
   );
 
+  app.get("/v1/spend", (c) => {
+    const policy = policies.get();
+    return c.json({
+      spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      maxDailyUsdMicros: policy.maxDailyUsdMicros,
+      maxPaymentUsdMicros: policy.maxPaymentUsdMicros
+    });
+  });
+
   app.get("/v1/policy", (c) => c.json(policies.get()));
 
   app.put("/v1/policy", async (c) => {
@@ -357,6 +366,27 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const outcome = await coordinator.ensurePaymentAsset({ intent: record.intent });
     record = (await store.get(operationId))!;
     return c.json({ outcome, record });
+  });
+
+  app.post("/v1/denials/:operationId", async (c) => {
+    if (!isAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+    const operationId = c.req.param("operationId");
+    let record = await store.get(operationId);
+    if (record === undefined) return c.json({ error: "not_found" }, 404);
+    if (record.state !== "approval_required") {
+      return c.json({ error: "not_awaiting_approval", state: record.state }, 409);
+    }
+    const body = (await c.req.json().catch(() => ({}))) as { reason?: string };
+    record = await transitionPayment(store, record, "denied", "approval.denied", {
+      reason: body.reason ?? "operator_denied"
+    });
+    return c.json({
+      denied: true,
+      funded: false,
+      record
+    });
   });
 
   app.post("/v1/executions/:operationId/pay", async (c) => {

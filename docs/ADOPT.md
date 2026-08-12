@@ -17,7 +17,8 @@ policy JSON
   -> paid fetch
   -> (if needed) AgentTabApprovalRequiredError.operationId
   -> agenttab-approve / pnpm approve -- <same operationId>
-  -> retry fetch with the SAME operationId
+     or agenttab-deny / pnpm deny -- <same operationId>
+  -> retry fetch with the SAME operationId (after approve only)
   -> agenttab-audit / pnpm audit:recent
 ```
 
@@ -60,16 +61,22 @@ Or build locally: `docker build -f apps/gateway/Dockerfile -t agenttab-gateway .
 From the **cloned repo** root:
 
 ```bash
-pnpm demo:gateway          # or: pnpm --filter @agenttab/gateway exec agenttab-gateway
+pnpm demo:stack            # gateway :8787 + merchant :8791 in one process
+# or: pnpm demo:gateway  and  pnpm demo:neutral-merchant
 pnpm policy:get
 pnpm policy:set -- examples/policies/approve.local.json
 pnpm approve -- <operationId>
+pnpm deny -- <operationId>
 pnpm audit:recent
 ```
 
+`pnpm demo:stack` prints the operator UI (`http://127.0.0.1:8787/ui`). Then
+`pnpm demo:remote-agent` in a second terminal. Parked payments can be approved
+or denied from `/ui`.
+
 After `pnpm --filter @agenttab/gateway build`, the same binaries are available as
-`agenttab-gateway`, `agenttab-policy-*`, `agenttab-approve`, `agenttab-audit`
-via the package `bin` field.
+`agenttab-gateway`, `agenttab-policy-*`, `agenttab-approve`, `agenttab-deny`,
+`agenttab-audit` via the package `bin` field.
 
 ## 1. Choose a policy
 
@@ -140,7 +147,8 @@ Smoke without wiring your own snippet: `pnpm demo:remote-agent`.
 ## 5. Approve loop (same operationId)
 
 1. Agent fetch throws `AgentTabApprovalRequiredError` with `error.operationId`
-2. Operator: `pnpm approve -- <operationId>` (gateway funds under that id)
+2. Operator: `pnpm approve -- <operationId>` (gateway funds under that id),
+   or `pnpm deny -- <operationId>` (terminal; that id will not fund)
 3. Agent retries the **same** request (same method + URL + body). The parked
    `operationId` is reused from memory **or** looked up on the gateway by
    `requestHash`, so a one-shot CLI can just be run again after approve
@@ -157,9 +165,10 @@ id on every call, or if the previous execution already reached `fulfilled` /
 
 Live policy changes: `pnpm policy:set -- examples/policies/autopay.local.json`
 (no restart), the operator UI, or `PUT /v1/policy`.
-`AGENTTAB_ADMIN_TOKEN` gates policy writes **and** `POST /v1/approvals`.
-`POST /v1/preview` / `agent.gateway?.preview(intent)` evaluates policy without
-creating an execution or funding.
+`AGENTTAB_ADMIN_TOKEN` gates policy writes, `POST /v1/approvals`, and
+`POST /v1/denials`. `POST /v1/preview` / `agent.gateway?.preview(intent)`
+evaluates policy without creating an execution or funding. Deny is terminal
+for that `operationId`; a later fetch of the same URL starts a new execution.
 
 ## 6. Higher fidelity
 

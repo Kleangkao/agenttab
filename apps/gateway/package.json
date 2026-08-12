@@ -41,6 +41,7 @@
     "agenttab-policy-get": "./dist/cli/policy-get.js",
     "agenttab-policy-set": "./dist/cli/policy-set.js",
     "agenttab-approve": "./dist/cli/approve.js",
+    "agenttab-deny": "./dist/cli/deny.js",
     "agenttab-audit": "./dist/cli/audit-recent.js",
     "agenttab-preview": "./dist/cli/preview.js"
   },

@@ -14,6 +14,7 @@
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
     "demo": "tsx src/main.ts",
+    "stack": "tsx src/stack.ts",
     "devnet": "tsx src/devnet.ts",
     "devnet:e2e": "tsx src/devnet-e2e.ts",
     "start": "node dist/main.js",

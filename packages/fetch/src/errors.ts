@@ -69,3 +69,9 @@ export function isAgentTabApprovalRequiredError(
 ): error is AgentTabApprovalRequiredError {
   return error instanceof AgentTabApprovalRequiredError;
 }
+
+export function isAgentTabFundingDeniedError(
+  error: unknown
+): error is AgentTabFundingDeniedError {
+  return error instanceof AgentTabFundingDeniedError;
+}

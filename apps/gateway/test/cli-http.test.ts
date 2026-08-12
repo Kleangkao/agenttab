@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { shouldAuditOverHttp } from "../src/cli/gateway-http.js";
 import { resolveIntentPath } from "../src/cli/preview-args.js";
+import { resolveOperationId } from "../src/cli/operation-id.js";
 
 describe("operator CLI HTTP helpers", () => {
   it("uses HTTP whenever a gateway URL is set, even if DB path is also set", () => {
@@ -25,5 +26,19 @@ describe("preview CLI", () => {
       resolveIntentPath([], { AGENTTAB_PREVIEW_INTENT: "examples/intents/preview.local.json" })
     ).toBe("examples/intents/preview.local.json");
     expect(() => resolveIntentPath([])).toThrow(/Usage/);
+  });
+});
+
+describe("operator CLI operation id", () => {
+  it("resolves approve/deny ids from argv", () => {
+    expect(
+      resolveOperationId(["--", "op-1"], {
+        command: "deny",
+        usage: "Usage"
+      })
+    ).toBe("op-1");
+    expect(() =>
+      resolveOperationId([], { command: "deny", usage: "Usage: pnpm deny" })
+    ).toThrow(/Usage: pnpm deny/);
   });
 });

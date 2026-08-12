@@ -13,6 +13,7 @@ const dist = join(here, "..");
 const commands: Record<string, string> = {
   gateway: join(dist, "main.js"),
   approve: join(dist, "cli/approve.js"),
+  deny: join(dist, "cli/deny.js"),
   audit: join(dist, "cli/audit-recent.js"),
   "policy-get": join(dist, "cli/policy-get.js"),
   "policy-set": join(dist, "cli/policy-set.js"),
@@ -26,7 +27,7 @@ const script = commands[verb];
 
 if (script === undefined) {
   console.error(
-    `Unknown command ${verb}. Use: gateway | approve | audit | policy-get | policy-set | preview`
+    `Unknown command ${verb}. Use: gateway | approve | deny | audit | policy-get | policy-set | preview`
   );
   process.exit(2);
 }

@@ -2,6 +2,9 @@
 
 ## 0.1.2-dev
 
+- Operator deny: `POST /v1/denials/:id`, `pnpm deny`, `createGatewayClient().deny`, `/ui` Deny
+- `GET /v1/spend` rolling 24h spend for the operator UI
+- `pnpm demo:stack` starts gateway + neutral merchant in one process
 - Operator control plane without a clone: GHCR image + `compose.yaml` + `/ui`
 - Bake `/policy/approve.local.json` in the gateway image; `AGENTTAB_POLICY_JSON` env bootstrap
 - `POST /v1/preview`, `pnpm preview`, and `createGatewayClient().preview` evaluate policy without funding

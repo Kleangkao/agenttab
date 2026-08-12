@@ -31,6 +31,8 @@ export interface AgentTabGatewayClient {
   getPolicy(): Promise<PaymentPolicy>;
   putPolicy(policy: PaymentPolicy): Promise<PaymentPolicy>;
   approve(operationId: string): Promise<unknown>;
+  /** Terminal reject. Same operationId will not fund later. */
+  deny(operationId: string, reason?: string): Promise<unknown>;
   /** Read-only policy check. Never creates an execution or funds. */
   preview(intent: PaymentIntent): Promise<AgentTabPreviewResult>;
 }
@@ -142,6 +144,26 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
         const body = await response.json().catch(() => ({}));
         throw new Error(
           `AgentTab gateway approve failed (${response.status}): ${JSON.stringify(body)}`
+        );
+      }
+      return response.json();
+    },
+    deny: async (operationId, reason) => {
+      const response = await fetchImpl(
+        `${baseUrl}/v1/denials/${encodeURIComponent(operationId)}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...headers
+          },
+          body: JSON.stringify(reason === undefined ? {} : { reason })
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          `AgentTab gateway deny failed (${response.status}): ${JSON.stringify(body)}`
         );
       }
       return response.json();

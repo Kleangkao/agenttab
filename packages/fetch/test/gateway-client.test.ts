@@ -145,4 +145,21 @@ describe("createGatewayClient.preview", () => {
       decision: { kind: "approval_required" }
     });
   });
+
+  it("posts to /v1/denials/:id", async () => {
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      expect(String(input)).toBe("http://gateway.test/v1/denials/op-deny");
+      expect(init?.method).toBe("POST");
+      expect(JSON.parse(String(init?.body))).toEqual({ reason: "nope" });
+      return Response.json({ denied: true, funded: false, record: { state: "denied" } });
+    });
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: fetchImpl as unknown as typeof fetch
+    });
+    await expect(client.deny("op-deny", "nope")).resolves.toMatchObject({
+      denied: true,
+      record: { state: "denied" }
+    });
+  });
 });

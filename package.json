@@ -32,6 +32,7 @@
     "integration:devnet-remote": "pnpm --filter @agenttab/example-remote-agent devnet:e2e",
     "demo:neutral-merchant": "pnpm --filter @agenttab/example-neutral-merchant dev",
     "demo:neutral-merchant:devnet": "pnpm --filter @agenttab/example-neutral-merchant devnet",
+    "demo:stack": "pnpm --filter @agenttab/example-remote-agent stack",
     "demo:remote-agent": "pnpm --filter @agenttab/example-remote-agent demo",
     "demo:remote-agent:devnet": "pnpm --filter @agenttab/example-remote-agent devnet",
     "devnet:setup": "tsx tools/devnet-setup/src/setup.ts",
@@ -48,6 +49,7 @@
     "policy:get": "tsx apps/gateway/src/cli/policy-get.ts",
     "policy:set": "tsx apps/gateway/src/cli/policy-set.ts",
     "approve": "tsx apps/gateway/src/cli/approve.ts",
+    "deny": "tsx apps/gateway/src/cli/deny.ts",
     "preview": "tsx apps/gateway/src/cli/preview.ts",
     "test:watch": "pnpm --filter @agenttab/core test:watch"
   },

@@ -36,7 +36,8 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     + `pnpm audit:recent` (HTTP when `AGENTTAB_GATEWAY_URL` is set).
   - Read-only `POST /v1/preview` (policy only; no execution, no fund).
   - Operator UI at `/ui`.
-  - Policy writes and approvals gated by optional `AGENTTAB_ADMIN_TOKEN`.
+  - Policy writes, approvals, and denials gated by optional `AGENTTAB_ADMIN_TOKEN`.
+  - `GET /v1/spend` for rolling 24h spend vs daily cap.
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
 - `tools/*`: Devnet/Mainnet wallet setup, preflight, facilitator health, broadcast gate.
@@ -44,7 +45,7 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
 ## Planned / not required for the core thesis
 
 - A richer hosted dashboard can still consume the same APIs. `/ui` covers
-  policy, preview, parked approvals, and the observe-is-not-dry-run warning.
+  policy, preview, parked approve/deny, recent executions, and spend.
 
 ## Execution state machine
 

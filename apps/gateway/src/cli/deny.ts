@@ -1,28 +1,28 @@
 #!/usr/bin/env node
 /**
- * Grant human approval for an execution stuck in approval_required.
+ * Reject a parked execution. Terminal: same operationId will not fund later.
  *
- *   pnpm approve -- <operationId>
- *   agenttab-approve -- <operationId>
+ *   pnpm deny -- <operationId>
+ *   agenttab-deny -- <operationId>
  */
 import { gatewayFetch } from "./gateway-http.js";
 import { resolveOperationId } from "./operation-id.js";
 
 async function main(): Promise<void> {
   const operationId = resolveOperationId(process.argv.slice(2), {
-    command: "approve",
-    envKeys: ["APPROVE_OPERATION_ID"],
-    usage: "Usage: pnpm approve -- <operationId>   or set APPROVE_OPERATION_ID"
+    command: "deny",
+    envKeys: ["DENY_OPERATION_ID"],
+    usage: "Usage: pnpm deny -- <operationId>   or set DENY_OPERATION_ID"
   });
-  const response = await gatewayFetch(
-    `/v1/approvals/${encodeURIComponent(operationId)}`,
-    { method: "POST", body: "{}" }
-  );
+  const response = await gatewayFetch(`/v1/denials/${encodeURIComponent(operationId)}`, {
+    method: "POST",
+    body: "{}"
+  });
   const body = await response.json();
   if (!response.ok) {
     console.error(
       JSON.stringify(
-        { error: "approve_failed", operationId, status: response.status, body },
+        { error: "deny_failed", operationId, status: response.status, body },
         null,
         2
       )
@@ -34,7 +34,6 @@ async function main(): Promise<void> {
       {
         ok: true,
         operationId,
-        outcome: (body as { outcome?: unknown }).outcome,
         state: (body as { record?: { state?: string } }).record?.state
       },
       null,

@@ -44,6 +44,7 @@ Core thesis is implemented and proven at multiple fidelity layers:
 |------|--------------|---------|
 | **Judge / local** | Policy + exact-deficit funding + audit (mock DFlow, local HMAC pay) | `pnpm demo:judge` |
 | **Local 3-terminal** | Same as judge, with HTTP gateway + paid API | `demo:gateway` / `paid-api` / `agent` |
+| **Local adopt stack** | Gateway + merchant in one process; `/ui` + remote agent | `pnpm demo:stack` then `pnpm demo:remote-agent` |
 | **Live DFlow quotes** | Real DFlow Trade API quotes, still no broadcast | `AGENTTAB_FUNDING_MODE=live-quote` |
 | **Live DFlow sim** | Real order + `simulateTransaction`, still no broadcast | `AGENTTAB_FUNDING_MODE=live-sim` |
 | **Devnet** | Official `@x402/*` + facilitator; funding via mint stand-in for custom tUSDC | `pnpm devnet:agent` |
@@ -81,7 +82,7 @@ Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 1. `pnpm add @agenttab/fetch` in the agent process
 2. Start a gateway (`docker compose up --build` or clone this repo) and set policy
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
-4. Use `/ui`, `POST /v1/preview`, `pnpm policy:set`, `pnpm approve`, `pnpm audit:recent`
+4. Use `/ui`, `POST /v1/preview`, `pnpm policy:set`, `pnpm approve`, `pnpm deny`, `pnpm audit:recent`
 
 ## Fastest convincing demo (one command)
 
