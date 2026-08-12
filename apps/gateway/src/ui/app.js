@@ -170,7 +170,8 @@
       : "Buyer wallet the coordinator can fund from";
 
     const mode = state.policy?.mode || health.policyMode || boot.policyMode;
-    $("mode-value").textContent = mode;
+    $("mode-value").textContent =
+      mode === "autopay" ? "Within limits" : mode === "approve" ? "Ask me" : "Watch";
     $("mode-copy").textContent =
       mode === "autopay"
         ? "Matching intents pay without asking you"
@@ -181,11 +182,10 @@
     parkedCountEl.textContent = String(state.parked.length || health.parkedCount || 0);
 
     const flags = [];
-    if (health.policyWriteAuth) flags.push("admin token required");
+    if (health.policyWriteAuth) flags.push("console locked");
     if (health.agentAuth) flags.push("agent token required");
-    if (health.notifyConfigured) flags.push(health.notifySigned ? "notifySigned" : "notify on");
-    if (health.broadcastEnabled) flags.push("broadcast on");
-    else flags.push("broadcast off");
+    if (health.notifyConfigured) flags.push(health.notifySigned ? "signed alerts" : "alerts on");
+    flags.push(health.broadcastEnabled ? "Mainnet broadcast on" : "not broadcasting");
     $("flags").textContent = flags.join(" · ");
   }
 
