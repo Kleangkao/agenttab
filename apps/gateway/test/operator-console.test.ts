@@ -32,6 +32,8 @@ describe("operator console", () => {
       expect(html).toContain("Ledger");
       expect(html).toContain("Policy");
       expect(html).toContain("Buy only the missing payment asset, then finish the original request");
+      expect(html).toContain("local DFlow mock");
+      expect(html).toContain("solscan.io/tx/");
       expect(html).toContain("/ui/app.css");
       expect(html).toContain("/ui/app.js");
       expect(html).toContain('"adminRequired":true');
@@ -64,6 +66,7 @@ describe("operator console", () => {
       expect(js).toContain("original request");
       expect(js).toContain("No agent is blocked");
       expect(js).toContain("local DFlow mock");
+      expect(js).toContain("solscan.io/tx/");
       expect(js).toContain("finishRequest");
 
       const intent = {

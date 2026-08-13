@@ -98,6 +98,12 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   color: var(--muted);
   font-size: 13px;
 }
+.proof {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 46rem;
+}
 .stance strong { color: var(--ink); font-weight: 650; }
 .notice {
   margin: 0 0 16px;

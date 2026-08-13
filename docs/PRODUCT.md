@@ -92,6 +92,8 @@ denial, not a permissive default.
 - Local vertical slice and `pnpm demo:judge` prove the full audit path without funds.
 - Devnet proves official x402 settle (funding via mint stand-in for custom tUSDC).
 - Mainnet dry-run and gated oneshot prove real DFlow exact-deficit + x402 settle.
+  The fulfilled oneshot is public in `docs/mainnet-receipt.md` (explorer links).
+  Judge path: `docs/DEMO.md`. The live `/ui` stack is a local mock of that loop.
 - Policy and spend caps survive gateway restarts when using an on-disk SQLite path.
 - Read-only audit is available via `GET /v1/executions` and `pnpm audit:recent`
   (including the fulfilled Mainnet receipt DB under `.data/mainnet/`).

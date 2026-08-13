@@ -1,7 +1,7 @@
 # Adopt AgentTab
 
 Cold-start path for someone who wants to **control** AgentTab and keep using it —
-not just run a Buildathon demo.
+not just run a Buildathon demo. Judges should start at [DEMO.md](DEMO.md).
 
 Today the supported product surface is:
 

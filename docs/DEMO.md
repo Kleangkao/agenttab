@@ -1,0 +1,103 @@
+# AgentTab — Buildathon demo
+
+A judge should be able to do three things quickly: understand the thesis, run
+the loop, and verify that real DFlow + x402 already settled on Solana Mainnet.
+The local `/ui` is a safe mock of that same loop. It is not the limit of the
+implementation.
+
+## Thesis
+
+x402 lets an agent pay for an HTTP resource, but only if the wallet already
+holds the exact asset the merchant asked for. AgentTab is buyer-side policy +
+exact-deficit funding around that standard 402:
+
+1. Agent needs a paid resource.
+2. Merchant asks for a specific asset (x402).
+3. Wallet is missing or short that asset.
+4. AgentTab buys **only the deficit** through DFlow.
+5. Standard x402 payment succeeds.
+6. The original request continues.
+7. One append-only receipt ties the steps together.
+
+AgentTab is not a new payment protocol, a trading bot, a custodian, or an x402
+facilitator. Merchants keep standard x402.
+
+## 2-minute live path (safe, no Mainnet spend)
+
+From this repo:
+
+```bash
+pnpm demo:stack
+```
+
+1. Open [http://127.0.0.1:8787/ui](http://127.0.0.1:8787/ui). The stack parks
+   one local mock request on **Now** ($4.00 USDC, wallet starts at 0 USDC / 5 SOL).
+2. Read the blocked card. It should name the resource, the asked asset, the
+   live wallet, the exact missing amount, and that this run is a **local DFlow
+   mock — no chain, not broadcasting**. The line under the stance points at the
+   already-settled Mainnet DFlow + x402 transactions.
+3. Confirm **Buy … and continue**. That buys only the deficit, pays the
+   merchant, and retries the same resource.
+4. The card should end on **The agent received the resource**.
+
+Optional one-command audit of the same loop with no browser:
+
+```bash
+pnpm demo:judge
+```
+
+## What is mock vs already proven
+
+| What you are looking at | Funding | Payment | Chain |
+|-------------------------|---------|---------|-------|
+| `/ui` via `pnpm demo:stack` | local DFlow mock | local HMAC / token | none |
+| `pnpm demo:judge` | mock exact-deficit | local HMAC | none |
+| Devnet agent | mint stand-in (not DFlow) | official x402 facilitator | Solana Devnet |
+| Mainnet oneshot already run | **real DFlow** | **real x402 settle** | **Solana Mainnet** |
+
+Do not treat the local mock as the product ceiling. Do not treat Devnet minting
+as DFlow. Do not arm a new Mainnet broadcast for a demo.
+
+## Mainnet proof (already fulfilled, no new spend)
+
+On 2026-08-11 the same loop settled on Solana Mainnet as
+`mainnet-one-shot-accde262-ec07-4bbb-8449-5fd03c738a25`.
+
+The wallet held **5 atomic USDC** and the merchant asked for **1000 atomic
+USDC** ($0.001). AgentTab bought only the **995 atomic deficit** from SOL via
+DFlow, then paid 1000 atomic USDC through x402, then marked
+`/v1/research` fulfilled.
+
+| Step | On-chain fact | Explorer |
+|------|---------------|----------|
+| Exact-deficit DFlow | WSOL 13143 lamports → 999 atomic USDC; DFlow program `DF1ow4t…`; slot 438621419 | [Funding tx](https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg) |
+| x402 pay | Buyer USDC 1004 → 4 atomic; merchant 1000 → 2000 atomic; slot 438621425 | [Payment tx](https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR) |
+| Continue | Execution state `fulfilled`; response hash `sha256:e4a51a547a1e0a30a90c5ab25600afa3469a0ce1d2864ccefffd2b55292fe8d9` | Same operation id in the local Mainnet receipt DB |
+
+Buyer (public): `JCVsKd4TMg1fvEs7rjf5YgLYbJfNC8Dwb4x1PchFkGM7`  
+Merchant (public): `HSwkNxFzJQDhnNbmXr1dTvezgCvy13tK2szaK36mJ8kr`  
+Network: `solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp`  
+Asset: Circle USDC `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`
+
+Public receipt copy: [mainnet-receipt.md](mainnet-receipt.md).
+
+If this machine still has the gitignored audit DB:
+
+```bash
+AGENTTAB_DB_PATH=.data/mainnet/gateway-mainnet.sqlite AUDIT_OPERATION_ID=mainnet-one-shot-accde262-ec07-4bbb-8449-5fd03c738a25 pnpm audit:recent
+```
+
+A clone of the public repo does **not** include that DB. The explorer links
+above are the judge-visible proof.
+
+## What this demo will not do
+
+- Spend new Mainnet funds.
+- Open a swap interface or let the agent pick a trade.
+- Pretend Devnet minting is DFlow.
+- Hide that `/ui` is a local mock.
+
+Broadcast stays triple-gated (`MAINNET_ONE_SHOT_MODE=broadcast`,
+`AGENTTAB_BROADCAST=1`,
+`AGENTTAB_MAINNET_EXECUTION_APPROVED=I_UNDERSTAND_THIS_WILL_SPEND_REAL_FUNDS`).
+Do not arm those for judging.

@@ -173,6 +173,10 @@
 
   const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
   const WSOL = "So11111111111111111111111111111111111111112";
+  const MAINNET_DFLOW_TX =
+    "https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg";
+  const MAINNET_X402_TX =
+    "https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR";
 
   function assetLabel(mint) {
     if (mint === USDC) return "USDC";
@@ -593,6 +597,15 @@
         : " · alerts on"
       : "";
     $("stance").innerHTML = `${esc(fund.honest)} · ${esc(walletLine())} · <strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
+    const proofHere =
+      health.fundingMode === "devnet-mint"
+        ? "This /ui is a Devnet mint stand-in, not DFlow."
+        : health.fundingMode === "live-quote" || health.fundingMode === "live-sim"
+          ? `This /ui is ${fund.honest}.`
+          : health.fundingMode && health.fundingMode !== "mock"
+            ? `This /ui is ${fund.honest}.`
+            : "This /ui is a local DFlow mock — no chain.";
+    $("proof").innerHTML = `${esc(proofHere)} The same loop already settled on Solana Mainnet: <a href="${MAINNET_DFLOW_TX}">exact-deficit DFlow</a> then <a href="${MAINNET_X402_TX}">x402 pay</a>, then the original request continued. No new Mainnet spend from this screen.`;
     $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
     const waiting =
       state.nowItems.length || health.openLoopCount || health.parkedCount || 0;

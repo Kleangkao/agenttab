@@ -40,8 +40,11 @@ function printBanner(): void {
 ║  Thesis: policy + exact-deficit funding around x402      ║
 ╚══════════════════════════════════════════════════════════╝
 `);
-  console.log("Fidelity: local mock settlement (HMAC) + mock DFlow deficit plan.");
-  console.log("For real Solana x402: pnpm devnet:agent  |  Mainnet dry-run: pnpm mainnet:agent");
+  console.log("Fidelity: local mock (HMAC pay + mock DFlow). This is not the implementation limit.");
+  console.log("Already proven on Solana Mainnet — see docs/DEMO.md");
+  console.log("  DFlow  https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg");
+  console.log("  x402   https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR");
+  console.log("Do not arm Mainnet broadcast. Devnet funding is a mint stand-in, not DFlow.");
   console.log("");
 }
 

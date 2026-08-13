@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Buildathon path: `docs/DEMO.md` plus a public Mainnet receipt with Solscan
+  links for the already-fulfilled DFlow deficit + x402 pay. `/ui` and
+  `pnpm demo:judge` state that the live path is a local mock and point at that
+  proof. `pnpm demo:stack` parks one local Now request so `/ui` is not empty.
+  No new Mainnet spend.
 - Operator `/ui` tells the core-loop story on Now: agent blocked on a paid
   resource, wallet missing the asked asset, buy only the exact deficit,
   pay the merchant, original request continues. Confirming buys, pays, and

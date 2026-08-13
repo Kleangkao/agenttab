@@ -27,9 +27,10 @@ AgentTab is not a new payment protocol, a trading bot, a custodian or an x402
 facilitator. It is funding and policy middleware on the buyer side. Merchants
 continue using standard x402.
 
-See [PRODUCT.md](docs/PRODUCT.md), [ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[THREAT_MODEL.md](docs/THREAT_MODEL.md), and **[ADOPT.md](docs/ADOPT.md)** for the
-cold-start control path (policy file → remote agent → approve/audit CLI).
+See **[DEMO.md](docs/DEMO.md)** for the Buildathon path (local `/ui` + already
+settled Mainnet DFlow/x402 proof). Then [PRODUCT.md](docs/PRODUCT.md),
+[ARCHITECTURE.md](docs/ARCHITECTURE.md), [THREAT_MODEL.md](docs/THREAT_MODEL.md),
+and **[ADOPT.md](docs/ADOPT.md)** for the cold-start control path.
 
 Source: [github.com/Kleangkao/agenttab](https://github.com/Kleangkao/agenttab).
 Agent libraries are on npm (`@agenttab/fetch`, `@agenttab/core`, `@agenttab/x402`,
@@ -86,25 +87,27 @@ Follow **[docs/ADOPT.md](docs/ADOPT.md)**:
 3. Point `createAgentTabClient({ gatewayBaseUrl })` at that gateway
 4. Use `/ui`, `/openapi.json`, `POST /v1/preview`, `pnpm policy:set|mode|allow|cap`, `pnpm parked`, `pnpm notify:sink`, `pnpm approve`, `pnpm deny`, `pnpm audit:recent`
 
-## Fastest convincing demo (one command)
+## Fastest convincing demo
+
+Judge path: **[docs/DEMO.md](docs/DEMO.md)**.
+
+1. `pnpm demo:stack` then open [http://127.0.0.1:8787/ui](http://127.0.0.1:8787/ui).
+   That screen is a **local DFlow mock**. Confirm buy-and-continue to see the
+   original request finish.
+2. Verify the same loop already settled on Solana Mainnet (no new spend):
+   [DFlow deficit tx](https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg)
+   then
+   [x402 pay tx](https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR).
+   Public receipt: [docs/mainnet-receipt.md](docs/mainnet-receipt.md).
+
+One-command local audit (no browser, no chain):
 
 ```bash
 pnpm demo:judge
 ```
 
-Prints the audit timeline for **402 → policy → exact-deficit fund → pay → fulfill**
-in-process. No open ports, no chain, no funds. Use this for judges and CI.
-
-Inspect the highest-fidelity Mainnet receipt (already fulfilled, no new spend):
-
-```bash
-AGENTTAB_DB_PATH=.data/mainnet/gateway-mainnet.sqlite pnpm audit:recent
-```
-
-Then point to higher fidelity live paths (still prefer no-spend):
-
-- Devnet for real Solana x402 settlement (`pnpm devnet:setup` then `devnet:agent`)
-- Mainnet dry-run for real DFlow simulation + broadcast refusal (`pnpm mainnet:agent`)
+Do not arm Mainnet broadcast for a demo. Devnet funding is a mint stand-in, not
+DFlow.
 
 ## Local hero demo (three terminals)
 
