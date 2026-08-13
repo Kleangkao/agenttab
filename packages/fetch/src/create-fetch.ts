@@ -21,7 +21,11 @@ import {
   type GatewayHttpOptions
 } from "./gateway-client.js";
 import { hashHttpRequest } from "./hash.js";
-import { shouldReuseOperationId, toAgentTabFundingError } from "./errors.js";
+import {
+  isAgentTabAlreadyPaidError,
+  shouldReuseOperationId,
+  toAgentTabFundingError
+} from "./errors.js";
 import { defaultUsdMicrosForPayment } from "./usd.js";
 
 export interface AgentTabRequestMeta {
@@ -404,15 +408,26 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
         response = await paidFetch(resourceUrl, materialized.init);
       } catch (error) {
         const fundingError = toAgentTabFundingError(error);
-        if (fundingError !== undefined) {
+        if (fundingError !== undefined && isAgentTabAlreadyPaidError(fundingError)) {
+          const replay = await fetchImpl(resourceUrl, materialized.init);
+          if (replay.ok) {
+            response = replay;
+          } else {
+            if (reusePending) {
+              pendingByRequestHash.set(requestHash, fundingError.operationId);
+            }
+            throw fundingError;
+          }
+        } else if (fundingError !== undefined) {
           if (shouldReuseOperationId(fundingError) && reusePending) {
             pendingByRequestHash.set(requestHash, fundingError.operationId);
           } else {
             pendingByRequestHash.delete(requestHash);
           }
           throw fundingError;
+        } else {
+          throw error;
         }
-        throw error;
       }
       pendingByRequestHash.delete(requestHash);
       let auditRecorded = false;

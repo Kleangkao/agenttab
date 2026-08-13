@@ -2,6 +2,7 @@ import {
   evaluatePaymentPolicy,
   type ExecutionRecord,
   type ExecutionStore,
+  type FundingCandidate,
   type FundingOutcome,
   type PaymentFundingCoordinator,
   type PaymentIntent,
@@ -39,6 +40,34 @@ function adapterSideEffectSignature(transactionJson: string): string | undefined
     }
   } catch {
     return undefined;
+  }
+  return undefined;
+}
+
+/** Prefer WSOL (proven Mainnet path), then other allowed assets with a usable balance. */
+export function selectFundingCandidate(input: {
+  paymentMint: string;
+  balances: BalanceProvider;
+  allowedFundingAssets: string[];
+  requireVerified: boolean;
+}): FundingCandidate | undefined {
+  const held = new Map(input.balances.list().map((row) => [row.mint, row]));
+  const ranked = [
+    ...input.allowedFundingAssets.filter((mint) => mint === WSOL_MINT),
+    ...input.allowedFundingAssets.filter((mint) => mint !== WSOL_MINT)
+  ];
+  for (const mint of ranked) {
+    if (mint === input.paymentMint) continue;
+    const row = held.get(mint);
+    if (row === undefined) continue;
+    if (input.requireVerified && !row.verified) continue;
+    if (BigInt(row.balanceAtomic) <= 0n) continue;
+    return {
+      mint: row.mint,
+      ...(row.symbol === undefined ? {} : { symbol: row.symbol }),
+      balanceAtomic: row.balanceAtomic,
+      verified: row.verified
+    };
   }
   return undefined;
 }
@@ -203,26 +232,21 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     const paymentAtomic = BigInt(input.intent.amountAtomic);
     const readHeld = (): bigint => BigInt(this.#balances.get(input.intent.assetMint)?.balanceAtomic ?? "0");
     let heldAtomic = readHeld();
+    const policy = this.#getPolicy();
 
     const fundingCandidate =
       heldAtomic >= paymentAtomic
         ? undefined
-        : (() => {
-            const sol = this.#balances.get(WSOL_MINT);
-            if (sol === undefined) return undefined;
-            return {
-              mint: sol.mint,
-              symbol: sol.symbol,
-              balanceAtomic: sol.balanceAtomic,
-              verified: sol.verified
-            };
-          })();
+        : selectFundingCandidate({
+            paymentMint: input.intent.assetMint,
+            balances: this.#balances,
+            allowedFundingAssets: policy.allowedFundingAssets,
+            requireVerified: policy.requireVerifiedFundingAssets
+          });
 
     const spend: SpendSnapshot = {
       spentUsdMicrosLast24h: this.#spend.getSpentUsdMicrosLast24h()
     };
-
-    const policy = this.#getPolicy();
     const decision = evaluatePaymentPolicy({
       intent: input.intent,
       policy,
@@ -318,7 +342,10 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       if (record.state === "approved") {
         await transition(this.#store, record, "failed", "funding.no_candidate");
       }
-      return { status: "denied", reason: "No verified funding asset available" };
+      return {
+        status: "denied",
+        reason: "No allowed funding asset with a usable balance is available"
+      };
     }
 
     if (BigInt(fundingCandidate.balanceAtomic) <= 0n) {
@@ -329,16 +356,18 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       }
       return {
         status: "denied",
-        reason: "Funding asset balance is zero; deposit SOL before exact-deficit funding"
+        reason: "Funding asset balance is zero; deposit an allowed funding asset before exact-deficit funding"
       };
     }
 
     const deficit = paymentAtomic - heldAtomic;
+    const inputMint = fundingCandidate.mint;
+    const outputMint = input.intent.assetMint || USDC_MINT;
     if (record.state === "approved") {
       record = await transition(this.#store, record, "funding_submitted", "funding.submitted", {
         deficitAtomic: deficit.toString(),
-        inputMint: WSOL_MINT,
-        outputMint: input.intent.assetMint
+        inputMint,
+        outputMint
       });
     }
 
@@ -349,14 +378,14 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         kind: "funding.attempt_locked",
         details: {
           deficitAtomic: deficit.toString(),
-          inputMint: WSOL_MINT,
-          outputMint: input.intent.assetMint || USDC_MINT
+          inputMint,
+          outputMint
         }
       });
 
       const order = await this.#dflow.planExactDeficit({
-        inputMint: WSOL_MINT,
-        outputMint: input.intent.assetMint || USDC_MINT,
+        inputMint,
+        outputMint,
         targetOutputAtomic: deficit.toString(),
         maxInputAtomic: fundingCandidate.balanceAtomic,
         userPublicKey: this.#wallet,

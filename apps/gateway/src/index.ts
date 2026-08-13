@@ -13,6 +13,7 @@ export { SqliteSpendLedger } from "./store/sqlite-spend-ledger.js";
 export {
   GatewayFundingCoordinator,
   InMemorySpendLedger,
+  selectFundingCandidate,
   type SpendLedger
 } from "./orchestrator/coordinator.js";
 export { MockBalanceProvider } from "./funding/mock-balances.js";

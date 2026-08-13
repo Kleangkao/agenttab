@@ -211,4 +211,58 @@ describe("sticky approval operationId", () => {
     );
     expect(payloads).toBe(1);
   });
+
+  it("continues the original request when already_paid and the merchant still serves it", async () => {
+    let payloads = 0;
+    let merchantCalls = 0;
+    const scheme: SchemeNetworkClient = {
+      scheme: "exact",
+      createPaymentPayload: async () => {
+        payloads += 1;
+        return { x402Version: 2, payload: { transaction: "fake-tx" } };
+      }
+    };
+    const coordinator = {
+      ensurePaymentAsset: vi.fn(async () => {
+        const outcome: FundingOutcome = { status: "funded", reason: "ok" };
+        return outcome;
+      })
+    };
+    const fetchPaid = createAgentTabFetch({
+      schemes: [{ network: "solana:test", client: scheme }],
+      coordinator,
+      recordAudit: false,
+      fetchImpl: (async (input: RequestInfo | URL) => {
+        merchantCalls += 1;
+        const url = String(input instanceof Request ? input.url : input);
+        const hasPayment =
+          input instanceof Request &&
+          (input.headers.has("PAYMENT-SIGNATURE") || input.headers.has("X-PAYMENT"));
+        if (merchantCalls === 1 && !hasPayment) {
+          return new Response(JSON.stringify({ error: "payment_required" }), {
+            status: 402,
+            headers: {
+              "PAYMENT-REQUIRED": encodePaymentRequired(url),
+              "content-type": "application/json"
+            }
+          });
+        }
+        return new Response(JSON.stringify({ ok: true, replay: merchantCalls > 2 }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }) as unknown as typeof fetch,
+      getUsdValueMicros: async ({ amountAtomic }) => amountAtomic,
+      createOperationId: () => "op-continue-paid"
+    });
+
+    const first = await fetchPaid("http://merchant.local/v1/x");
+    expect(first.status).toBe(200);
+    expect(payloads).toBe(1);
+
+    const second = await fetchPaid("http://merchant.local/v1/x");
+    expect(second.status).toBe(200);
+    expect(payloads).toBe(1);
+    await expect(second.json()).resolves.toMatchObject({ replay: true });
+  });
 });

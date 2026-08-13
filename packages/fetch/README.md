@@ -70,6 +70,9 @@ lookup does not mint a new id. Prefer
 `requestPaidResource(agent, url, init, { onApprovalRequired })` for the
 in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`);
 approve only retries the merchant after `funded` / `already_funded`.
+If the same id is already paid, fetch retries the original request without a
+new x402 payload and only throws `AgentTabAlreadyPaidError` when the merchant
+still requires payment.
 `createOperationId` always wins over reuse.
 Mainnet USDC amounts default to USD micros (1:1); other mints need
 `getUsdValueMicros`.
