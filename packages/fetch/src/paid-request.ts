@@ -1,5 +1,6 @@
 import {
   AgentTabFundingDeniedError,
+  AgentTabFundingInterruptedError,
   isAgentTabApprovalRequiredError,
   type AgentTabApprovalRequiredError
 } from "./errors.js";
@@ -87,8 +88,36 @@ export async function requestPaidResource(
         `Approval granted by hook but AgentTab client has no gateway (need gatewayBaseUrl) for ${error.operationId}`
       );
     }
-    await agent.gateway.approve(error.operationId);
+    const approved = (await agent.gateway.approve(error.operationId)) as {
+      outcome?: { status?: string; reason?: string };
+    };
+    const status = approved.outcome?.status;
+    if (status === "interrupted") {
+      throw new AgentTabFundingInterruptedError({
+        code: "interrupted",
+        message: approved.outcome?.reason ?? "Funding interrupted after approve.",
+        operationId: error.operationId,
+        requestHash: error.requestHash,
+        merchantId: error.merchantId
+      });
+    }
+    if (status !== "funded" && status !== "already_funded") {
+      throw new AgentTabFundingDeniedError({
+        code: "denied",
+        message:
+          approved.outcome?.reason ??
+          `Approve did not fund (status ${status ?? "unknown"}).`,
+        operationId: error.operationId,
+        requestHash: error.requestHash,
+        merchantId: error.merchantId
+      });
+    }
     const retry = await attempt();
+    if (!retry.response.ok) {
+      throw new Error(
+        `AgentTab paid retry returned HTTP ${retry.response.status} for ${error.operationId}`
+      );
+    }
     return { ...retry, approvedByHook: true };
   }
 }

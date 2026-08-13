@@ -3,7 +3,7 @@ import type { RequestBinding } from "./index.js";
 
 export type AgentTabFundingAbortCode = Extract<
   FundingStatus,
-  "approval_required" | "denied"
+  "approval_required" | "interrupted" | "already_paid" | "denied"
 >;
 
 export interface AgentTabFundingAbortPayload {
@@ -38,7 +38,14 @@ export function parseFundingAbortReason(
   const split = body.indexOf(":");
   if (split < 0) return undefined;
   const code = body.slice(0, split);
-  if (code !== "approval_required" && code !== "denied") return undefined;
+  if (
+    code !== "approval_required" &&
+    code !== "interrupted" &&
+    code !== "already_paid" &&
+    code !== "denied"
+  ) {
+    return undefined;
+  }
   try {
     const parsed = JSON.parse(body.slice(split + 1)) as {
       message?: string;

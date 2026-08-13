@@ -153,19 +153,15 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
     listExecutions,
     listParked: () => listExecutions({ state: "approval_required", limit: 50 }),
     findReusableOperationId: async (requestHash) => {
-      try {
-        const listed = await listExecutions({
-          requestHash,
-          reusable: true,
-          limit: 1
-        });
-        const operationId = listed.executions[0]?.operationId;
-        return typeof operationId === "string" && operationId.length > 0
-          ? operationId
-          : undefined;
-      } catch {
-        return undefined;
-      }
+      const listed = await listExecutions({
+        requestHash,
+        reusable: true,
+        limit: 1
+      });
+      const operationId = listed.executions[0]?.operationId;
+      return typeof operationId === "string" && operationId.length > 0
+        ? operationId
+        : undefined;
     },
     getPolicy,
     putPolicy,

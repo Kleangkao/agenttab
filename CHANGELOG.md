@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Core loop: retryable DFlow interrupts are `interrupted` (not `denied`), so
+  fetch keeps the same `operationId` and re-signs the plan instead of minting
+  a second swap. `requestPaidResource` only retries after `funded` /
+  `already_funded`. Resume lookup fails closed. Mainnet USDC defaults to USD
+  micros. A payment already submitted is `already_paid` — x402 will not
+  create a second payload; fetch records `payment_submitted` before the
+  merchant retry.
 - Operator `/ui` is a control room (Now, Ledger, Policy): decision briefs,
   human lifecycle copy, dollar limits, unlock only when a token is required
 - Operator `/ui` is a product console (Needs you, Activity, Rules, Ask) with

@@ -64,6 +64,8 @@ export interface AgentTabAuditRecorder {
     operationId: string;
     settlementId?: string;
     transaction?: string;
+    /** Persist payment_submitted before the merchant retry (blocks a second x402 pay). */
+    submitted?: boolean;
   }): Promise<void>;
   recordFulfillment(input: {
     operationId: string;
@@ -90,6 +92,7 @@ export function createGatewayAuditRecorder(options: GatewayHttpOptions): AgentTa
             ...extraHeaders
           },
           body: JSON.stringify({
+            ...(input.submitted === true ? { submitted: true } : {}),
             ...(input.settlementId === undefined ? {} : { settlementId: input.settlementId }),
             ...(input.transaction === undefined ? {} : { transaction: input.transaction })
           })

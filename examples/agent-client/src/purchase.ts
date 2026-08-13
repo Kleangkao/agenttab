@@ -100,7 +100,11 @@ export async function runAgentPurchase(options: AgentClientOptions): Promise<Age
   if (!fundResponse.ok) {
     throw new Error(`Gateway fund failed: ${fundResponse.status}`);
   }
-  if (fundPayload.outcome.status !== "funded" && fundPayload.outcome.status !== "already_funded") {
+  if (
+    fundPayload.outcome.status !== "funded" &&
+    fundPayload.outcome.status !== "already_funded" &&
+    fundPayload.outcome.status !== "already_paid"
+  ) {
     throw new Error(`Funding not ready: ${fundPayload.outcome.status}: ${fundPayload.outcome.reason}`);
   }
 
@@ -141,7 +145,7 @@ export async function runAgentPurchase(options: AgentClientOptions): Promise<Age
     }
   });
 
-  if (hookResult?.abort) {
+  if (hookResult?.abort && fundPayload.outcome.status !== "already_paid") {
     throw new Error(`Funding aborted: ${hookResult.reason}`);
   }
 

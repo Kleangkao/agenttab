@@ -167,15 +167,21 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     const { record: existing } = await this.#store.createOrGet(input.intent);
     let record = existing;
 
+    if (record.state === "funded") {
+      return {
+        status: "already_funded",
+        reason: `Execution already at ${record.state}`
+      };
+    }
+
     if (
-      record.state === "funded" ||
       record.state === "payment_submitted" ||
       record.state === "paid" ||
       record.state === "fulfilled" ||
       record.state === "fulfillment_failed"
     ) {
       return {
-        status: "already_funded",
+        status: "already_paid",
         reason: `Execution already at ${record.state}`
       };
     }
@@ -636,7 +642,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         details: { message }
       });
       return {
-        status: "denied",
+        status: "interrupted",
         reason: hasSideEffect
           ? `${message} (side-effect receipt retained; retry to confirm without re-plan)`
           : `${message} (plan receipt retained; retry to re-sign without re-plan)`

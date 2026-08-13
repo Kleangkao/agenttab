@@ -184,7 +184,7 @@ describe("local vertical slice", () => {
     });
     const payBody = (await secondPay.json()) as { replayed?: boolean; token?: string };
 
-    expect(secondFund.status).toBe("already_funded");
+    expect(secondFund.status).toBe("already_paid");
     expect(gateway.dflow.orders).toHaveLength(1);
     expect(payBody.replayed).toBe(true);
     expect(payBody.token).toBe(first.paymentToken);
@@ -237,7 +237,7 @@ describe("local vertical slice", () => {
     const again = await gateway.coordinator.ensurePaymentAsset({
       intent: intentFor("pay-fail")
     });
-    expect(again.status).toBe("already_funded");
+    expect(again.status).toBe("already_paid");
     expect(gateway.dflow.orders).toHaveLength(ordersAfterFund);
 
     const retryPay = await gateway.app.request("/v1/executions/pay-fail/pay", {

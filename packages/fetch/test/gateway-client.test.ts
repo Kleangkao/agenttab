@@ -285,4 +285,15 @@ describe("createGatewayClient.preview", () => {
       executions: [{ operationId: "op-parked" }]
     });
   });
+
+  it("fails closed when reusable lookup is unauthorized", async () => {
+    const client = createGatewayClient({
+      baseUrl: "http://gateway.test",
+      fetchImpl: (async () =>
+        Response.json({ error: "unauthorized" }, { status: 401 })) as unknown as typeof fetch
+    });
+    await expect(
+      client.findReusableOperationId("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    ).rejects.toThrow(/list executions failed \(401\)/);
+  });
 });

@@ -86,7 +86,13 @@ export const paymentPolicySchema = z.object({
   maxPriceImpactPct: z.number().min(0).max(100)
 });
 
-export type FundingStatus = "already_funded" | "funded" | "approval_required" | "denied";
+export type FundingStatus =
+  | "already_funded"
+  | "already_paid"
+  | "funded"
+  | "approval_required"
+  | "interrupted"
+  | "denied";
 
 export interface FundingOutcome {
   status: FundingStatus;

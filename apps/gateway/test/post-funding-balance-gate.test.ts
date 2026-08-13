@@ -93,7 +93,7 @@ describe("post-funding balance gate", () => {
       }
     });
 
-    expect(outcome.status).toBe("denied");
+    expect(outcome.status).toBe("interrupted");
     expect(outcome.reason).toMatch(/Post-funding balance gate failed/);
     const record = await gateway.store.get("underfund-1");
     expect(record?.state).not.toBe("funded");

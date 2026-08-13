@@ -541,10 +541,19 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
 
     const body = (await c.req.json().catch(() => ({}))) as {
       fail?: boolean;
+      /** Mark payment_submitted before the merchant retry so a crash cannot mint a second x402 pay. */
+      submitted?: boolean;
       /** External x402 facilitator settlement (Devnet/mainnet). */
       settlementId?: string;
       transaction?: string;
     };
+    if (body.submitted === true && body.fail !== true && body.settlementId === undefined) {
+      if (record.state === "payment_submitted") {
+        return c.json({ record, submitted: true, replayed: true });
+      }
+      record = await transitionPayment(store, record, "payment_submitted", "payment.submitted");
+      return c.json({ record, submitted: true, replayed: false });
+    }
     if (body.fail === true) {
       // Keep non-terminal state so payment can retry without re-funding.
       if (record.state === "funded") {

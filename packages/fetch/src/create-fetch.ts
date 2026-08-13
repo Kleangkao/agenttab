@@ -21,7 +21,8 @@ import {
   type GatewayHttpOptions
 } from "./gateway-client.js";
 import { hashHttpRequest } from "./hash.js";
-import { isAgentTabApprovalRequiredError, toAgentTabFundingError } from "./errors.js";
+import { shouldReuseOperationId, toAgentTabFundingError } from "./errors.js";
+import { defaultUsdMicrosForPayment } from "./usd.js";
 
 export interface AgentTabRequestMeta {
   operationId: string;
@@ -85,8 +86,8 @@ export interface CreateAgentTabFetchOptions {
   gatewayFetchImpl?: typeof fetch;
 
   /**
-   * USD micros for policy evaluation. Omit to leave `amountUsdMicros` unset
-   * (fail-closed policies that require USD will deny).
+   * USD micros for policy evaluation. Default maps Mainnet USDC (6 decimals)
+   * 1:1 to micros. Other mints stay unset (fail-closed until you supply an oracle).
    */
   getUsdValueMicros?: (payment: {
     network: string;
@@ -260,6 +261,15 @@ function paymentResponseHeader(response: Response): string | null {
   );
 }
 
+function hasPaymentHeader(request: Request): boolean {
+  return (
+    request.headers.has("PAYMENT-SIGNATURE") ||
+    request.headers.has("payment-signature") ||
+    request.headers.has("X-PAYMENT") ||
+    request.headers.has("x-payment")
+  );
+}
+
 function resolveX402Client(options: CreateAgentTabFetchOptions): x402Client {
   if (options.schemes !== undefined && options.schemes.length > 0) {
     return x402Client.fromConfig({
@@ -291,10 +301,47 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
     );
   }
 
+  const submittedPayments = new Set<string>();
+  const guardedCoordinator: PaymentFundingCoordinator = {
+    ensurePaymentAsset: async (input) => {
+      if (submittedPayments.has(input.intent.operationId)) {
+        return {
+          status: "already_paid",
+          reason: "Payment already submitted for this operation"
+        };
+      }
+      return coordinator.ensurePaymentAsset(input);
+    }
+  };
+
+  const guardedFetch: typeof fetch = async (input, init) => {
+    const request = input instanceof Request ? input : new Request(input, init);
+    if (hasPaymentHeader(request)) {
+      const binding = bindingStore.getStore();
+      if (binding !== undefined) {
+        if (submittedPayments.has(binding.operationId)) {
+          return Promise.reject(
+            new Error(
+              `AgentTab payment already submitted for operation ${binding.operationId}`
+            )
+          );
+        }
+        if (recordAudit && audit !== undefined) {
+          await audit.recordPayment({
+            operationId: binding.operationId,
+            submitted: true
+          });
+        }
+        submittedPayments.add(binding.operationId);
+      }
+    }
+    return fetchImpl(request);
+  };
+
   const client = resolveX402Client(options);
   client.onBeforePaymentCreation(
     createAgentTabFundingHook({
-      coordinator,
+      coordinator: guardedCoordinator,
       getRequestBinding: async () => {
         const binding = bindingStore.getStore();
         if (binding === undefined) {
@@ -306,14 +353,14 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
       },
       getUsdValueMicros:
         options.getUsdValueMicros ??
-        (async () => undefined)
+        (async (payment) => defaultUsdMicrosForPayment(payment))
     })
   );
   if (options.onPaymentCreationFailure !== undefined) {
     client.onPaymentCreationFailure(options.onPaymentCreationFailure);
   }
 
-  const paidFetch = wrapFetchWithPayment(fetchImpl, client);
+  const paidFetch = wrapFetchWithPayment(guardedFetch, client);
   const pendingByRequestHash = new Map<string, string>();
   const reusePending = options.reusePendingOperationId !== false;
   const http = gatewayHttpOptions(options);
@@ -358,7 +405,7 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
       } catch (error) {
         const fundingError = toAgentTabFundingError(error);
         if (fundingError !== undefined) {
-          if (isAgentTabApprovalRequiredError(fundingError) && reusePending) {
+          if (shouldReuseOperationId(fundingError) && reusePending) {
             pendingByRequestHash.set(requestHash, fundingError.operationId);
           } else {
             pendingByRequestHash.delete(requestHash);

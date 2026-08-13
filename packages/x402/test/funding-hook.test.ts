@@ -64,5 +64,49 @@ describe("createAgentTabFundingHook", () => {
       reason: expect.stringMatching(/agenttab:approval_required:.*"operationId":"ocr-43"/)
     });
   });
+
+  it("aborts as interrupted when a plan receipt can be retried", async () => {
+    const hook = createAgentTabFundingHook({
+      coordinator: {
+        ensurePaymentAsset: async () => ({
+          status: "interrupted",
+          reason: "signer failed (plan receipt retained; retry to re-sign without re-plan)"
+        })
+      },
+      getRequestBinding: async () => ({
+        operationId: "ocr-44",
+        requestHash: "sha256:aaaaaaaaaaaaaaaa",
+        merchantId: "ocr.example"
+      }),
+      getUsdValueMicros: async () => "30000"
+    });
+
+    await expect(hook({ paymentRequired, selectedRequirements })).resolves.toMatchObject({
+      abort: true,
+      reason: expect.stringMatching(/agenttab:interrupted:.*"operationId":"ocr-44"/)
+    });
+  });
+
+  it("aborts payment creation when the operation is already paid", async () => {
+    const hook = createAgentTabFundingHook({
+      coordinator: {
+        ensurePaymentAsset: async () => ({
+          status: "already_paid",
+          reason: "Execution already at paid"
+        })
+      },
+      getRequestBinding: async () => ({
+        operationId: "ocr-45",
+        requestHash: "sha256:bbbbbbbbbbbbbbbb",
+        merchantId: "ocr.example"
+      }),
+      getUsdValueMicros: async () => "30000"
+    });
+
+    await expect(hook({ paymentRequired, selectedRequirements })).resolves.toMatchObject({
+      abort: true,
+      reason: expect.stringMatching(/agenttab:already_paid:.*"operationId":"ocr-45"/)
+    });
+  });
 });
 

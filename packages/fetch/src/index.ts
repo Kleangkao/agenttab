@@ -25,14 +25,25 @@ export {
   type GatewayHttpOptions
 } from "./gateway-client.js";
 export { hashHttpRequest } from "./hash.js";
-export { stablecoinAtomicAsUsdMicros } from "./usd.js";
+export {
+  defaultUsdMicrosForPayment,
+  isSixDecimalUsdStablecoin,
+  stablecoinAtomicAsUsdMicros,
+  USDC_MINT
+} from "./usd.js";
 export { createLocalSmokeScheme } from "./smoke-scheme.js";
 export {
+  AgentTabAlreadyPaidError,
   AgentTabApprovalRequiredError,
   AgentTabFundingDeniedError,
   AgentTabFundingError,
+  AgentTabFundingInterruptedError,
+  isAgentTabAlreadyPaidError,
   isAgentTabApprovalRequiredError,
   isAgentTabFundingDeniedError,
+  isAgentTabFundingInterruptedError,
+  isAgentTabRetryableFundingError,
+  shouldReuseOperationId,
   toAgentTabFundingError
 } from "./errors.js";
 export {

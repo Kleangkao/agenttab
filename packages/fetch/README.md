@@ -61,14 +61,18 @@ const receipt = await agent.getExecution(meta!.operationId);
 See `examples/remote-agent` + `examples/neutral-merchant` for a reusable
 topology that does not embed the gateway in the agent process.
 
-When policy mode is `approve` or `observe`, failed funding throws
-`AgentTabApprovalRequiredError` with `operationId`. The next `fetch` to the
-same method+url+body reuses that id from in-process memory, or by asking the
-gateway for a reusable execution with the same `requestHash` (so a new process
-after `pnpm approve -- <id>` still resumes). Prefer
+When policy parks a payment, funding throws `AgentTabApprovalRequiredError`.
+When DFlow already planned but signing/confirm was interrupted, it throws
+`AgentTabFundingInterruptedError`. The next `fetch` to the same
+method+url+body reuses that `operationId` from in-process memory, or by asking
+the gateway for a reusable execution with the same `requestHash`. A failed
+lookup does not mint a new id. Prefer
 `requestPaidResource(agent, url, init, { onApprovalRequired })` for the
-in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`).
+in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`);
+approve only retries the merchant after `funded` / `already_funded`.
 `createOperationId` always wins over reuse.
+Mainnet USDC amounts default to USD micros (1:1); other mints need
+`getUsdValueMicros`.
 
 ## Options worth knowing
 
@@ -82,7 +86,10 @@ in-process approve-and-retry loop (`"approve"` | `"deny"` | `"abort"`).
   `gateway.preview(intent)` is read-only and never funds. `gateway.deny(id)` is terminal.
 - Prefer `schemes` over reusing a shared `x402Client` (x402 appends hooks).
 - `createLocalSmokeScheme()` is for local/CI only; production needs a real SVM signer.
-- `AgentTabApprovalRequiredError` / `AgentTabFundingDeniedError` carry `operationId`.
+- `AgentTabApprovalRequiredError` / `AgentTabFundingInterruptedError` /
+  `AgentTabAlreadyPaidError` / `AgentTabFundingDeniedError` carry `operationId`.
+  Use `isAgentTabRetryableFundingError` when funding should be retried;
+  `already_paid` keeps the id so a second x402 pay cannot be minted.
 
 ## Embedded gateway (in-process coordinator)
 

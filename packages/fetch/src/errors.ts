@@ -40,6 +40,37 @@ export class AgentTabApprovalRequiredError extends AgentTabFundingError {
   }
 }
 
+/** x402 payment already left this operation; do not create another payload. */
+export class AgentTabAlreadyPaidError extends AgentTabFundingError {
+  readonly code = "already_paid" as const;
+
+  constructor(payload: AgentTabFundingAbortPayload, options?: { cause?: unknown }) {
+    super(
+      `AgentTab payment already submitted for operation ${payload.operationId}: ${payload.message}`,
+      payload,
+      options
+    );
+    this.name = "AgentTabAlreadyPaidError";
+  }
+}
+
+/**
+ * Funding stopped mid-flight but the same operationId can finish it
+ * (plan or side-effect receipt retained). Retry the same request.
+ */
+export class AgentTabFundingInterruptedError extends AgentTabFundingError {
+  readonly code = "interrupted" as const;
+
+  constructor(payload: AgentTabFundingAbortPayload, options?: { cause?: unknown }) {
+    super(
+      `AgentTab funding interrupted for operation ${payload.operationId}: ${payload.message}`,
+      payload,
+      options
+    );
+    this.name = "AgentTabFundingInterruptedError";
+  }
+}
+
 /** Policy denied funding/payment. Do not retry without changing policy or intent. */
 export class AgentTabFundingDeniedError extends AgentTabFundingError {
   readonly code = "denied" as const;
@@ -61,6 +92,12 @@ export function toAgentTabFundingError(error: unknown): AgentTabFundingError | u
   if (payload.code === "approval_required") {
     return new AgentTabApprovalRequiredError(payload, { cause: error });
   }
+  if (payload.code === "interrupted") {
+    return new AgentTabFundingInterruptedError(payload, { cause: error });
+  }
+  if (payload.code === "already_paid") {
+    return new AgentTabAlreadyPaidError(payload, { cause: error });
+  }
   return new AgentTabFundingDeniedError(payload, { cause: error });
 }
 
@@ -74,4 +111,33 @@ export function isAgentTabFundingDeniedError(
   error: unknown
 ): error is AgentTabFundingDeniedError {
   return error instanceof AgentTabFundingDeniedError;
+}
+
+export function isAgentTabFundingInterruptedError(
+  error: unknown
+): error is AgentTabFundingInterruptedError {
+  return error instanceof AgentTabFundingInterruptedError;
+}
+
+export function isAgentTabAlreadyPaidError(
+  error: unknown
+): error is AgentTabAlreadyPaidError {
+  return error instanceof AgentTabAlreadyPaidError;
+}
+
+/** Keep this operationId and retry the same request. */
+export function isAgentTabRetryableFundingError(
+  error: unknown
+): error is AgentTabApprovalRequiredError | AgentTabFundingInterruptedError {
+  return isAgentTabApprovalRequiredError(error) || isAgentTabFundingInterruptedError(error);
+}
+
+/** Do not mint a new operationId (retry funding, or avoid a second x402 pay). */
+export function shouldReuseOperationId(
+  error: unknown
+): error is
+  | AgentTabApprovalRequiredError
+  | AgentTabFundingInterruptedError
+  | AgentTabAlreadyPaidError {
+  return isAgentTabRetryableFundingError(error) || isAgentTabAlreadyPaidError(error);
 }

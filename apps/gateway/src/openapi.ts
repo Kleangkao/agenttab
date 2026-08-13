@@ -76,7 +76,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   },
   "/v1/executions/{operationId}/pay": {
     post: {
-      summary: "Record x402 settlement or issue local HMAC token",
+      summary: "Record payment_submitted, x402 settlement, or a local HMAC token",
       funds: false,
       agent: true
     }

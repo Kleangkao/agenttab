@@ -163,7 +163,7 @@ describe("funding retry double-send protection", () => {
     const intent = { ...baseIntent, operationId: "retry-resume-plan-1" };
 
     const first = await gateway.coordinator.ensurePaymentAsset({ intent });
-    expect(first.status).toBe("denied");
+    expect(first.status).toBe("interrupted");
     expect(first.reason).toMatch(/plan receipt retained/i);
     expect(plans).toBe(1);
     expect(signCalls).toBe(1);
@@ -270,7 +270,7 @@ describe("funding retry double-send protection", () => {
 
     const intent = { ...baseIntent, operationId: "retry-side-effect-send-1" };
     const first = await gateway.coordinator.ensurePaymentAsset({ intent });
-    expect(first.status).toBe("denied");
+    expect(first.status).toBe("interrupted");
     expect(first.reason).toMatch(/side-effect receipt retained|Post-funding balance gate/i);
     expect(plans).toBe(1);
     expect(signCalls).toBe(1);

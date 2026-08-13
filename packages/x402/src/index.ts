@@ -78,7 +78,14 @@ export function createAgentTabFundingHook(input: {
     const outcome = await input.coordinator.ensurePaymentAsset({ intent });
     if (outcome.status === "already_funded" || outcome.status === "funded") return;
 
-    const code = outcome.status as AgentTabFundingAbortCode;
+    const code: AgentTabFundingAbortCode =
+      outcome.status === "approval_required"
+        ? "approval_required"
+        : outcome.status === "interrupted"
+          ? "interrupted"
+          : outcome.status === "already_paid"
+            ? "already_paid"
+            : "denied";
     return {
       abort: true,
       reason: encodeFundingAbortReason(

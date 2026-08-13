@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import type { FundingOutcome, PaymentIntent } from "@agenttab/core";
 import type { SchemeNetworkClient } from "@x402/core/types";
 import { createAgentTabFetch } from "../src/create-fetch.js";
-import { isAgentTabApprovalRequiredError } from "../src/errors.js";
+import {
+  isAgentTabAlreadyPaidError,
+  isAgentTabApprovalRequiredError,
+  isAgentTabFundingInterruptedError
+} from "../src/errors.js";
 
 function encodePaymentRequired(url: string): string {
   return Buffer.from(
@@ -134,5 +138,77 @@ describe("sticky approval operationId", () => {
     expect(response.status).toBe(200);
     expect(lookup).toHaveBeenCalledOnce();
     expect(seen[0]).toBe(parkedId);
+  });
+
+  it("retries the same operationId after a retryable funding interrupt", async () => {
+    const seen: string[] = [];
+    let allowFund = false;
+    const coordinator = {
+      ensurePaymentAsset: vi.fn(async ({ intent }: { intent: PaymentIntent }) => {
+        seen.push(intent.operationId);
+        if (!allowFund) {
+          const outcome: FundingOutcome = {
+            status: "interrupted",
+            reason: "signer failed (plan receipt retained; retry to re-sign without re-plan)"
+          };
+          return outcome;
+        }
+        const outcome: FundingOutcome = { status: "funded", reason: "resumed" };
+        return outcome;
+      })
+    };
+
+    const fetchPaid = createAgentTabFetch({
+      schemes: [{ network: "solana:test", client: mockScheme() }],
+      coordinator,
+      recordAudit: false,
+      fetchImpl: merchant402Then200(),
+      getUsdValueMicros: async ({ amountAtomic }) => amountAtomic
+    });
+
+    const first = fetchPaid("http://merchant.local/v1/x");
+    await expect(first).rejects.toSatisfy(isAgentTabFundingInterruptedError);
+    const error = await first.catch((value: unknown) => value);
+    if (!isAgentTabFundingInterruptedError(error)) throw error;
+
+    allowFund = true;
+    const response = await fetchPaid("http://merchant.local/v1/x");
+    expect(response.status).toBe(200);
+    expect(seen[1]).toBe(error.operationId);
+    expect(new Set(seen).size).toBe(1);
+  });
+
+  it("does not create a second x402 payload for the same operationId", async () => {
+    let payloads = 0;
+    const scheme: SchemeNetworkClient = {
+      scheme: "exact",
+      createPaymentPayload: async () => {
+        payloads += 1;
+        return { x402Version: 2, payload: { transaction: "fake-tx" } };
+      }
+    };
+    const coordinator = {
+      ensurePaymentAsset: vi.fn(async () => {
+        const outcome: FundingOutcome = { status: "funded", reason: "ok" };
+        return outcome;
+      })
+    };
+    const fetchPaid = createAgentTabFetch({
+      schemes: [{ network: "solana:test", client: scheme }],
+      coordinator,
+      recordAudit: false,
+      fetchImpl: merchant402Then200(),
+      getUsdValueMicros: async ({ amountAtomic }) => amountAtomic,
+      createOperationId: () => "op-pay-once"
+    });
+
+    const first = await fetchPaid("http://merchant.local/v1/x");
+    expect(first.status).toBe(200);
+    expect(payloads).toBe(1);
+
+    await expect(fetchPaid("http://merchant.local/v1/x")).rejects.toSatisfy(
+      isAgentTabAlreadyPaidError
+    );
+    expect(payloads).toBe(1);
   });
 });

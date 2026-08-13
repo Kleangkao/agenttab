@@ -58,6 +58,11 @@ describe("@agenttab/fetch gateway HTTP contract", () => {
     const outcome = await coordinator.ensurePaymentAsset({ intent });
     expect(outcome.status === "funded" || outcome.status === "already_funded").toBe(true);
 
+    await audit.recordPayment({ operationId, submitted: true });
+    expect((await gateway.store.get(operationId))?.state).toBe("payment_submitted");
+    const submitted = await coordinator.ensurePaymentAsset({ intent });
+    expect(submitted.status).toBe("already_paid");
+
     await audit.recordPayment({
       operationId,
       settlementId: "settle-contract-1",

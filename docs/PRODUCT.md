@@ -104,7 +104,10 @@ denial, not a permissive default.
   `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with
   `operationId` so agents can approve and retry the **same** operation, including
-  across process restarts via gateway `requestHash` lookup. Deny is terminal
+  across process restarts via gateway `requestHash` lookup.   A DFlow plan that
+  failed mid-sign returns `interrupted` and keeps that id. Once a payment has
+  been submitted, the same id is `already_paid` and will not mint a second
+  x402 pay. Deny is terminal
   for that id. `pnpm demo:adopt` proves the HTTP loop in one command.
 - Gateway exposes `agenttab-*` binaries after build (`agenttab-gateway`,
   `agenttab-approve`, `agenttab-deny`, …) and ships them in
