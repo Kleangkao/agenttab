@@ -10,6 +10,7 @@
   create a second payload; fetch records `payment_submitted` before the
   merchant retry, then retries the original request without a new pay.
   Exact-deficit funding can use any allowed asset with a balance, not only SOL.
+  Live RPC balance refresh also discovers other SPL accounts in the wallet.
 - Operator `/ui` is a control room (Now, Ledger, Policy): decision briefs,
   human lifecycle copy, dollar limits, unlock only when a token is required
 - Operator `/ui` is a product console (Needs you, Activity, Rules, Ask) with

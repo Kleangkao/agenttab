@@ -1,5 +1,9 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
+import {
+  TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
+  getAccount
+} from "@solana/spl-token";
 import type { BalanceProvider, TokenBalance } from "./mock-balances.js";
 import { WSOL_MINT } from "../constants.js";
 
@@ -50,6 +54,32 @@ export class RpcBalanceProvider implements BalanceProvider {
         balanceAtomic: amount.toString(),
         verified: true
       });
+    }
+
+    try {
+      const parsed = await this.#connection.getParsedTokenAccountsByOwner(this.#owner, {
+        programId: TOKEN_PROGRAM_ID
+      });
+      for (const { account } of parsed.value) {
+        const info = (
+          account.data as {
+            parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string } } };
+          }
+        ).parsed?.info;
+        const mint = info?.mint;
+        const raw = info?.tokenAmount?.amount;
+        if (typeof mint !== "string" || mint.length < 16 || typeof raw !== "string") continue;
+        if (this.#cache.has(mint)) continue;
+        if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) continue;
+        this.#cache.set(mint, {
+          mint,
+          symbol: mint.slice(0, 4),
+          balanceAtomic: raw,
+          verified: true
+        });
+      }
+    } catch {
+      // Configured mints still stand; discovery is best-effort.
     }
     return this.list();
   }
