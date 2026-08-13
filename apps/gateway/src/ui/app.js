@@ -385,23 +385,17 @@
                 ? `An agent is requesting ${esc(amount)} to pay this merchant for ${esc(access)}.`
                 : `This payment is still in the 402 → fund → pay loop for ${esc(access)}.`
             }</p>
+            <p class="meaning">${esc(
+              parked ? parkedReason(row, record) : openLoopCopy(row, record)
+            )}${parked ? ` ${esc(fundingCopy(row, record))}` : ""}</p>
+            ${confirm}
             <dl class="facts">
               <dt>Merchant</dt><dd>${esc(intent.merchantOrigin)}</dd>
               <dt>Access</dt><dd>${esc(access)}</dd>
               <dt>Amount</dt><dd>${esc(amount)} ${esc(assetLabel(intent.assetMint))}</dd>
               <dt>Network</dt><dd>${esc(networkLabel(intent.network))}</dd>
-              <dt>${parked ? "Why stopped" : "Where it is"}</dt><dd>${esc(
-                parked ? parkedReason(row, record) : openLoopCopy(row, record)
-              )}</dd>
-              ${parked ? `<dt>If approved</dt><dd>${esc(fundingCopy(row, record))}</dd>` : ""}
             </dl>
             <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p></details>
-            <p class="meaning">${
-              parked
-                ? "Approve lets AgentTab complete this payment. Reject stops this payment only; the agent must start a new one."
-                : "Resume finishes the original agent request on this id. It will not mint a second swap or x402 pay."
-            }</p>
-            ${confirm}
           </article>`;
       })
       .join("");

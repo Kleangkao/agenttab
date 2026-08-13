@@ -194,14 +194,14 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   margin: 0 0 6px;
 }
 .brief .lead {
-  margin: 0 0 20px;
+  margin: 0 0 10px;
   font-size: 1.05rem;
 }
 .facts {
   display: grid;
   grid-template-columns: 7.5rem 1fr;
   gap: 9px 16px;
-  margin: 0 0 20px;
+  margin: 18px 0 0;
 }
 .facts dt {
   color: var(--muted);
@@ -217,10 +217,11 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   color: var(--muted);
 }
 .meaning {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   color: var(--muted);
   max-width: 38rem;
 }
+.brief .actions { margin-bottom: 0; }
 .ref {
   margin: 0 0 16px;
   border: 0;
