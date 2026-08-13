@@ -98,8 +98,9 @@ denial, not a permissive default.
 - When `AGENTTAB_ADMIN_TOKEN` is set, operator reads (policy/spend/balances/lists)
   use the same bearer as approve/deny. When `AGENTTAB_AGENT_TOKEN` is set,
   preview/fund/pay/fulfill and requestHash resume require that bearer (or admin).
-- Operator product is the `/ui` console (Now / Ledger / Policy)
-  plus HTTP + CLI (`policy:get|set|mode`, `approve`,
+- Operator product is the `/ui` console (Now / Ledger / Policy). Now is the
+  core loop — paid resource, x402 asset, wallet, exact deficit, DFlow, pay,
+  original request continues — plus HTTP + CLI (`policy:get|set|mode`, `approve`,
   `deny`, `parked`, `audit:recent`, `POST /v1/preview`, `GET /openapi.json`), seeded from `AGENTTAB_POLICY_PATH` /
   `AGENTTAB_POLICY_JSON` / `examples/policies/*`. See `docs/ADOPT.md`.
   Approve (and observe) return `AgentTabApprovalRequiredError` with

@@ -44,23 +44,23 @@
   };
 
   const EVENTS = {
-    "payment.discovered": "Agent presented a payment",
-    "policy.approval_required": "AgentTab paused it for you",
+    "payment.discovered": "Agent hit a paid resource",
+    "policy.approval_required": "AgentTab paused the 402 for you",
     "approval.granted": "You approved",
     "approval.denied": "You rejected",
-    "funding.submitted": "Buying the payment asset",
+    "funding.submitted": "Buying only the exact deficit",
     "funding.attempt_locked": "Funding attempt locked",
     "funding.plan_receipt": "Funding plan received",
     "funding.signer_failed": "Funding paused; same payment can retry",
     "funding.confirm_interrupted": "Funding needs confirmation; same payment can retry",
     "funding.balances_applied": "Wallet balances updated",
-    "funding.confirmed": "Wallet holds enough to pay",
+    "funding.confirmed": "Deficit acquired — wallet can pay the 402",
     "funding.not_required": "Wallet already held the payment asset",
-    "payment.submitted": "Paying the merchant",
-    "payment.settled": "Merchant was paid",
+    "payment.submitted": "Paying the 402",
+    "payment.settled": "402 paid",
     "payment.token_issued": "Local payment token issued",
     "payment.attempt_failed": "Payment attempt failed; same payment can retry",
-    "resource.fulfilled": "Agent received the resource",
+    "resource.fulfilled": "Original request continued",
     "resource.fulfillment_failed": "Paid, but the resource was not delivered",
   };
 
@@ -169,10 +169,316 @@
     return network || "Unknown network";
   }
 
+  const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+  const WSOL = "So11111111111111111111111111111111111111112";
+
   function assetLabel(mint) {
-    if (mint === "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v") return "USDC";
-    if (mint === "So11111111111111111111111111111111111111112") return "SOL";
+    if (mint === USDC) return "USDC";
+    if (mint === WSOL) return "SOL";
     return mint ? `${mint.slice(0, 4)}…${mint.slice(-4)}` : "payment asset";
+  }
+
+  function fundingHow() {
+    const mode = state.health?.fundingMode;
+    if (mode === "mock") {
+      return {
+        short: "local mock",
+        acquire: "local DFlow mock",
+        honest: "local DFlow mock — no chain, not broadcasting",
+      };
+    }
+    if (mode === "live-sim") {
+      return {
+        short: "DFlow sim",
+        acquire: "DFlow simulated send",
+        honest: "DFlow live quote, simulated send — not broadcasting unless enabled",
+      };
+    }
+    if (mode === "live-quote") {
+      return {
+        short: "DFlow quote",
+        acquire: "DFlow live quote",
+        honest: "DFlow live quote — plan only, not broadcasting",
+      };
+    }
+    if (mode === "devnet-mint") {
+      return {
+        short: "Devnet mint",
+        acquire: "Devnet mint stand-in",
+        honest: "Devnet mint stand-in — not DFlow",
+      };
+    }
+    return {
+      short: mode || "gateway",
+      acquire: "funding coordinator",
+      honest: mode || "gateway",
+    };
+  }
+
+  function railFor(network) {
+    const fund = fundingHow();
+    const net = networkLabel(network);
+    const live = Boolean(state.health?.broadcastEnabled);
+    if (network === "solana:mainnet") {
+      return live
+        ? `${net} · ${fund.short} · live broadcast`
+        : `${net} · ${fund.short} · not broadcasting`;
+    }
+    if (network === "solana:devnet") return `${net} · ${fund.honest}`;
+    return fund.honest;
+  }
+
+  function formatAssetAmount(atomic, mint) {
+    const n = Number(atomic);
+    const symbol = assetLabel(mint);
+    if (!Number.isFinite(n)) return `${atomic ?? "—"} ${symbol}`;
+    if (mint === USDC || symbol === "USDC") return `${money(String(Math.round(n)))} ${symbol}`;
+    const dec = mint === WSOL || symbol === "SOL" ? 9 : 6;
+    const ui = n / 10 ** dec;
+    return `${ui.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${symbol}`;
+  }
+
+  function walletLine() {
+    if (!state.balances.length) return "wallet unknown";
+    return (
+      state.balances
+        .map((row) => tokenAmount(row))
+        .filter((text) => !/^0(\.0+)?\s/.test(text) || /USDC/i.test(text))
+        .join(" · ") || "empty wallet"
+    );
+  }
+
+  function pickFundingRow(paymentMint) {
+    const allowed = state.policy?.allowedFundingAssets || [WSOL];
+    const ranked = [
+      ...allowed.filter((mint) => mint === WSOL),
+      ...allowed.filter((mint) => mint !== WSOL),
+    ];
+    for (const mint of ranked) {
+      if (mint === paymentMint) continue;
+      const row = state.balances.find((item) => item.mint === mint);
+      if (row && Number(row.balanceAtomic) > 0) return row;
+    }
+    return null;
+  }
+
+  function findEvent(record, kind) {
+    return (record?.events || []).find((event) => event.kind === kind);
+  }
+
+  function findLastEvent(record, kinds) {
+    const set = new Set(kinds);
+    return [...(record?.events || [])].reverse().find((event) => set.has(event.kind));
+  }
+
+  function accessPath(intent, row) {
+    const resource = intent?.resource || row?.resource;
+    const origin = intent?.merchantOrigin || row?.merchantOrigin;
+    try {
+      return new URL(resource).origin === origin ? pathOf(resource) : resource;
+    } catch {
+      return pathOf(resource);
+    }
+  }
+
+  function clip(text, n = 22) {
+    const value = String(text || "");
+    return value.length > n ? `${value.slice(0, n - 1)}…` : value;
+  }
+
+  function idleLoopSteps() {
+    const fund = fundingHow();
+    return [
+      { id: "need", label: "Need", detail: "paid resource", status: "todo" },
+      { id: "challenge", label: "x402", detail: "asked asset", status: "todo" },
+      { id: "wallet", label: "Wallet", detail: "wrong or short", status: "todo" },
+      { id: "deficit", label: "Deficit", detail: "exact missing", status: "todo" },
+      { id: "acquire", label: "DFlow", detail: fund.short, status: "todo" },
+      { id: "pay", label: "Pay", detail: "settle 402", status: "todo" },
+      { id: "continue", label: "Continue", detail: "retry request", status: "todo" },
+    ];
+  }
+
+  function renderLoopStrip(steps) {
+    return `<ol class="loop-strip" aria-label="Need, x402, wallet, deficit, DFlow, pay, continue">${steps
+      .map(
+        (step) =>
+          `<li class="${esc(step.status)}"><span>${esc(step.label)}</span><small>${esc(step.detail)}</small></li>`,
+      )
+      .join("")}</ol>`;
+  }
+
+  function loopModel(row, record) {
+    const intent = record?.intent || row;
+    const mint = intent.assetMint;
+    const asked = Number(intent.amountAtomic || row.amountAtomic || 0);
+    const heldRow = state.balances.find((item) => item.mint === mint);
+    const liveHeld = heldRow ? Number(heldRow.balanceAtomic) : NaN;
+    const submitted = findLastEvent(record, ["funding.submitted", "funding.attempt_locked"]);
+    const confirmed = findEvent(record, "funding.confirmed");
+    const notRequired = findEvent(record, "funding.not_required");
+    const paySubmitted = findEvent(record, "payment.submitted");
+    const settled = findLastEvent(record, ["payment.settled", "payment.token_issued"]);
+    const fulfilled = findEvent(record, "resource.fulfilled");
+    const fulfillFail = findEvent(record, "resource.fulfillment_failed");
+    const source = pickFundingRow(mint);
+    const st = row.state;
+    const inflight = ["discovered", "approval_required", "approved", "funding_submitted"].includes(st);
+    let deficit;
+    let deficitKnown = true;
+    if (notRequired) deficit = 0;
+    else if (submitted?.details?.deficitAtomic != null) {
+      deficit = Number(submitted.details.deficitAtomic);
+    } else if (confirmed?.details?.outputAmountAtomic != null) {
+      deficit = Number(confirmed.details.outputAmountAtomic);
+    } else if (inflight && Number.isFinite(liveHeld) && asked > 0) {
+      deficit = Math.max(0, asked - liveHeld);
+    } else {
+      deficit = 0;
+      deficitKnown = Boolean(notRequired);
+    }
+    const alreadyHeld = Boolean(notRequired) || (deficitKnown && deficit <= 0);
+    const fund = fundingHow();
+    const access = accessPath(intent, row);
+    const halted = st === "denied" || st === "failed";
+    let current = "need";
+    if (fulfilled || st === "fulfilled") current = "continue";
+    else if (st === "paid" || st === "fulfillment_failed" || fulfillFail) current = "continue";
+    else if (st === "payment_submitted" || settled || paySubmitted) current = "pay";
+    else if (st === "funded") current = "pay";
+    else if (st === "funding_submitted" || confirmed) current = "acquire";
+    else if (st === "approved") current = alreadyHeld ? "pay" : "acquire";
+    else if (st === "approval_required" || st === "discovered") current = alreadyHeld ? "pay" : "deficit";
+    const order = ["need", "challenge", "wallet", "deficit", "acquire", "pay", "continue"];
+    const currentIdx = order.indexOf(current);
+    const statusOf = (id) => {
+      const idx = order.indexOf(id);
+      if (fulfilled && id === "continue") return "done";
+      if (id === "acquire" && alreadyHeld && currentIdx >= order.indexOf("pay")) return "skip";
+      if (id === "acquire" && alreadyHeld && (st === "approval_required" || st === "discovered")) {
+        return "skip";
+      }
+      if (halted && idx === currentIdx) return "halt";
+      if (idx < currentIdx) return "done";
+      if (idx === currentIdx) {
+        if (st === "approval_required" && id === "pay") return "wait";
+        return "now";
+      }
+      if (st === "approval_required" && id === "acquire" && !alreadyHeld) return "wait";
+      return "todo";
+    };
+    const inputMint = submitted?.details?.inputMint || confirmed?.details?.inputMint || source?.mint;
+    const fromLabel = inputMint
+      ? source && source.mint === inputMint
+        ? tokenAmount(source)
+        : assetLabel(inputMint)
+      : "no allowed funding asset";
+    const steps = [
+      { id: "need", label: "Need", detail: clip(access, 20) || "resource", status: statusOf("need") },
+      { id: "challenge", label: "x402", detail: formatAssetAmount(asked, mint), status: statusOf("challenge") },
+      {
+        id: "wallet",
+        label: "Wallet",
+        detail: Number.isFinite(liveHeld) ? formatAssetAmount(liveHeld, mint) : "unknown",
+        status: statusOf("wallet"),
+      },
+      {
+        id: "deficit",
+        label: "Deficit",
+        detail: !deficitKnown && !inflight ? "—" : alreadyHeld ? "none" : formatAssetAmount(deficit, mint),
+        status: statusOf("deficit"),
+      },
+      {
+        id: "acquire",
+        label: "DFlow",
+        detail: alreadyHeld ? "not needed" : confirmed ? "acquired" : fund.short,
+        status: statusOf("acquire"),
+      },
+      {
+        id: "pay",
+        label: "Pay",
+        detail: settled ? "paid" : paySubmitted ? "submitted" : st === "funded" ? "ready" : "402",
+        status: statusOf("pay"),
+      },
+      {
+        id: "continue",
+        label: "Continue",
+        detail: fulfilled ? "delivered" : fulfillFail ? "retry fulfill" : "retry",
+        status: statusOf("continue"),
+      },
+    ];
+    const heroAtomic = alreadyHeld || fulfilled || st === "fulfilled" || ["paid", "payment_submitted", "funded", "denied", "failed", "fulfillment_failed"].includes(st)
+      ? asked
+      : deficit;
+    const hero =
+      mint === USDC ? money(String(Math.round(heroAtomic || 0))) : formatAssetAmount(heroAtomic, mint);
+    let kicker = STATES[st] || st;
+    let amountLabel = `${assetLabel(mint)} x402 amount`;
+    if (st === "denied") {
+      kicker = "Rejected";
+      amountLabel = "this 402 will not be paid";
+    } else if (st === "failed") {
+      kicker = "Failed";
+      amountLabel = "this 402 stopped before the original request continued";
+    } else if (fulfilled || st === "fulfilled") {
+      kicker = "Original request continued";
+      amountLabel = "402 paid · resource delivered";
+    } else if (st === "fulfillment_failed") {
+      kicker = "Paid — resource not delivered";
+      amountLabel = "retry fulfill on the same id";
+    } else if (st === "paid") {
+      kicker = "Paid — deliver the resource";
+      amountLabel = "original request can continue";
+    } else if (st === "payment_submitted") {
+      kicker = "Paying the 402";
+      amountLabel = "same payment id — no second pay";
+    } else if (st === "funded") {
+      kicker = "Ready to pay the 402";
+      amountLabel = "payment asset is in the wallet";
+    } else if (st === "funding_submitted") {
+      kicker = "Acquiring the exact deficit";
+      amountLabel = `buy only ${formatAssetAmount(deficit, mint)} via ${fund.acquire}`;
+    } else if (alreadyHeld) {
+      kicker = st === "approval_required" ? "Wallet already holds the asset" : kicker;
+      amountLabel = "x402 amount — no swap needed";
+    } else if (st === "approval_required") {
+      kicker = "Short the payment asset";
+      amountLabel = `exact ${assetLabel(mint)} deficit — buy only this, then pay the 402`;
+    }
+    let stepNow = openLoopCopy(row, record);
+    if (st === "approval_required" && !alreadyHeld) {
+      stepNow = `Waiting for you before ${fund.acquire} buys ${formatAssetAmount(deficit, mint)} from ${fromLabel}. Then AgentTab pays the 402 and retries the original request.`;
+    } else if (st === "approval_required" && alreadyHeld) {
+      stepNow = `Wallet already holds ${formatAssetAmount(asked, mint)}. Approving pays the 402 and retries the original request — no swap.`;
+    } else if (st === "funding_submitted") {
+      stepNow = `Funding paused on this same id. Resume acquires only the remaining deficit via ${fund.acquire}.`;
+    } else if (st === "funded") {
+      stepNow = "Deficit is in the wallet. Resume pays this 402; it will not mint a second payment.";
+    } else if (st === "payment_submitted") {
+      stepNow = "Payment was submitted. Resume confirms the same 402; it will not pay twice.";
+    } else if (st === "paid") {
+      stepNow = "Merchant was paid. Resume marks the original resource as delivered so the agent can continue.";
+    } else if (st === "fulfillment_failed") {
+      stepNow = "Paid, but the resource was not marked delivered. Resume retries fulfill only.";
+    } else if (fulfilled || st === "fulfilled") {
+      stepNow = "The original request continued after the 402 was paid.";
+    }
+    return {
+      intent,
+      mint,
+      asked,
+      deficit,
+      alreadyHeld,
+      access,
+      hero,
+      kicker,
+      amountLabel,
+      lead: `The agent needs ${access || "this resource"}. The merchant's x402 asked for ${formatAssetAmount(asked, mint)}. Wallet holds ${walletLine()}.`,
+      stepNow,
+      steps,
+      rail: railFor(intent.network || row.network),
+      fund,
+    };
   }
 
   function modeLabel(mode) {
@@ -245,28 +551,6 @@
     if (location.hash.replace("#", "") !== next) location.hash = next;
   }
 
-  function fundingCopy(row, record) {
-    const amount = Number(record?.intent?.amountAtomic || row.amountAtomic || 0);
-    const usdc = state.balances.find((item) => item.symbol === "USDC");
-    const have = usdc ? Number(usdc.balanceAtomic) : NaN;
-    const mode = state.health?.fundingMode;
-    const source =
-      mode === "mock"
-        ? "this local mock"
-        : mode === "live-sim"
-          ? "a simulated live quote"
-          : mode === "live-quote"
-            ? "a live quote"
-            : "the funding coordinator";
-    if (Number.isFinite(have) && have >= amount && amount > 0) {
-      return `Wallet already holds enough ${assetLabel(row.assetMint)}. Approving should not need a swap.`;
-    }
-    if (Number.isFinite(have) && amount > have) {
-      return `Wallet is short ${assetLabel(row.assetMint)}. Approving may buy only the missing amount via ${source}.`;
-    }
-    return `Approving uses ${source} to make sure the payment asset is in the wallet, then pays.`;
-  }
-
   function parkedReason(row, record) {
     const events = record?.events || [];
     const last = [...events].reverse().find((event) => event.kind === "policy.approval_required") || events.at(-1);
@@ -279,23 +563,15 @@
     const spend = state.spend || {};
     const used = money(spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0);
     const daily = money(spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0);
-    const usdc = state.balances.find((row) => row.symbol === "USDC");
-    const ready = usdc ? tokenAmount(usdc) : "wallet unknown";
     const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
-    const rail = health.broadcastEnabled ? "Mainnet broadcast on" : "not broadcasting";
-    const fund =
-      health.fundingMode === "mock"
-        ? "local mock"
-        : health.fundingMode === "live-sim"
-          ? "live sim"
-          : health.fundingMode || "gateway";
+    const fund = fundingHow();
     const notifySigned = health.notifySigned;
     const alerts = health.notifyConfigured
       ? notifySigned
         ? " · signed alerts"
         : " · alerts on"
       : "";
-    $("stance").innerHTML = `Spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today · ${esc(ready)} ready · <strong>${esc(mode)}</strong> · ${esc(fund)}, ${esc(rail)}${esc(alerts)}`;
+    $("stance").innerHTML = `${esc(fund.honest)} · ${esc(walletLine())} · <strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
     $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
     const waiting =
       state.nowItems.length || health.openLoopCount || health.parkedCount || 0;
@@ -327,36 +603,33 @@
   function renderNow() {
     const root = $("decision-list");
     if (!state.nowItems.length) {
+      const fund = fundingHow();
       root.innerHTML = `
         <div class="empty">
-          <h2>No open payments</h2>
-          <p>Parked approvals, interrupted funding, and unpaid settles appear here. Until then, agents only spend what Policy already allows.</p>
+          <h2>No 402 in flight</h2>
+          <p>When an agent hits a paid resource and the wallet is short the asked asset, AgentTab computes the exact deficit, acquires only that amount, pays the 402, and retries the original request. That loop appears here.</p>
+          ${renderLoopStrip(idleLoopSteps())}
+          <p class="meaning">Until then, agents only spend what Policy already allows.</p>
         </div>`;
       return;
     }
     root.innerHTML = state.nowItems
       .map((row) => {
         const record = state.detail[row.operationId];
-        const intent = record?.intent || row;
+        const loop = loopModel(row, record);
+        const intent = loop.intent;
         const amount = money(intent.amountUsdMicros || row.amountUsdMicros || row.amountAtomic);
-        const access = (() => {
-          try {
-            return new URL(intent.resource).origin === intent.merchantOrigin
-              ? pathOf(intent.resource)
-              : intent.resource;
-          } catch {
-            return pathOf(intent.resource);
-          }
-        })();
         const parked = row.state === "approval_required";
         const pending = state.pending?.id === row.operationId;
         const confirm = pending
           ? `<div class="confirm-copy">${
               state.pending.act === "approve"
-                ? "Approve will fund this payment and pay the merchant under the live policy. Observe is not a dry-run."
+                ? loop.alreadyHeld
+                  ? "Approve pays this 402 from the asset already in the wallet, then retries the original request. No swap. Observe is not a dry-run."
+                  : `Approve buys only ${loop.steps.find((step) => step.id === "deficit")?.detail || "the exact deficit"} via ${loop.fund.acquire}, pays this 402, and retries the original request. Observe is not a dry-run.`
                 : state.pending.act === "resume"
-                  ? "Resume continues this same payment id — fund, pay, or fulfill the next unfinished step. It will not start a new payment."
-                  : "Reject is final. This payment id cannot be reused later."
+                  ? "Resume continues this same 402 — acquire, pay, or deliver the next unfinished step. It will not start a second payment."
+                  : "Reject is final. This 402 will not be funded or paid, and the id cannot be reused."
             }</div>
             <div class="actions">
               <button class="btn ${state.pending.act === "deny" ? "danger" : "primary"}" data-act="confirm" type="button">${
@@ -378,22 +651,23 @@
             </div>`;
         return `
           <article class="brief" data-id="${esc(row.operationId)}">
-            <p class="kicker">${esc(parked ? "Waiting for you" : STATES[row.state] || row.state)}</p>
-            <p class="amount">${esc(amount)}</p>
-            <p class="lead">${
+            <p class="kicker">${esc(loop.kicker)}</p>
+            <p class="amount">${esc(loop.hero)}</p>
+            <p class="amount-label">${esc(loop.amountLabel)}</p>
+            <p class="lead">${esc(loop.lead)}</p>
+            ${renderLoopStrip(loop.steps)}
+            <p class="step-now">${esc(loop.stepNow)}</p>
+            ${
               parked
-                ? `An agent is requesting ${esc(amount)} to pay this merchant for ${esc(access)}.`
-                : `This payment is still in the 402 → fund → pay loop for ${esc(access)}.`
-            }</p>
-            <p class="meaning">${esc(
-              parked ? parkedReason(row, record) : openLoopCopy(row, record)
-            )}${parked ? ` ${esc(fundingCopy(row, record))}` : ""}</p>
+                ? `<p class="meaning">${esc(parkedReason(row, record))}</p>`
+                : ""
+            }
             ${confirm}
             <dl class="facts">
+              <dt>Rail</dt><dd>${esc(loop.rail)}</dd>
               <dt>Merchant</dt><dd>${esc(intent.merchantOrigin)}</dd>
-              <dt>Access</dt><dd>${esc(access)}</dd>
-              <dt>Amount</dt><dd>${esc(amount)} ${esc(assetLabel(intent.assetMint))}</dd>
-              <dt>Network</dt><dd>${esc(networkLabel(intent.network))}</dd>
+              <dt>Access</dt><dd>${esc(loop.access)}</dd>
+              <dt>x402</dt><dd>${esc(amount)} ${esc(assetLabel(intent.assetMint))}</dd>
             </dl>
             <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p></details>
           </article>`;
@@ -406,8 +680,8 @@
     if (!state.recent.length) {
       root.innerHTML = `
         <div class="empty">
-          <h2>No payments yet</h2>
-          <p>Parks, approvals, rejections, funding, and fulfilled pays will land here as a ledger — what the agent wanted, what AgentTab decided, and what money actually did.</p>
+          <h2>No 402s yet</h2>
+          <p>Each row is one original request: the asset the merchant asked for, the exact deficit AgentTab bought, whether the 402 paid, and whether the agent continued.</p>
         </div>`;
       return;
     }
@@ -429,14 +703,21 @@
               }</span></li>`,
           )
           .join("");
+        const loop = loopModel(row, open || row);
+        const loopLine = loop.alreadyHeld
+          ? `x402 ${formatAssetAmount(loop.asked, loop.mint)} · no swap · ${loop.fund.short}`
+          : loop.deficit > 0
+            ? `x402 asked ${formatAssetAmount(loop.asked, loop.mint)} · deficit ${formatAssetAmount(loop.deficit, loop.mint)} · ${loop.fund.short}`
+            : `x402 asked ${formatAssetAmount(loop.asked, loop.mint)} · ${loop.fund.short}`;
         return `
           <article class="entry" data-id="${esc(row.operationId)}">
-            <div class="state">${esc(STATES[row.state] || row.state)}</div>
+            <div class="state">${esc(loop.kicker)}</div>
             <div>
               <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}</div>
-              <div class="sub">${esc(when(row.updatedAt))} · ${esc(networkLabel(row.network))}</div>
+              <div class="sub">${esc(loopLine)}</div>
+              <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
             </div>
-            <div class="amount">${esc(money(row.amountUsdMicros || row.amountAtomic))}</div>
+            <div class="amount">${esc(loop.hero)}</div>
             ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}</ol>` : ""}
           </article>`;
       })
@@ -505,7 +786,7 @@
       state.recent = recent.executions || [];
       state.spend = spend;
       state.balances = balances.balances || [];
-      await loadDetails(state.nowItems);
+      await loadDetails([...state.nowItems, ...state.recent]);
       render();
       if (statusEl.classList.contains("bad")) setStatus("", "");
     } catch (error) {

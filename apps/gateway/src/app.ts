@@ -300,15 +300,16 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   };
 
   app.get("/", (c) => c.redirect("/ui", 302));
-  app.get("/ui", (c) =>
-    c.html(
+  app.get("/ui", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.html(
       operatorHtml({
         adminRequired,
         agentRequired,
         policyMode: policies.get().mode
       })
-    )
-  );
+    );
+  });
   app.get("/ui/app.css", (c) =>
     c.text(operatorCss(), 200, {
       "Content-Type": "text/css; charset=utf-8",

@@ -25,12 +25,13 @@ describe("operator console", () => {
       const htmlRes = await gateway.app.request("/ui");
       expect(htmlRes.status).toBe(200);
       expect(htmlRes.headers.get("content-type")).toMatch(/html/);
+      expect(htmlRes.headers.get("cache-control")).toMatch(/no-store/);
       const html = await htmlRes.text();
       expect(html).toContain("AgentTab");
       expect(html).toContain("Now");
       expect(html).toContain("Ledger");
       expect(html).toContain("Policy");
-      expect(html).toContain("Control room for agent payments");
+      expect(html).toContain("Buy only the missing payment asset, then finish the original request");
       expect(html).toContain("/ui/app.css");
       expect(html).toContain("/ui/app.js");
       expect(html).toContain('"adminRequired":true');
@@ -58,7 +59,12 @@ describe("operator console", () => {
       expect(js).toContain("Reject");
       expect(js).toContain("Resume");
       expect(js).toContain("Waiting for you");
-      expect(js).toContain("No open payments");
+      expect(js).toContain("Short the payment asset");
+      expect(js).toContain("exact");
+      expect(js).toContain("deficit");
+      expect(js).toContain("loop-strip");
+      expect(js).toContain("No 402 in flight");
+      expect(js).toContain("local DFlow mock");
 
       const intent = {
         operationId: "console-park-1",

@@ -40,9 +40,9 @@ export function operatorHtml(input: {
     <header class="top">
       <a class="brand" href="/ui">
         <strong>AgentTab</strong>
-        <span>Control room for agent payments</span>
+        <span>Buy only the missing payment asset, then finish the original request</span>
       </a>
-      <nav class="nav" aria-label="Control room">
+      <nav class="nav" aria-label="AgentTab">
         <button type="button" data-view="now">Now <span class="count" id="parked-count"></span></button>
         <button type="button" data-view="ledger">Ledger</button>
         <button type="button" data-view="policy">Policy</button>
@@ -151,7 +151,7 @@ export function operatorHtml(input: {
       </section>
     </main>
 
-    <p class="foot">Approve funds under the live policy. Reject is final for that payment. Preview never moves money. <a href="/openapi.json">Machine contract</a></p>
+    <p class="foot">AgentTab buys only the missing payment asset, pays the 402, and retries the original request. Local mock, Devnet, and Mainnet are labeled on each payment. Reject is final. Preview never moves money. <a href="/openapi.json">Machine contract</a></p>
   </div>
 
   <script>window.AGENTTAB = ${boot};</script>

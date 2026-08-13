@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Operator `/ui` leads with the core loop, not a generic approval amount:
+  Need → x402 → wallet → exact deficit → DFlow → pay → continue. Now names
+  the asked asset, the live wallet, the exact deficit, and whether this run
+  is a local DFlow mock, Devnet mint stand-in, or Mainnet. Empty Now still
+  shows that loop so the product is visible without a parked payment.
 - Core loop: retryable DFlow interrupts are `interrupted` (not `denied`), so
   fetch keeps the same `operationId` and re-signs the plan instead of minting
   a second swap. `requestPaidResource` only retries after `funded` /
