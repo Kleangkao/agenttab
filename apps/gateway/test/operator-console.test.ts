@@ -59,12 +59,12 @@ describe("operator console", () => {
       expect(js).toContain("Reject");
       expect(js).toContain("Resume");
       expect(js).toContain("Waiting for you");
-      expect(js).toContain("Short the payment asset");
-      expect(js).toContain("exact");
-      expect(js).toContain("deficit");
-      expect(js).toContain("loop-strip");
-      expect(js).toContain("No 402 in flight");
+      expect(js).toContain("The agent is blocked");
+      expect(js).toContain("Buy only the exact deficit");
+      expect(js).toContain("original request");
+      expect(js).toContain("No agent is blocked");
       expect(js).toContain("local DFlow mock");
+      expect(js).toContain("finishRequest");
 
       const intent = {
         operationId: "console-park-1",

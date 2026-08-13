@@ -151,7 +151,7 @@ export function operatorHtml(input: {
       </section>
     </main>
 
-    <p class="foot">AgentTab buys only the missing payment asset, pays the 402, and retries the original request. Local mock, Devnet, and Mainnet are labeled on each payment. Reject is final. Preview never moves money. <a href="/openapi.json">Machine contract</a></p>
+    <p class="foot">Reject is final. Preview never moves money. Local mock, Devnet, and Mainnet are labeled on the request. <a href="/openapi.json">Machine contract</a></p>
   </div>
 
   <script>window.AGENTTAB = ${boot};</script>

@@ -203,53 +203,56 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
   margin: 0 0 10px;
   font-size: 1.05rem;
 }
-.loop-strip {
+.story {
   list-style: none;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0;
-  margin: 14px 0 12px;
+  margin: 16px 0 14px;
   padding: 0;
-  border: 1px solid var(--line);
+  border-top: 1px solid var(--line);
 }
-.loop-strip li {
-  padding: 8px 7px 10px;
-  border-right: 1px solid var(--line);
-  min-width: 0;
+.story li {
+  padding: 10px 0 10px 12px;
+  border-bottom: 1px solid var(--line);
+  border-left: 3px solid transparent;
 }
-.loop-strip li:last-child { border-right: 0; }
-.loop-strip span {
+.story .title {
   display: block;
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
+  font-weight: 650;
+}
+.story .detail {
+  display: block;
+  margin-top: 2px;
   color: var(--muted);
+  font-size: 13px;
 }
-.loop-strip small {
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--ink);
-  word-break: break-word;
+.story li.done .title { color: var(--ok); }
+.story li.wait {
+  border-left-color: var(--halt);
 }
-.loop-strip li.done small { color: var(--ok); }
-.loop-strip li.wait span,
-.loop-strip li.wait small { color: var(--halt); }
-.loop-strip li.skip small { color: var(--muted); }
-.loop-strip li.now {
-  background: var(--ink);
+.story li.wait .title { color: var(--halt); }
+.story li.now {
+  border-left-color: var(--ink);
+  background: var(--paper);
 }
-.loop-strip li.now span,
-.loop-strip li.now small { color: var(--paper); }
-.loop-strip li.halt {
-  background: var(--halt);
+.story li.skip .title,
+.story li.skip .detail { color: var(--muted); }
+.story li.halt {
+  border-left-color: var(--halt);
 }
-.loop-strip li.halt span,
-.loop-strip li.halt small { color: #fff; }
+.brief .result {
+  font-size: 1.7rem;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  margin: 0 0 2px;
+  word-break: break-all;
+}
 .step-now {
   margin: 0 0 14px;
   max-width: 40rem;
+}
+.rail-line {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 .facts {
   display: grid;
@@ -408,9 +411,5 @@ summary { cursor: pointer; color: var(--muted); }
   }
   .top { flex-direction: column; align-items: flex-start; }
   .brief .amount { font-size: 1.9rem; }
-  .loop-strip { grid-template-columns: 1fr 1fr; }
-  .loop-strip li {
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
+  .brief .result { font-size: 1.35rem; }
 }

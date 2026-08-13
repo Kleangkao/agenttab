@@ -235,7 +235,7 @@ describe("operator control spine", () => {
     expect(js).toContain("/v1/approvals/");
     expect(js).toContain("/v1/denials/");
     expect(js).toContain("/v1/preview");
-    expect(js).toContain("Confirm approve");
+    expect(js).toContain("Confirm — buy and continue");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
