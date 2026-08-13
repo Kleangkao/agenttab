@@ -73,6 +73,8 @@ approve only retries the merchant after `funded` / `already_funded`.
 If the same id is already paid, fetch retries the original request without a
 new x402 payload and only throws `AgentTabAlreadyPaidError` when the merchant
 still requires payment.
+`requestPaidResource` retries an interrupted fund once on the same id.
+Operators can `gateway.resume(operationId)` or use Resume on Now.
 `createOperationId` always wins over reuse.
 Mainnet USDC amounts default to USD micros (1:1); other mints need
 `getUsdValueMicros`.

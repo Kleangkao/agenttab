@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolve } from "node:path";
 import {
+  createDemoPolicy,
   createGatewayRuntime,
   loadPolicyFile,
   LOCAL_NETWORK,
-  USDC_MINT
+  USDC_MINT,
+  type SignableFundingPlan,
+  type SignerBoundary
 } from "../src/index.js";
 
 describe("operator notify webhook", () => {
@@ -164,6 +167,49 @@ describe("operator notify webhook", () => {
     expect(signature).toBe(signNotifyBody(rawBody, "sink-secret"));
     expect(verifyNotifySignature(rawBody, signature ?? undefined, "sink-secret")).toBe(true);
     expect(verifyNotifySignature(rawBody, signature ?? undefined, "wrong")).toBe(false);
+    gateway.close();
+  });
+
+  it("POSTs interrupted when a plan can be retried", async () => {
+    const calls: unknown[] = [];
+    const signer: SignerBoundary = {
+      async signFundingTransaction(_plan: SignableFundingPlan) {
+        throw new Error("simulated signer failure");
+      }
+    };
+    const gateway = createGatewayRuntime({
+      merchantOrigin: "http://127.0.0.1:8791",
+      policy: createDemoPolicy("http://127.0.0.1:8791"),
+      notifyUrl: "http://notify.test/hook",
+      notifyFetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push(init?.body ? JSON.parse(String(init.body)) : null);
+        return new Response("ok", { status: 204 });
+      }) as unknown as typeof fetch,
+      signer,
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    const outcome = await gateway.coordinator.ensurePaymentAsset({
+      intent: {
+        operationId: "notify-interrupt-1",
+        requestHash: "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        protocol: "x402",
+        network: LOCAL_NETWORK,
+        merchantId: "127.0.0.1:8791",
+        merchantOrigin: "http://127.0.0.1:8791",
+        destination: "NeutralMerchant111111111111111111111111111",
+        assetMint: USDC_MINT,
+        amountAtomic: "1000",
+        amountUsdMicros: "1000",
+        resource: "http://127.0.0.1:8791/v1/market-snapshot"
+      }
+    });
+    expect(outcome.status).toBe("interrupted");
+    expect(calls[0]).toMatchObject({
+      event: "interrupted",
+      operationId: "notify-interrupt-1",
+      state: "funding_submitted"
+    });
     gateway.close();
   });
 });

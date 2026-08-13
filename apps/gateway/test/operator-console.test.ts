@@ -44,7 +44,9 @@ describe("operator console", () => {
       expect(jsRes.status).toBe(200);
       expect(jsRes.headers.get("content-type")).toMatch(/javascript/);
       const js = await jsRes.text();
-      expect(js).toContain("/v1/executions?state=approval_required");
+      expect(js).toContain("/v1/executions?reusable=1");
+      expect(js).toContain("/v1/executions/");
+      expect(js).toContain("/resume");
       expect(js).toContain("/v1/policy");
       expect(js).toContain("/v1/spend");
       expect(js).toContain("/v1/balances");
@@ -54,7 +56,9 @@ describe("operator console", () => {
       expect(js).toContain("Observe is not a dry-run");
       expect(js).toContain("Approve");
       expect(js).toContain("Reject");
+      expect(js).toContain("Resume");
       expect(js).toContain("Waiting for you");
+      expect(js).toContain("No open payments");
 
       const intent = {
         operationId: "console-park-1",

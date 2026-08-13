@@ -275,6 +275,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       : {
           notifyParked: async (record) => {
             await notify(operatorNotifyPayload("approval_required", record));
+          },
+          notifyInterrupted: async (record) => {
+            await notify(operatorNotifyPayload("interrupted", record));
           }
         })
   });
@@ -322,6 +325,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
 
   app.get("/health", async (c) => {
     const parked = await store.listRecent({ state: "approval_required", limit: 100 });
+    const openLoop = await store.listRecent({ reusable: true, limit: 100 });
     const policy = policies.get();
     return c.json({
       ok: true,
@@ -340,6 +344,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       notifySigned:
         options.notifySecret !== undefined && options.notifySecret.length > 0,
       parkedCount: parked.length,
+      openLoopCount: openLoop.length,
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros
     });
@@ -603,6 +608,71 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     }
 
     return c.json({ token, record, replayed: false });
+  });
+
+  app.post("/v1/executions/:operationId/resume", async (c) => {
+    if (!isAgent(c.req.header("authorization"))) {
+      return c.json({ error: "unauthorized" }, 401);
+    }
+    const operationId = c.req.param("operationId");
+    const record = await store.get(operationId);
+    if (record === undefined) return c.json({ error: "not_found" }, 404);
+    if (record.state === "approval_required") {
+      return c.json(
+        {
+          error: "approval_required",
+          hint: "Approve or reject this payment first."
+        },
+        409
+      );
+    }
+    if (record.state === "denied" || record.state === "failed") {
+      return c.json({ error: "terminal", state: record.state }, 409);
+    }
+    if (record.state === "fulfilled") {
+      return c.json({ resumed: false, replayed: true, step: "done", record });
+    }
+
+    const auth = c.req.header("authorization");
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      ...(auth === undefined ? {} : { authorization: auth })
+    };
+
+    if (
+      record.state === "discovered" ||
+      record.state === "approved" ||
+      record.state === "funding_submitted"
+    ) {
+      const outcome = await coordinator.ensurePaymentAsset({ intent: record.intent });
+      return c.json({
+        resumed: true,
+        step: "fund",
+        outcome,
+        record: await store.get(operationId)
+      });
+    }
+
+    if (record.state === "funded" || record.state === "payment_submitted") {
+      const pay = await app.request(`/v1/executions/${encodeURIComponent(operationId)}/pay`, {
+        method: "POST",
+        headers,
+        body: "{}"
+      });
+      const body = (await pay.json()) as Record<string, unknown>;
+      return c.json({ resumed: true, step: "pay", ...body }, pay.status as 200);
+    }
+
+    const fulfill = await app.request(
+      `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
+      {
+        method: "POST",
+        headers,
+        body: "{}"
+      }
+    );
+    const body = (await fulfill.json()) as Record<string, unknown>;
+    return c.json({ resumed: true, step: "fulfill", ...body }, fulfill.status as 200);
   });
 
   app.post("/v1/executions/:operationId/fulfill", async (c) => {

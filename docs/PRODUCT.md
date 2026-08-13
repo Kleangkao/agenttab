@@ -109,7 +109,9 @@ denial, not a permissive default.
   been submitted, the same id is `already_paid` and will not mint a second
   x402 pay; fetch retries the original request without a new payload.
   If the wallet holds an allowed non-payment asset (not only SOL), DFlow
-  still acquires the exact USDC deficit. Deny is terminal
+  still acquires the exact USDC deficit. Interrupted funding retries the same
+  id (`requestPaidResource`, `POST /v1/executions/:id/resume`, or Resume on
+  Now). Deny is terminal
   for that id. `pnpm demo:adopt` proves the HTTP loop in one command.
 - Gateway exposes `agenttab-*` binaries after build (`agenttab-gateway`,
   `agenttab-approve`, `agenttab-deny`, …) and ships them in

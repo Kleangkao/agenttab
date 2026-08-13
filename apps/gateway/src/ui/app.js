@@ -21,6 +21,7 @@
     health: null,
     policy: null,
     parked: [],
+    nowItems: [],
     recent: [],
     spend: null,
     balances: [],
@@ -50,12 +51,17 @@
     "funding.submitted": "Buying the payment asset",
     "funding.attempt_locked": "Funding attempt locked",
     "funding.plan_receipt": "Funding plan received",
+    "funding.signer_failed": "Funding paused; same payment can retry",
+    "funding.confirm_interrupted": "Funding needs confirmation; same payment can retry",
     "funding.balances_applied": "Wallet balances updated",
     "funding.confirmed": "Wallet holds enough to pay",
+    "funding.not_required": "Wallet already held the payment asset",
     "payment.submitted": "Paying the merchant",
     "payment.settled": "Merchant was paid",
     "payment.token_issued": "Local payment token issued",
+    "payment.attempt_failed": "Payment attempt failed; same payment can retry",
     "resource.fulfilled": "Agent received the resource",
+    "resource.fulfillment_failed": "Paid, but the resource was not delivered",
   };
 
   const REASONS = {
@@ -291,21 +297,44 @@
       : "";
     $("stance").innerHTML = `Spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today · ${esc(ready)} ready · <strong>${esc(mode)}</strong> · ${esc(fund)}, ${esc(rail)}${esc(alerts)}`;
     $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
-    const waiting = state.parked.length || health.parkedCount || 0;
+    const waiting =
+      state.nowItems.length || health.openLoopCount || health.parkedCount || 0;
     parkedCountEl.textContent = waiting ? String(waiting) : "";
+  }
+
+  function openLoopCopy(row, record) {
+    if (row.state === "funding_submitted") {
+      return "Funding paused after a plan or sign interrupt. Resume uses the same payment id and does not open a second swap.";
+    }
+    if (row.state === "funded") {
+      return "The wallet holds the payment asset. Resume records pay for this same id.";
+    }
+    if (row.state === "payment_submitted") {
+      return "Payment was submitted but not settled. Resume confirms the same payment; it will not mint a new one.";
+    }
+    if (row.state === "paid") {
+      return "The merchant was paid. Resume marks the original resource as delivered.";
+    }
+    if (row.state === "fulfillment_failed") {
+      return "Paid, but the resource was not marked delivered. Resume retries fulfill only.";
+    }
+    if (row.state === "approved") {
+      return "Approved, but funding has not finished. Resume continues this same payment.";
+    }
+    return parkedReason(row, record);
   }
 
   function renderNow() {
     const root = $("decision-list");
-    if (!state.parked.length) {
+    if (!state.nowItems.length) {
       root.innerHTML = `
         <div class="empty">
-          <h2>No agent is waiting on you</h2>
-          <p>When policy needs a person, the payment will appear here with the merchant, amount, and why AgentTab stopped it. Until then, agents only spend what Policy already allows.</p>
+          <h2>No open payments</h2>
+          <p>Parked approvals, interrupted funding, and unpaid settles appear here. Until then, agents only spend what Policy already allows.</p>
         </div>`;
       return;
     }
-    root.innerHTML = state.parked
+    root.innerHTML = state.nowItems
       .map((row) => {
         const record = state.detail[row.operationId];
         const intent = record?.intent || row;
@@ -319,38 +348,59 @@
             return pathOf(intent.resource);
           }
         })();
+        const parked = row.state === "approval_required";
         const pending = state.pending?.id === row.operationId;
         const confirm = pending
           ? `<div class="confirm-copy">${
               state.pending.act === "approve"
                 ? "Approve will fund this payment and pay the merchant under the live policy. Observe is not a dry-run."
-                : "Reject is final. This payment id cannot be reused later."
+                : state.pending.act === "resume"
+                  ? "Resume continues this same payment id — fund, pay, or fulfill the next unfinished step. It will not start a new payment."
+                  : "Reject is final. This payment id cannot be reused later."
             }</div>
             <div class="actions">
-              <button class="btn ${state.pending.act === "approve" ? "primary" : "danger"}" data-act="confirm" type="button">${
-                state.pending.act === "approve" ? "Confirm approve" : "Confirm reject"
+              <button class="btn ${state.pending.act === "deny" ? "danger" : "primary"}" data-act="confirm" type="button">${
+                state.pending.act === "approve"
+                  ? "Confirm approve"
+                  : state.pending.act === "resume"
+                    ? "Confirm resume"
+                    : "Confirm reject"
               }</button>
               <button class="btn ghost" data-act="cancel" type="button">Back</button>
             </div>`
-          : `<div class="actions">
+          : parked
+            ? `<div class="actions">
               <button class="btn primary" data-act="approve" type="button">Approve</button>
               <button class="btn danger" data-act="deny" type="button">Reject</button>
+            </div>`
+            : `<div class="actions">
+              <button class="btn primary" data-act="resume" type="button">Resume</button>
             </div>`;
         return `
           <article class="brief" data-id="${esc(row.operationId)}">
-            <p class="kicker">Waiting for you</p>
+            <p class="kicker">${esc(parked ? "Waiting for you" : STATES[row.state] || row.state)}</p>
             <p class="amount">${esc(amount)}</p>
-            <p class="lead">An agent is requesting ${esc(amount)} to pay this merchant for ${esc(access)}.</p>
+            <p class="lead">${
+              parked
+                ? `An agent is requesting ${esc(amount)} to pay this merchant for ${esc(access)}.`
+                : `This payment is still in the 402 → fund → pay loop for ${esc(access)}.`
+            }</p>
             <dl class="facts">
               <dt>Merchant</dt><dd>${esc(intent.merchantOrigin)}</dd>
               <dt>Access</dt><dd>${esc(access)}</dd>
               <dt>Amount</dt><dd>${esc(amount)} ${esc(assetLabel(intent.assetMint))}</dd>
               <dt>Network</dt><dd>${esc(networkLabel(intent.network))}</dd>
-              <dt>Why stopped</dt><dd>${esc(parkedReason(row, record))}</dd>
-              <dt>If approved</dt><dd>${esc(fundingCopy(row, record))}</dd>
+              <dt>${parked ? "Why stopped" : "Where it is"}</dt><dd>${esc(
+                parked ? parkedReason(row, record) : openLoopCopy(row, record)
+              )}</dd>
+              ${parked ? `<dt>If approved</dt><dd>${esc(fundingCopy(row, record))}</dd>` : ""}
             </dl>
             <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p></details>
-            <p class="meaning">Approve lets AgentTab complete this payment. Reject stops this payment only; the agent must start a new one.</p>
+            <p class="meaning">${
+              parked
+                ? "Approve lets AgentTab complete this payment. Reject stops this payment only; the agent must start a new one."
+                : "Resume finishes the original agent request on this id. It will not mint a second swap or x402 pay."
+            }</p>
             ${confirm}
           </article>`;
       })
@@ -375,6 +425,7 @@
           "funding.plan_receipt",
           "funding.balances_applied",
         ]);
+        // signer_failed / confirm_interrupted stay visible — those are the retry points.
         const events = (open?.events || [])
           .filter((event) => !skip.has(event.kind))
           .map(
@@ -446,20 +497,21 @@
     try {
       const healthRes = await fetch("/health");
       state.health = await readJson(healthRes);
-      const [policy, parked, recent, spend, balances] = await Promise.all([
+      const [policy, openLoop, recent, spend, balances] = await Promise.all([
         api("/v1/policy"),
-        api("/v1/executions?state=approval_required&limit=20"),
+        api("/v1/executions?reusable=1&limit=20"),
         api("/v1/executions?limit=20"),
         api("/v1/spend"),
         api("/v1/balances"),
       ]);
       showUnlock(false);
       state.policy = policy;
-      state.parked = parked.executions || [];
+      state.nowItems = openLoop.executions || [];
+      state.parked = state.nowItems.filter((row) => row.state === "approval_required");
       state.recent = recent.executions || [];
       state.spend = spend;
       state.balances = balances.balances || [];
-      await loadDetails(state.parked);
+      await loadDetails(state.nowItems);
       render();
       if (statusEl.classList.contains("bad")) setStatus("", "");
     } catch (error) {
@@ -571,6 +623,18 @@
     setStatus("ok", "Rejected. That payment cannot be reused.");
   }
 
+  async function resume(id) {
+    const body = await api(`/v1/executions/${encodeURIComponent(id)}/resume`, {
+      method: "POST",
+      body: "{}",
+    });
+    state.pending = null;
+    delete state.detail[id];
+    await refresh();
+    const step = body.step || body.outcome?.status || body.record?.state;
+    setStatus("ok", `Resumed · ${STATES[body.record?.state] || step || "updated"}`);
+  }
+
   async function ask(event) {
     event.preventDefault();
     const result = $("ask-result");
@@ -635,7 +699,7 @@
     if (!button) return;
     const card = button.closest("[data-id]");
     const id = card?.dataset.id;
-    const row = state.parked.find((item) => item.operationId === id);
+    const row = state.nowItems.find((item) => item.operationId === id);
     if (!row) return;
     if (button.dataset.act === "approve") {
       state.pending = { id, act: "approve" };
@@ -643,12 +707,16 @@
     } else if (button.dataset.act === "deny") {
       state.pending = { id, act: "deny" };
       renderNow();
+    } else if (button.dataset.act === "resume") {
+      state.pending = { id, act: "resume" };
+      renderNow();
     } else if (button.dataset.act === "cancel") {
       state.pending = null;
       renderNow();
     } else if (button.dataset.act === "confirm") {
       if (state.pending?.act === "approve") approve(id);
       if (state.pending?.act === "deny") deny(id);
+      if (state.pending?.act === "resume") resume(id);
     }
   });
   $("ledger-list").addEventListener("click", async (event) => {

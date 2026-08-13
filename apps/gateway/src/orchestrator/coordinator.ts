@@ -146,6 +146,7 @@ export interface CoordinatorDeps {
   wallet?: string;
   /** Fire-and-forget; must not throw into the funding path. */
   notifyParked?: (record: ExecutionRecord) => Promise<void>;
+  notifyInterrupted?: (record: ExecutionRecord) => Promise<void>;
 }
 
 async function transition(
@@ -173,6 +174,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
   readonly #spend: SpendLedger;
   readonly #wallet: string;
   readonly #notifyParked?: (record: ExecutionRecord) => Promise<void>;
+  readonly #notifyInterrupted?: (record: ExecutionRecord) => Promise<void>;
 
   constructor(deps: CoordinatorDeps) {
     this.#store = deps.store;
@@ -184,6 +186,9 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     this.#wallet = deps.wallet ?? DEMO_WALLET;
     if (deps.notifyParked !== undefined) {
       this.#notifyParked = deps.notifyParked;
+    }
+    if (deps.notifyInterrupted !== undefined) {
+      this.#notifyInterrupted = deps.notifyInterrupted;
     }
   }
 
@@ -664,12 +669,19 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
 
     // Plan or side-effect already persisted: stay non-terminal so resume can finish.
     if (latest.state === "funding_submitted" && (hasPlan || hasSideEffect)) {
-      await this.#store.appendEvent({
+      const interrupted = await this.#store.appendEvent({
         operationId: latest.operationId,
         expectedVersion: latest.version,
         kind: hasSideEffect ? "funding.confirm_interrupted" : "funding.signer_failed",
         details: { message }
       });
+      if (this.#notifyInterrupted !== undefined) {
+        try {
+          await this.#notifyInterrupted(interrupted);
+        } catch {
+          // Notify is fail-open: resume still works.
+        }
+      }
       return {
         status: "interrupted",
         reason: hasSideEffect

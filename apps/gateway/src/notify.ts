@@ -1,7 +1,11 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { ExecutionRecord } from "@agenttab/core";
 
-export type OperatorNotifyEventName = "approval_required" | "approved" | "denied";
+export type OperatorNotifyEventName =
+  | "approval_required"
+  | "approved"
+  | "denied"
+  | "interrupted";
 
 export const NOTIFY_SIGNATURE_HEADER = "x-agenttab-signature";
 

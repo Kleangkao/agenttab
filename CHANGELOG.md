@@ -11,6 +11,10 @@
   merchant retry, then retries the original request without a new pay.
   Exact-deficit funding can use any allowed asset with a balance, not only SOL.
   Live RPC balance refresh also discovers other SPL accounts in the wallet.
+- Core loop recovery: `requestPaidResource` retries an interrupted fund once;
+  `POST /v1/executions/:id/resume` advances fund/pay/fulfill on the same id;
+  `/health` reports `openLoopCount`; Now shows in-flight payments with Resume;
+  notify webhooks also fire on `interrupted`.
 - Operator `/ui` is a control room (Now, Ledger, Policy): decision briefs,
   human lifecycle copy, dollar limits, unlock only when a token is required
 - Operator `/ui` is a product console (Needs you, Activity, Rules, Ask) with

@@ -286,4 +286,55 @@ describe("funding retry double-send protection", () => {
     expect(record?.events.some((e) => e.kind === "funding.side_effect_receipt")).toBe(true);
     gateway.close();
   });
+
+  it("resumes an interrupted plan through POST /v1/executions/:id/resume", async () => {
+    let plans = 0;
+    const adapter: DeficitFundingAdapter = {
+      orders: [],
+      planExactDeficit: async (input) => {
+        plans += 1;
+        const order = makeOrder(input);
+        adapter.orders.push(order);
+        return order;
+      }
+    };
+    let signCalls = 0;
+    const inner = new SimulatedSigner();
+    const signer: SignerBoundary = {
+      async signFundingTransaction(plan: SignableFundingPlan) {
+        signCalls += 1;
+        if (signCalls === 1) throw new Error("simulated signer failure");
+        return inner.signFundingTransaction(plan);
+      }
+    };
+    const gateway = createGatewayRuntime({
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000",
+      dflowAdapter: adapter,
+      wallet: DEMO_WALLET,
+      signer
+    });
+    const intent = { ...baseIntent, operationId: "retry-http-resume-1" };
+    expect((await gateway.coordinator.ensurePaymentAsset({ intent })).status).toBe(
+      "interrupted"
+    );
+    const health = await (await gateway.app.request("/health")).json();
+    expect(health.openLoopCount).toBeGreaterThanOrEqual(1);
+    expect(health.parkedCount).toBe(0);
+
+    const parkedResume = await gateway.app.request(
+      `/v1/executions/${intent.operationId}/resume`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
+    );
+    expect(parkedResume.status).toBe(200);
+    const body = (await parkedResume.json()) as {
+      step?: string;
+      outcome?: { status?: string };
+    };
+    expect(body.step).toBe("fund");
+    expect(body.outcome?.status).toBe("funded");
+    expect(plans).toBe(1);
+    expect(signCalls).toBe(2);
+    gateway.close();
+  });
 });

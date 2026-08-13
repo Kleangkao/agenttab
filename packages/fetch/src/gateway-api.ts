@@ -32,6 +32,7 @@ export interface AgentTabGatewayHealth {
   ok: boolean;
   policyMode?: string;
   parkedCount?: number;
+  openLoopCount?: number;
   spentUsdMicrosLast24h?: string;
   maxDailyUsdMicros?: string;
   notifyConfigured?: boolean;
@@ -53,7 +54,11 @@ export interface AgentTabGatewayClient {
     reusable?: boolean;
   }): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
   listParked(): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
+  /** Parked, mid-fund, mid-pay, or unpaid fulfill — same ids the agent can resume. */
+  listOpenLoop(): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
   findReusableOperationId(requestHash: string): Promise<string | undefined>;
+  /** Advance fund / pay / fulfill for an existing operationId. */
+  resume(operationId: string): Promise<unknown>;
   getPolicy(): Promise<PaymentPolicy>;
   putPolicy(policy: PaymentPolicy): Promise<PaymentPolicy>;
   /** Append one origin to allowedMerchantOrigins (idempotent). */
@@ -152,6 +157,7 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
     },
     listExecutions,
     listParked: () => listExecutions({ state: "approval_required", limit: 50 }),
+    listOpenLoop: () => listExecutions({ reusable: true, limit: 50 }),
     findReusableOperationId: async (requestHash) => {
       const listed = await listExecutions({
         requestHash,
@@ -257,6 +263,26 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
         const body = await response.json().catch(() => ({}));
         throw new Error(
           `AgentTab gateway deny failed (${response.status}): ${JSON.stringify(body)}`
+        );
+      }
+      return response.json();
+    },
+    resume: async (operationId) => {
+      const response = await fetchImpl(
+        `${baseUrl}/v1/executions/${encodeURIComponent(operationId)}/resume`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            ...headers
+          },
+          body: "{}"
+        }
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(
+          `AgentTab gateway resume failed (${response.status}): ${JSON.stringify(body)}`
         );
       }
       return response.json();

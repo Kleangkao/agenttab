@@ -270,8 +270,14 @@ describe("operator control spine", () => {
     const parked = await gateway.coordinator.ensurePaymentAsset({ intent });
     expect(parked.status).toBe("approval_required");
     expect(await (await gateway.app.request("/health")).json()).toMatchObject({
-      parkedCount: 1
+      parkedCount: 1,
+      openLoopCount: 1
     });
+    const resumeParked = await gateway.app.request(
+      `/v1/executions/${intent.operationId}/resume`,
+      { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }
+    );
+    expect(resumeParked.status).toBe(409);
     expect(
       (
         await gateway.app.request("/v1/executions?state=approval_required")

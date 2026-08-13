@@ -1,10 +1,12 @@
 import {
   AgentTabFundingDeniedError,
-  AgentTabFundingInterruptedError,
   isAgentTabApprovalRequiredError,
+  isAgentTabFundingInterruptedError,
   type AgentTabApprovalRequiredError
 } from "./errors.js";
 import type { AgentTabClient } from "./client.js";
+
+const INTERRUPT_RETRIES = 1;
 
 export interface RequestPaidResourceOptions {
   /**
@@ -35,9 +37,27 @@ async function readBody(response: Response): Promise<unknown> {
   }
 }
 
+async function withInterruptRetry(
+  run: () => Promise<PaidResourceResult>
+): Promise<PaidResourceResult> {
+  let last: unknown;
+  for (let attempt = 0; attempt <= INTERRUPT_RETRIES; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      last = error;
+      if (!isAgentTabFundingInterruptedError(error) || attempt === INTERRUPT_RETRIES) {
+        throw error;
+      }
+    }
+  }
+  throw last;
+}
+
 /**
  * Paid fetch with optional in-process approve + same-operationId retry.
  * Use this instead of rolling your own catch/approve/retry loop.
+ * Interrupted DFlow/sign attempts retry the same request once.
  */
 export async function requestPaidResource(
   agent: AgentTabClient,
@@ -61,7 +81,7 @@ export async function requestPaidResource(
   };
 
   try {
-    return await attempt();
+    return await withInterruptRetry(attempt);
   } catch (error) {
     if (!isAgentTabApprovalRequiredError(error)) throw error;
     const decision = options.onApprovalRequired
@@ -92,16 +112,11 @@ export async function requestPaidResource(
       outcome?: { status?: string; reason?: string };
     };
     const status = approved.outcome?.status;
-    if (status === "interrupted") {
-      throw new AgentTabFundingInterruptedError({
-        code: "interrupted",
-        message: approved.outcome?.reason ?? "Funding interrupted after approve.",
-        operationId: error.operationId,
-        requestHash: error.requestHash,
-        merchantId: error.merchantId
-      });
-    }
-    if (status !== "funded" && status !== "already_funded") {
+    if (
+      status !== "funded" &&
+      status !== "already_funded" &&
+      status !== "interrupted"
+    ) {
       throw new AgentTabFundingDeniedError({
         code: "denied",
         message:
@@ -112,7 +127,7 @@ export async function requestPaidResource(
         merchantId: error.merchantId
       });
     }
-    const retry = await attempt();
+    const retry = await withInterruptRetry(attempt);
     if (!retry.response.ok) {
       throw new Error(
         `AgentTab paid retry returned HTTP ${retry.response.status} for ${error.operationId}`

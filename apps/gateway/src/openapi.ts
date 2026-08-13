@@ -31,7 +31,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   "/ui/app.css": { get: { summary: "Operator console stylesheet" } },
   "/ui/app.js": { get: { summary: "Operator console client" } },
   "/health": {
-    get: { summary: "Liveness plus policyMode, parkedCount, 24h spend" }
+    get: { summary: "Liveness plus policyMode, parkedCount, openLoopCount, 24h spend" }
   },
   "/openapi.json": { get: { summary: "This OpenAPI document" } },
   "/v1/spend": {
@@ -73,6 +73,14 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   },
   "/v1/denials/{operationId}": {
     post: { summary: "Terminal reject. Same operationId will not fund later.", admin: true }
+  },
+  "/v1/executions/{operationId}/resume": {
+    post: {
+      summary:
+        "Advance a stuck loop: fund, pay, or fulfill the same operationId. Parked payments still need approve/deny.",
+      funds: true,
+      agent: true
+    }
   },
   "/v1/executions/{operationId}/pay": {
     post: {

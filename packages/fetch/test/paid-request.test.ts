@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { AgentTabApprovalRequiredError } from "../src/errors.js";
+import {
+  AgentTabApprovalRequiredError,
+  AgentTabFundingInterruptedError
+} from "../src/errors.js";
 import { requestPaidResource } from "../src/paid-request.js";
 import type { AgentTabClient } from "../src/client.js";
 
@@ -41,13 +44,42 @@ describe("requestPaidResource", () => {
     expect(fetchPaid).toHaveBeenCalledOnce();
   });
 
-  it("surfaces interrupted approve without treating it as funded", async () => {
+  it("retries the same request once after funding is interrupted", async () => {
+    let calls = 0;
     const agent = {
       fetch: vi.fn(async () => {
-        throw approvalError();
+        calls += 1;
+        if (calls === 1) {
+          throw new AgentTabFundingInterruptedError({
+            code: "interrupted",
+            message: "plan receipt retained; retry to re-sign",
+            operationId: "op-int",
+            requestHash: "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            merchantId: "merchant.local"
+          });
+        }
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
       }),
-      getMeta: () => undefined,
-      getExecution: async () => undefined,
+      getMeta: () => ({ operationId: "op-int" }),
+      getExecution: async () => ({ state: "fulfilled" }),
+      getLastApprovalRequired: () => undefined
+    } as unknown as AgentTabClient;
+
+    const result = await requestPaidResource(agent, "http://merchant.local/v1/x");
+    expect(result.response.status).toBe(200);
+    expect(agent.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries the merchant after approve returns interrupted", async () => {
+    let calls = 0;
+    const agent = {
+      fetch: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw approvalError();
+        return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      }),
+      getMeta: () => ({ operationId: "op-parked" }),
+      getExecution: async () => ({ state: "funded" }),
       getLastApprovalRequired: () => undefined,
       gateway: {
         approve: async () => ({
@@ -59,14 +91,15 @@ describe("requestPaidResource", () => {
       }
     } as unknown as AgentTabClient;
 
-    await expect(
-      requestPaidResource(agent, "http://merchant.local/v1/x", undefined, {
-        onApprovalRequired: () => "approve"
-      })
-    ).rejects.toMatchObject({
-      name: "AgentTabFundingInterruptedError",
-      operationId: "op-parked"
-    });
+    const result = await requestPaidResource(
+      agent,
+      "http://merchant.local/v1/x",
+      undefined,
+      { onApprovalRequired: () => "approve" }
+    );
+    expect(result.approvedByHook).toBe(true);
+    expect(result.response.status).toBe(200);
+    expect(agent.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("throws when the paid retry is not ok", async () => {
