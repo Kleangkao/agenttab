@@ -63,12 +63,14 @@ payments can also be rejected (`pnpm deny -- <operationId>` or
 time — a tightened cap, denylist, removed allowlist asset, or expired
 challenge fails closed (`policy_denied`, state `denied`) and does not
 fund. Already `funded` or `paid` operations are not clawed back.
-Interrupted `funding_submitted` with a plan or side-effect receipt still
-resumes. Parked approvals expire after one hour by default
+Interrupted `funding_submitted` with a **side-effect receipt** still
+resumes (chain work already started). A plan-only interruption re-binds
+to live policy on resume and fails closed if the merchant, asset, cap, or
+challenge would now deny. Parked approvals expire after one hour by default
 (`parkedApprovalTtlSeconds`). Optional `AGENTTAB_NOTIFY_URL` retries a
-park/approve/deny/interrupted webhook up to three times; each attempt is
-stored and inspectable. Webhook failure never parks, funds, or reverses
-an execution.
+park/approve/deny/interrupted webhook up to three times inside a 300ms
+budget; a hang is recorded as `timeout`. Webhook failure never parks,
+funds, or reverses an execution.
 
 ### Autopay
 

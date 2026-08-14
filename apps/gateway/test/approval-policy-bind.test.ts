@@ -6,6 +6,7 @@ import {
   SimulatedSigner,
   USDC_MINT,
   WSOL_MINT,
+  type DeficitFundingAdapter,
   type SignableFundingPlan,
   type SignerBoundary
 } from "../src/index.js";
@@ -260,7 +261,7 @@ describe("approval cannot override hard policy denials", () => {
     }
   });
 
-  it("still resumes interrupted funding after a later hard policy tighten", async () => {
+  it("re-binds live policy on plan-only interrupted funding", async () => {
     let signCalls = 0;
     const inner = new SimulatedSigner();
     const signer: SignerBoundary = {
@@ -288,6 +289,16 @@ describe("approval cannot override hard policy denials", () => {
       const parkedFund = (await first.json()) as { outcome: { status: string } };
       expect(parkedFund.outcome.status).toBe("interrupted");
       expect((await gateway.store.get("interrupt-resume-1"))?.state).toBe("funding_submitted");
+      expect(
+        (await gateway.store.get("interrupt-resume-1"))?.events.some(
+          (event) => event.kind === "funding.plan_receipt"
+        )
+      ).toBe(true);
+      expect(
+        (await gateway.store.get("interrupt-resume-1"))?.events.some(
+          (event) => event.kind === "funding.side_effect_receipt"
+        )
+      ).toBe(false);
 
       gateway.policies.set(
         approvePolicy({
@@ -299,8 +310,86 @@ describe("approval cannot override hard policy denials", () => {
       const resumed = await gateway.coordinator.ensurePaymentAsset({
         intent: intentFor("interrupt-resume-1")
       });
+      expect(resumed.status).toBe("policy_denied");
+      expect((await gateway.store.get("interrupt-resume-1"))?.state).toBe("denied");
+      expect(gateway.spend.getSpentUsdMicrosLast24h()).toBe("0");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("still resumes interrupted funding that already mutated chain after a later hard deny", async () => {
+    let signCalls = 0;
+    const inner = new SimulatedSigner();
+    const signer: SignerBoundary = {
+      async signFundingTransaction(plan: SignableFundingPlan) {
+        signCalls += 1;
+        if (signCalls === 1) {
+          throw new Error("simulated signer failure");
+        }
+        return inner.signFundingTransaction(plan);
+      }
+    };
+    const adapter: DeficitFundingAdapter = {
+      orders: [],
+      planExactDeficit: async (input) => ({
+        inputMint: WSOL_MINT,
+        outputMint: USDC_MINT,
+        inputAmountAtomic: "1000",
+        outputAmountAtomic: input.targetOutputAtomic,
+        minimumOutputAtomic: input.targetOutputAtomic,
+        priceImpactPct: "0",
+        transaction: JSON.stringify({
+          type: "devnet-mint-plan",
+          mintSignature: "side-effect-sig-policy-tighten",
+          userPublicKey: input.userPublicKey
+        }),
+        plan: {
+          inputAmountAtomic: "1000",
+          expectedOutputAtomic: input.targetOutputAtomic,
+          minimumOutputAtomic: input.targetOutputAtomic,
+          priceImpactPct: "0",
+          quoteRequests: 1,
+          minimized: true
+        },
+        source: "devnet-mint"
+      })
+    };
+    const gateway = createGatewayRuntime({
+      merchantOrigin,
+      policy: approvePolicy({ maxDailyUsdMicros: "20000000" }),
+      wallet: "InterruptSideEffectBuyer1111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000",
+      signer,
+      dflowAdapter: adapter
+    });
+
+    try {
+      await park(gateway, "interrupt-side-effect-1");
+      const first = await postApprove(gateway, "interrupt-side-effect-1");
+      expect(first.status).toBe(200);
+      expect((await first.json() as { outcome: { status: string } }).outcome.status).toBe(
+        "interrupted"
+      );
+      expect(
+        (await gateway.store.get("interrupt-side-effect-1"))?.events.some(
+          (event) => event.kind === "funding.side_effect_receipt"
+        )
+      ).toBe(true);
+
+      gateway.policies.set(
+        approvePolicy({
+          maxDailyUsdMicros: "20000000",
+          deniedMerchantOrigins: [merchantOrigin]
+        })
+      );
+
+      const resumed = await gateway.coordinator.ensurePaymentAsset({
+        intent: intentFor("interrupt-side-effect-1")
+      });
       expect(resumed.status).toBe("funded");
-      expect((await gateway.store.get("interrupt-resume-1"))?.state).toBe("funded");
+      expect((await gateway.store.get("interrupt-side-effect-1"))?.state).toBe("funded");
     } finally {
       gateway.close();
     }

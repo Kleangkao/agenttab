@@ -23,8 +23,10 @@ A parked payment can sit while policy or spend changes. Human approval is
 not a universal override: `ensurePaymentAsset` re-evaluates the live policy,
 including rolling daily spend, challenge expiry, and allowlists. Hard denials
 become terminal `denied` with `policy.denied` and do not fund. Already
-`funded` or `paid` operations are not clawed back; interrupted funding with
-a plan or side-effect receipt still resumes.
+`funded` or `paid` operations are not clawed back. Interrupted funding with
+a **side-effect receipt** (chain state already mutated) still resumes even
+if policy later denies. A plan-only interruption is only a quote: resume
+re-evaluates live policy and fails closed.
 
 ### Retry double spend
 
@@ -85,9 +87,11 @@ explicit policy schema and fail-closed interaction with the gateway cap.
 
 `AGENTTAB_NOTIFY_URL` is an operator convenience, not a control-plane
 guarantee. Park, fund, and deny proceed even when every webhook attempt
-fails. Treat `notifyDeliveries` on `GET /v1/executions/:id`, `/ui`, and
-`pnpm audit:recent` as the source of truth for "was I told?", not
-receipt of the HTTP POST.
+fails or times out. The notify sequence may add at most 300ms to a
+payment-path operation; a webhook that never responds is recorded as
+`timeout` on `notifyDeliveries`, distinct from an HTTP 5xx. Treat that
+log, `/ui`, and `pnpm audit:recent` as the source of truth for "was I
+told?", not receipt of the HTTP POST.
 
 ## Production blockers
 

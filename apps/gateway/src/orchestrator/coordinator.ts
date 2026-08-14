@@ -307,10 +307,10 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     });
 
     const humanApproved = record.state === "approved" || record.state === "funding_submitted";
-    // Plan/side-effect receipts mean chain work already started — resume, do not claw back.
+    // Only a chain side-effect receipt is a standing exemption from live policy.
+    // A plan receipt is a quote: resume re-binds, including denylist/cap/expiry.
     const resumableFunding = record.events.some(
-      (event) =>
-        event.kind === "funding.plan_receipt" || event.kind === "funding.side_effect_receipt"
+      (event) => event.kind === "funding.side_effect_receipt"
     );
 
     if (decision.kind === "deny" && !resumableFunding) {

@@ -46,7 +46,9 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     (default `agent`). Local demos leave tokens unset and stay unattributed.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny /
-    interrupted. Bounded retry (3 attempts); each attempt is durable in
+    interrupted. Bounded retry (3 attempts) inside a 300ms payment-path
+    budget; a hanging webhook is recorded as `timeout` and cannot stall
+    park/approve/deny. Each attempt is durable in
     SQLite `notify_deliveries` and visible on `GET /v1/executions/:id` and
     `/ui`. `AGENTTAB_NOTIFY_SECRET` adds `x-agenttab-signature` (HMAC-SHA256).
     Notify failure never changes funding. `pnpm notify:sink` is a local receiver.
@@ -70,7 +72,7 @@ discovered
   -> approved
        -> denied   (live policy hard-denied after human approval)
   -> funding_submitted
-       -> denied   (hard-deny before a plan/side-effect receipt)
+       -> denied   (hard-deny before a chain side-effect receipt)
   -> funded
   -> payment_submitted
   -> paid

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 export const DEFAULT_AGENT_ID = "agent";
 export const AGENT_ID_PATTERN = /^[a-zA-Z0-9._-]{1,64}$/;
 
@@ -62,8 +64,18 @@ export function resolveAgentIdFromBearer(
   tokens: Record<string, string>
 ): string | undefined {
   if (header === undefined) return undefined;
+  const actual = Buffer.from(header);
+  // Compare every mapped secret with timingSafeEqual. Early `===` would leak
+  // which id matched via short-circuit; length still leaks (inherent to
+  // Authorization header parsing) so unequal lengths compare the token to itself.
+  let found: string | undefined;
   for (const [id, token] of Object.entries(tokens)) {
-    if (header === `Bearer ${token}`) return id;
+    const expected = Buffer.from(`Bearer ${token}`);
+    const sameLength = actual.length === expected.length;
+    const left = sameLength ? actual : expected;
+    if (timingSafeEqual(left, expected) && sameLength) {
+      found = id;
+    }
   }
-  return undefined;
+  return found;
 }
