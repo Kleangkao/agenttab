@@ -69,8 +69,10 @@ to live policy on resume and fails closed if the merchant, asset, cap, or
 challenge would now deny. Parked approvals expire after one hour by default
 (`parkedApprovalTtlSeconds`). Optional `AGENTTAB_NOTIFY_URL` retries a
 park/approve/deny/interrupted webhook up to three times inside a 300ms
-budget; a hang is recorded as `timeout`. Webhook failure never parks,
-funds, or reverses an execution.
+budget (200ms per attempt). Raise `AGENTTAB_NOTIFY_BUDGET_MS` and
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS` for a remote TLS webhook; a hang is
+recorded as `timeout`. Webhook failure never parks, funds, or reverses
+an execution.
 
 ### Autopay
 

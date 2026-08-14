@@ -88,10 +88,10 @@ explicit policy schema and fail-closed interaction with the gateway cap.
 `AGENTTAB_NOTIFY_URL` is an operator convenience, not a control-plane
 guarantee. Park, fund, and deny proceed even when every webhook attempt
 fails or times out. The notify sequence may add at most 300ms to a
-payment-path operation; a webhook that never responds is recorded as
-`timeout` on `notifyDeliveries`, distinct from an HTTP 5xx. Treat that
-log, `/ui`, and `pnpm audit:recent` as the source of truth for "was I
-told?", not receipt of the HTTP POST.
+payment-path operation by default (`AGENTTAB_NOTIFY_BUDGET_MS`); a webhook
+that never responds is recorded as `timeout` on `notifyDeliveries`,
+distinct from an HTTP 5xx. Treat that log, `/ui`, and `pnpm audit:recent`
+as the source of truth for "was I told?", not receipt of the HTTP POST.
 
 ## Production blockers
 

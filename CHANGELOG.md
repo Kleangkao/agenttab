@@ -8,7 +8,10 @@
   are not clawed back. Plan-only interrupted funding re-binds to live
   policy; only a chain side-effect receipt is a standing exemption.
 - Operator notify webhooks retry up to 3 times inside a 300ms payment-path
-  budget. A hanging webhook is recorded as `timeout` and cannot stall
+  budget (200ms per attempt). Those defaults assume a local receiver;
+  `AGENTTAB_NOTIFY_BUDGET_MS` and `AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`
+  raise them for a remote webhook. Invalid values fall back to the
+  defaults. A hanging webhook is recorded as `timeout` and cannot stall
   park, approve, or deny. Each attempt is stored on `/ui` plus
   `GET /v1/executions/:id` (`notifyDeliveries`). Failure never reverses a park.
 - Named agent identity: `AGENTTAB_AGENT_TOKENS` plus the existing

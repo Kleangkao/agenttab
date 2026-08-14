@@ -6,9 +6,49 @@ import {
   loadPolicyFile,
   LOCAL_NETWORK,
   USDC_MINT,
+  DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS,
+  DEFAULT_NOTIFY_BUDGET_MS,
+  notifyBoundsFromEnv,
+  parseNotifyBoundMs,
   type SignableFundingPlan,
   type SignerBoundary
 } from "../src/index.js";
+
+describe("notify bound env parsing", () => {
+  it("uses env values when they are finite and at least 1ms", () => {
+    expect(
+      notifyBoundsFromEnv({
+        AGENTTAB_NOTIFY_BUDGET_MS: "5000",
+        AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS: "1500"
+      })
+    ).toEqual({ budgetMs: 5000, attemptTimeoutMs: 1500 });
+    expect(parseNotifyBoundMs(" 2000 ", DEFAULT_NOTIFY_BUDGET_MS)).toBe(2000);
+  });
+
+  it("falls back to defaults on missing, blank, non-numeric, or non-positive values", () => {
+    expect(notifyBoundsFromEnv({})).toEqual({
+      budgetMs: DEFAULT_NOTIFY_BUDGET_MS,
+      attemptTimeoutMs: DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS
+    });
+    expect(parseNotifyBoundMs(undefined, 300)).toBe(300);
+    expect(parseNotifyBoundMs("", 300)).toBe(300);
+    expect(parseNotifyBoundMs("   ", 300)).toBe(300);
+    expect(parseNotifyBoundMs("abc", 300)).toBe(300);
+    expect(parseNotifyBoundMs("NaN", 300)).toBe(300);
+    expect(parseNotifyBoundMs("Infinity", 300)).toBe(300);
+    expect(parseNotifyBoundMs("-1", 300)).toBe(300);
+    expect(parseNotifyBoundMs("0", 300)).toBe(300);
+    expect(
+      notifyBoundsFromEnv({
+        AGENTTAB_NOTIFY_BUDGET_MS: "nope",
+        AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS: ""
+      })
+    ).toEqual({
+      budgetMs: DEFAULT_NOTIFY_BUDGET_MS,
+      attemptTimeoutMs: DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS
+    });
+  });
+});
 
 describe("operator notify webhook", () => {
   it("POSTs on first park and on deny, not on preview or park replay", async () => {

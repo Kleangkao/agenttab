@@ -89,6 +89,11 @@ pnpm audit:recent
 
 `pnpm notify:sink` is a local webhook printer (`http://127.0.0.1:8792/hook`).
 Point `AGENTTAB_NOTIFY_URL` at it (optional `AGENTTAB_NOTIFY_SECRET` HMAC).
+The 300ms / 200ms defaults assume that loopback sink. A remote webhook over
+TLS will likely need `AGENTTAB_NOTIFY_BUDGET_MS` and
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS` raised; `timeout` rows against a
+healthy endpoint usually mean the handshake exceeded the per-attempt
+ceiling. Invalid values fall back to the defaults and do not crash boot.
 
 `pnpm demo:stack` prints the operator UI (`http://127.0.0.1:8787/ui`). Then
 `pnpm demo:remote-agent` in a second terminal. Parked payments can be approved
@@ -209,8 +214,12 @@ for that `operationId`; a later fetch of the same URL starts a new execution.
 
 Optional `AGENTTAB_NOTIFY_URL` receives a fail-open JSON POST on first park,
 approve, deny, and interrupted funding. Delivery is retried up to 3 times
-inside a 300ms payment-path budget. A hanging webhook is recorded as
-`timeout` (not an HTTP status) and never stalls park, fund, or deny.
+inside a 300ms payment-path budget (200ms per attempt). Those defaults
+assume a local receiver (`pnpm notify:sink`). A remote webhook over TLS
+will likely need a larger `AGENTTAB_NOTIFY_BUDGET_MS` /
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`; invalid values fall back to the
+defaults. A hanging webhook is recorded as `timeout` (not an HTTP status)
+and never stalls park, fund, or deny.
 Each attempt is stored and returned on `GET /v1/executions/:id` as
 `notifyDeliveries` (also `pnpm audit:recent` with `AUDIT_OPERATION_ID`, and
 on `/ui` Ledger/Now). A failed webhook never parks, funds, or reverses an

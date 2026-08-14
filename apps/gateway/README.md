@@ -27,7 +27,10 @@ pay / fulfill need the agent bearer (admin also works). Several agents: set
 
 ## Notify
 
-Delivery retries up to three times inside a 300ms payment-path budget.
+Delivery retries up to three times inside a 300ms payment-path budget
+(200ms per attempt). Those defaults assume `pnpm notify:sink` on loopback.
+Raise `AGENTTAB_NOTIFY_BUDGET_MS` and `AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`
+for a remote webhook over TLS; invalid values fall back to the defaults.
 A hanging webhook is recorded as `timeout`, not an HTTP status. Each
 attempt is stored and shown on `/ui`, `GET /v1/executions/:id`
 (`notifyDeliveries`), and `pnpm audit:recent` with `AUDIT_OPERATION_ID`.
@@ -38,6 +41,8 @@ pnpm notify:sink
 # other terminal:
 # $env:AGENTTAB_NOTIFY_URL="http://127.0.0.1:8792/hook"
 # $env:AGENTTAB_NOTIFY_SECRET="optional-hmac"
+# $env:AGENTTAB_NOTIFY_BUDGET_MS="300"
+# $env:AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS="200"
 pnpm demo:stack
 ```
 

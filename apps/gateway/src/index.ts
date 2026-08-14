@@ -78,7 +78,10 @@ export {
   NOTIFY_SIGNATURE_HEADER,
   DEFAULT_NOTIFY_MAX_ATTEMPTS,
   DEFAULT_NOTIFY_BUDGET_MS,
+  DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS,
   NOTIFY_TIMEOUT_ERROR,
+  parseNotifyBoundMs,
+  notifyBoundsFromEnv,
   type OperatorNotifyEvent,
   type OperatorNotifyEventName,
   type NotifyAttemptRecord

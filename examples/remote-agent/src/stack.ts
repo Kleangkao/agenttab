@@ -18,7 +18,8 @@ import {
   createGatewayRuntime,
   loadPolicyFile,
   LOCAL_NETWORK,
-  USDC_MINT
+  USDC_MINT,
+  notifyBoundsFromEnv
 } from "@agenttab/gateway";
 
 const gatewayPort = Number(process.env.PORT ?? process.env.GATEWAY_PORT ?? "8787");
@@ -31,6 +32,7 @@ const seedPolicy = {
   ...loadPolicyFile(resolve(process.cwd(), "../../examples/policies/approve.local.json")),
   allowedMerchantOrigins: [merchantOrigin]
 };
+const notifyBounds = notifyBoundsFromEnv();
 
 const gateway = createGatewayRuntime({
   dbPath: process.env.AGENTTAB_DB_PATH ?? ".data/stack-gateway.sqlite",
@@ -53,7 +55,9 @@ const gateway = createGatewayRuntime({
     : {}),
   ...(process.env.AGENTTAB_NOTIFY_SECRET
     ? { notifySecret: process.env.AGENTTAB_NOTIFY_SECRET }
-    : {})
+    : {}),
+  notifyBudgetMs: notifyBounds.budgetMs,
+  notifyAttemptTimeoutMs: notifyBounds.attemptTimeoutMs
 });
 const live = gateway.policies.get();
 if (

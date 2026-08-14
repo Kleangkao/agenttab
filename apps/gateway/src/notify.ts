@@ -93,10 +93,36 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function timeoutAfter(ms: number): Promise<never> {
-  return new Promise((_, reject) => {
-    setTimeout(() => reject(new NotifyTimeoutError()), ms);
+export function parseNotifyBoundMs(raw: string | undefined, fallback: number): number {
+  if (raw === undefined) return fallback;
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return fallback;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 1) return fallback;
+  return n;
+}
+
+export function notifyBoundsFromEnv(
+  env: Record<string, string | undefined> = process.env
+): { budgetMs: number; attemptTimeoutMs: number } {
+  return {
+    budgetMs: parseNotifyBoundMs(env.AGENTTAB_NOTIFY_BUDGET_MS, DEFAULT_NOTIFY_BUDGET_MS),
+    attemptTimeoutMs: parseNotifyBoundMs(
+      env.AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS,
+      DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS
+    )
+  };
+}
+
+function timeoutAfter(ms: number): {
+  promise: Promise<never>;
+  timer: ReturnType<typeof setTimeout>;
+} {
+  let timer!: ReturnType<typeof setTimeout>;
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new NotifyTimeoutError()), ms);
   });
+  return { promise, timer };
 }
 
 function isTimeout(error: unknown): boolean {
@@ -156,6 +182,7 @@ export function createOperatorNotifier(options: {
       const at = new Date().toISOString();
       const controller = new AbortController();
       const abortTimer = setTimeout(() => controller.abort(), attemptMs);
+      const timeout = timeoutAfter(attemptMs);
       try {
         const response = await Promise.race([
           fetchImpl(url, {
@@ -164,7 +191,7 @@ export function createOperatorNotifier(options: {
             body,
             signal: controller.signal
           }),
-          timeoutAfter(attemptMs)
+          timeout.promise
         ]);
         rememberAttempt(recordAttempt, {
           operationId: payload.operationId,
@@ -211,6 +238,7 @@ export function createOperatorNotifier(options: {
         if (timedOut && budgetMs - (Date.now() - started) <= 0) return;
       } finally {
         clearTimeout(abortTimer);
+        clearTimeout(timeout.timer);
       }
       const remainingAfter = budgetMs - (Date.now() - started);
       if (attempt < maxAttempts && retryDelayMs > 0 && remainingAfter > retryDelayMs) {
