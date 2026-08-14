@@ -111,6 +111,8 @@ async function assertPaymentAssetHeld(
   }
 }
 
+export type SpendReserveResult = "reserved" | "duplicate" | "cap_exceeded";
+
 export interface SpendLedger {
   getSpentUsdMicrosLast24h(): string;
   getSpentUsdMicrosLast24hByAgent(): Record<string, string>;
@@ -121,6 +123,18 @@ export interface SpendLedger {
     usdMicros: string,
     agentId?: string | undefined
   ): boolean;
+  /**
+   * Atomically check the rolling 24h cap and insert this operation's spend.
+   * Synchronous: no await between read and insert.
+   */
+  tryReserveOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    capUsdMicros: string,
+    agentId?: string | undefined
+  ): SpendReserveResult;
+  /** Drop a reservation that never funded. No-op if the operationId is absent. */
+  releaseOperationSpend(operationId: string): boolean;
 }
 
 export class InMemorySpendLedger implements SpendLedger {
@@ -156,6 +170,34 @@ export class InMemorySpendLedger implements SpendLedger {
       ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
     });
     this.#spentUsdMicros += amount;
+    return true;
+  }
+
+  tryReserveOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    capUsdMicros: string,
+    agentId?: string | undefined
+  ): SpendReserveResult {
+    if (!operationId) throw new Error("operationId required for tryReserveOperationSpend");
+    if (this.#operations.has(operationId)) return "duplicate";
+    const amount = BigInt(usdMicros);
+    if (amount < 0n) throw new Error("spend cannot be negative");
+    const cap = BigInt(capUsdMicros);
+    if (this.#spentUsdMicros + amount > cap) return "cap_exceeded";
+    this.#operations.set(operationId, {
+      usdMicros: amount,
+      ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
+    });
+    this.#spentUsdMicros += amount;
+    return "reserved";
+  }
+
+  releaseOperationSpend(operationId: string): boolean {
+    const row = this.#operations.get(operationId);
+    if (row === undefined) return false;
+    this.#operations.delete(operationId);
+    this.#spentUsdMicros -= row.usdMicros;
     return true;
   }
 
@@ -229,6 +271,24 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       record.intent.amountUsdMicros,
       record.agentId
     );
+  }
+
+  /**
+   * Drop a reservation that never became funded and never mutated chain.
+   * Interrupted funding_submitted keeps the row so a concurrent peer cannot sneak in.
+   */
+  #releaseUnfundedReservation(record: ExecutionRecord): void {
+    if (record.events.some((event) => event.kind === "funding.side_effect_receipt")) return;
+    if (
+      record.state === "funded" ||
+      record.state === "payment_submitted" ||
+      record.state === "paid" ||
+      record.state === "fulfilled" ||
+      record.state === "fulfillment_failed"
+    ) {
+      return;
+    }
+    this.#spend.releaseOperationSpend(record.operationId);
   }
 
   async ensurePaymentAsset(input: {
@@ -324,6 +384,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
           reason: decision.reason,
           ...(afterApproval ? { afterApproval: true } : {})
         });
+        this.#releaseUnfundedReservation(record);
       }
       return {
         status: afterApproval ? "policy_denied" : "denied",
@@ -354,6 +415,28 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       });
     }
 
+    if (input.intent.amountUsdMicros !== undefined && !resumableFunding) {
+      const reserved = this.#spend.tryReserveOperationSpend(
+        record.operationId,
+        input.intent.amountUsdMicros,
+        policy.maxDailyUsdMicros,
+        record.agentId
+      );
+      if (reserved === "cap_exceeded") {
+        if (record.state === "approved" || record.state === "funding_submitted") {
+          record = await transition(this.#store, record, "denied", "policy.denied", {
+            reason: "daily_limit_exceeded",
+            afterApproval: true
+          });
+        }
+        return {
+          status: "policy_denied",
+          reason: "Rolling daily limit exceeded.",
+          policyReason: "daily_limit_exceeded"
+        };
+      }
+    }
+
     heldAtomic = readHeld();
 
     const priorFunding = record.events.find((event) => event.kind === "funding.confirmed");
@@ -382,10 +465,11 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     const attemptLock = record.events.find((event) => event.kind === "funding.attempt_locked");
     if (attemptLock !== undefined) {
       if (record.state === "funding_submitted") {
-        await transition(this.#store, record, "failed", "funding.failed", {
+        record = await transition(this.#store, record, "failed", "funding.failed", {
           message: "incomplete_funding_attempt",
           hint: "A prior funding attempt was locked without a plan receipt; refusing to re-plan"
         });
+        this.#releaseUnfundedReservation(record);
       }
       return {
         status: "denied",
@@ -409,7 +493,8 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
 
     if (fundingCandidate === undefined) {
       if (record.state === "approved") {
-        await transition(this.#store, record, "failed", "funding.no_candidate");
+        record = await transition(this.#store, record, "failed", "funding.no_candidate");
+        this.#releaseUnfundedReservation(record);
       }
       return {
         status: "denied",
@@ -419,9 +504,10 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
 
     if (BigInt(fundingCandidate.balanceAtomic) <= 0n) {
       if (record.state === "approved") {
-        await transition(this.#store, record, "failed", "funding.insufficient_candidate", {
+        record = await transition(this.#store, record, "failed", "funding.insufficient_candidate", {
           mint: fundingCandidate.mint
         });
+        this.#releaseUnfundedReservation(record);
       }
       return {
         status: "denied",
@@ -464,11 +550,12 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       const impactPct = Number(order.priceImpactPct);
       if (Number.isFinite(impactPct) && impactPct > policy.maxPriceImpactPct) {
         if (record.state === "funding_submitted") {
-          await transition(this.#store, record, "failed", "funding.failed", {
+          record = await transition(this.#store, record, "failed", "funding.failed", {
             message: "price_impact_exceeded",
             priceImpactPct: order.priceImpactPct,
             maxPriceImpactPct: policy.maxPriceImpactPct
           });
+          this.#releaseUnfundedReservation(record);
         }
         return {
           status: "denied",
@@ -757,7 +844,8 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     }
 
     if (latest.state === "funding_submitted") {
-      await transition(this.#store, latest, "failed", "funding.failed", { message });
+      const failed = await transition(this.#store, latest, "failed", "funding.failed", { message });
+      this.#releaseUnfundedReservation(failed);
     }
     return { status: "denied", reason: message };
   }

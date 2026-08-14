@@ -22,8 +22,10 @@ and denies merchants outside the allowlist.
 A parked payment can sit while policy or spend changes. Human approval is
 not a universal override: `ensurePaymentAsset` re-evaluates the live policy,
 including rolling daily spend, challenge expiry, and allowlists. Hard denials
-become terminal `denied` with `policy.denied` and do not fund. Already
-`funded` or `paid` operations are not clawed back. Interrupted funding with
+become terminal `denied` with `policy.denied` and do not fund. Spend is
+reserved synchronously against `maxDailyUsdMicros` before funding I/O, so
+two overlapping in-flight funds cannot both pass a cap that only fits one.
+Already `funded` or `paid` operations are not clawed back. Interrupted funding with
 a **side-effect receipt** (chain state already mutated) still resumes even
 if policy later denies. A plan-only interruption is only a quote: resume
 re-evaluates live policy and fails closed.

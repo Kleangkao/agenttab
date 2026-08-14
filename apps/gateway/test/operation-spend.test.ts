@@ -60,3 +60,30 @@ describe("operation-keyed spend", () => {
     gateway.close();
   });
 });
+
+function assertReserveContract(ledger: InMemorySpendLedger | SqliteSpendLedger): void {
+  expect(ledger.tryReserveOperationSpend("a", "1000000", "1500000")).toBe("reserved");
+  expect(ledger.tryReserveOperationSpend("b", "1000000", "1500000")).toBe("cap_exceeded");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("1000000");
+  expect(ledger.tryReserveOperationSpend("a", "1000000", "1500000")).toBe("duplicate");
+  expect(ledger.releaseOperationSpend("a")).toBe(true);
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+  expect(ledger.tryReserveOperationSpend("c", "700000", "1500000")).toBe("reserved");
+  expect(ledger.tryReserveOperationSpend("d", "700000", "1500000")).toBe("reserved");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("1400000");
+}
+
+describe("tryReserveOperationSpend", () => {
+  it("enforces the cap atomically in memory", () => {
+    assertReserveContract(new InMemorySpendLedger());
+  });
+
+  it("enforces the cap atomically in sqlite", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      assertReserveContract(new SqliteSpendLedger(db));
+    } finally {
+      db.close();
+    }
+  });
+});

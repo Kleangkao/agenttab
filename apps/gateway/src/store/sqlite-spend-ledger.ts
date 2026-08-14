@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import type { SpendLedger } from "../orchestrator/coordinator.js";
+import type { SpendLedger, SpendReserveResult } from "../orchestrator/coordinator.js";
 
 /**
  * Durable rolling spend ledger backed by the gateway SQLite database.
@@ -103,5 +103,68 @@ export class SqliteSpendLedger implements SpendLedger {
       // Concurrent insert won the unique race.
       return false;
     }
+  }
+
+  tryReserveOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    capUsdMicros: string,
+    agentId?: string | undefined
+  ): SpendReserveResult {
+    if (!operationId) throw new Error("operationId required for tryReserveOperationSpend");
+    const amount = BigInt(usdMicros);
+    if (amount < 0n) throw new Error("spend cannot be negative");
+    const cap = BigInt(capUsdMicros);
+    // Same connection as SqliteExecutionStore. Those BEGIN IMMEDIATE blocks are
+    // await-free and have committed before the coordinator reaches this call
+    // site, so a nested BEGIN would mean a later refactor nested us inside a
+    // store transaction — fail closed rather than SAVEPOINT-mask it.
+    this.#db.exec("BEGIN IMMEDIATE");
+    try {
+      const existing = this.#db
+        .prepare("SELECT id FROM spend_events WHERE operation_id = ?")
+        .get(operationId) as { id: number } | undefined;
+      if (existing !== undefined) {
+        this.#db.exec("COMMIT");
+        return "duplicate";
+      }
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      const rows = this.#db
+        .prepare("SELECT usd_micros FROM spend_events WHERE at_ms >= ?")
+        .all(cutoff) as Array<{ usd_micros: string }>;
+      let spent = 0n;
+      for (const row of rows) spent += BigInt(row.usd_micros);
+      if (spent + amount > cap) {
+        this.#db.exec("ROLLBACK");
+        return "cap_exceeded";
+      }
+      this.#db
+        .prepare(
+          "INSERT INTO spend_events (usd_micros, at_ms, operation_id, agent_id) VALUES (?, ?, ?, ?)"
+        )
+        .run(
+          amount.toString(),
+          Date.now(),
+          operationId,
+          agentId !== undefined && agentId.length > 0 ? agentId : null
+        );
+      this.#db.exec("COMMIT");
+      return "reserved";
+    } catch (error) {
+      this.#db.exec("ROLLBACK");
+      const raced = this.#db
+        .prepare("SELECT id FROM spend_events WHERE operation_id = ?")
+        .get(operationId) as { id: number } | undefined;
+      if (raced !== undefined) return "duplicate";
+      throw error;
+    }
+  }
+
+  releaseOperationSpend(operationId: string): boolean {
+    if (!operationId) throw new Error("operationId required for releaseOperationSpend");
+    const result = this.#db
+      .prepare("DELETE FROM spend_events WHERE operation_id = ?")
+      .run(operationId);
+    return result.changes > 0;
   }
 }

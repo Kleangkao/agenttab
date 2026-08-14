@@ -7,6 +7,8 @@
   return `policy_denied`, and do not fund. Already funded/paid operations
   are not clawed back. Plan-only interrupted funding re-binds to live
   policy; only a chain side-effect receipt is a standing exemption.
+  Concurrent overlapping funds share one atomic spend reservation: at most
+  one of two $1 payments can win a $1.50 daily cap.
 - Operator notify webhooks retry up to 3 times inside a 300ms payment-path
   budget (200ms per attempt). Those defaults assume a local receiver;
   `AGENTTAB_NOTIFY_BUDGET_MS` and `AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`
