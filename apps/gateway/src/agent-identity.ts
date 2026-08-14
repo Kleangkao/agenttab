@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
+import { AGENT_ID_PATTERN } from "@agenttab/core";
 
 export const DEFAULT_AGENT_ID = "agent";
-export const AGENT_ID_PATTERN = /^[a-zA-Z0-9._-]{1,64}$/;
+export { AGENT_ID_PATTERN };
 
 export function parseAgentTokenMap(raw: string | undefined): Record<string, string> {
   if (raw === undefined || raw.trim().length === 0) return {};

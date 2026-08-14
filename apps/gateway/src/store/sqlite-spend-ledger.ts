@@ -5,6 +5,7 @@ type SpendRow = {
   id: number;
   usd_micros: string;
   status: string;
+  agent_id: string | null;
 };
 
 /**
@@ -100,6 +101,24 @@ export class SqliteSpendLedger implements SpendLedger {
     return total;
   }
 
+  #occupiedByAgentExcluding(operationId: string, agentId: string): bigint {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const rows = this.#db
+      .prepare(
+        `SELECT usd_micros FROM spend_events
+         WHERE agent_id = ?
+           AND (operation_id IS NULL OR operation_id != ?)
+           AND (
+             (status = 'committed' AND at_ms >= ?)
+             OR status = 'reserved'
+           )`
+      )
+      .all(agentId, operationId, cutoff) as Array<{ usd_micros: string }>;
+    let total = 0n;
+    for (const row of rows) total += BigInt(row.usd_micros);
+    return total;
+  }
+
   recordSpend(usdMicros: string): void {
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
@@ -137,7 +156,9 @@ export class SqliteSpendLedger implements SpendLedger {
         this.#db
           .prepare(
             `UPDATE spend_events
-             SET usd_micros = ?, at_ms = ?, agent_id = ?, status = 'committed'
+             SET usd_micros = ?, at_ms = ?,
+                 agent_id = COALESCE(?, agent_id),
+                 status = 'committed'
              WHERE operation_id = ?`
           )
           .run(amount.toString(), Date.now(), agent, operationId);
@@ -166,13 +187,18 @@ export class SqliteSpendLedger implements SpendLedger {
     operationId: string,
     usdMicros: string,
     capUsdMicros: string,
-    agentId?: string | undefined
+    agentId?: string | undefined,
+    agentCapUsdMicros?: string | undefined
   ): SpendReserveResult {
     if (!operationId) throw new Error("operationId required for tryReserveOperationSpend");
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
     const cap = BigInt(capUsdMicros);
     const agent = agentId !== undefined && agentId.length > 0 ? agentId : null;
+    const agentCap =
+      agentCapUsdMicros !== undefined && agentCapUsdMicros.length > 0
+        ? BigInt(agentCapUsdMicros)
+        : undefined;
     // Same connection as SqliteExecutionStore. Those BEGIN IMMEDIATE blocks are
     // await-free and have committed before the coordinator reaches this call
     // site, so a nested BEGIN would mean a later refactor nested us inside a
@@ -180,25 +206,41 @@ export class SqliteSpendLedger implements SpendLedger {
     this.#db.exec("BEGIN IMMEDIATE");
     try {
       const existing = this.#db
-        .prepare("SELECT id, usd_micros, status FROM spend_events WHERE operation_id = ?")
+        .prepare(
+          "SELECT id, usd_micros, status, agent_id FROM spend_events WHERE operation_id = ?"
+        )
         .get(operationId) as SpendRow | undefined;
       if (existing?.status === "committed") {
         this.#db.exec("COMMIT");
         return "duplicate";
       }
+      const selfAmount = existing?.status === "reserved" ? BigInt(existing.usd_micros) : amount;
+      const namedAgent =
+        existing?.status === "reserved" && existing.agent_id !== null && existing.agent_id.length > 0
+          ? existing.agent_id
+          : agent;
       const others = this.#occupiedExcluding(operationId);
+      const exceedsAgent =
+        agentCap !== undefined &&
+        namedAgent !== null &&
+        this.#occupiedByAgentExcluding(operationId, namedAgent) + selfAmount > agentCap;
+      const exceedsGlobal = others + selfAmount > cap;
       if (existing?.status === "reserved") {
-        if (others + BigInt(existing.usd_micros) > cap) {
+        if (exceedsAgent || exceedsGlobal) {
           this.#db
             .prepare("DELETE FROM spend_events WHERE operation_id = ? AND status = 'reserved'")
             .run(operationId);
           this.#db.exec("COMMIT");
-          return "cap_exceeded";
+          return exceedsAgent ? "agent_cap_exceeded" : "cap_exceeded";
         }
         this.#db.exec("COMMIT");
         return "duplicate";
       }
-      if (others + amount > cap) {
+      if (exceedsAgent) {
+        this.#db.exec("ROLLBACK");
+        return "agent_cap_exceeded";
+      }
+      if (exceedsGlobal) {
         this.#db.exec("ROLLBACK");
         return "cap_exceeded";
       }
@@ -207,7 +249,7 @@ export class SqliteSpendLedger implements SpendLedger {
           `INSERT INTO spend_events (usd_micros, at_ms, operation_id, agent_id, status)
            VALUES (?, ?, ?, ?, 'reserved')`
         )
-        .run(amount.toString(), Date.now(), operationId, agent);
+        .run(amount.toString(), Date.now(), operationId, namedAgent);
       this.#db.exec("COMMIT");
       return "reserved";
     } catch (error) {

@@ -23,8 +23,9 @@ A parked payment can sit while policy or spend changes. Human approval is
 not a universal override: `ensurePaymentAsset` re-evaluates the live policy,
 including rolling daily spend, challenge expiry, and allowlists. Hard denials
 become terminal `denied` with `policy.denied` and do not fund. Spend is
-reserved synchronously against `maxDailyUsdMicros` before funding I/O, so
-two overlapping in-flight funds cannot both pass a cap that only fits one.
+reserved synchronously against `maxDailyUsdMicros` and, when configured,
+`maxDailyUsdMicrosByAgent` for the gateway-stamped agent, before funding I/O,
+so two overlapping in-flight funds cannot both pass a cap that only fits one.
 Reservations occupy the cap without appearing in realized spend until
 funding succeeds. A plan-only resume counts its own reservation once;
 tightening the cap below what that operation can occupy denies it and
@@ -53,8 +54,9 @@ results in `deny` or `approval_required`; it never results in autopay.
 ### Approval as a universal override
 
 A human approval satisfies `approval_required` and nothing else. Current
-policy is re-evaluated before new spend: daily cap, merchant denylist,
-expired challenge, and asset allowlists still fail closed. Spend is
+policy is re-evaluated before new spend: daily cap, per-agent quota when
+configured, merchant denylist, expired challenge, and asset allowlists still
+fail closed. Spend is
 committed when funding succeeds so later approvals see the rolling cap.
 Already `funded` / `paid` operations are not clawed back. Plan-only
 `funding_submitted` resume re-binds live policy; a side-effect receipt
@@ -84,11 +86,14 @@ account creation, route price impact and attempts per rolling window.
 ### Shared agent bearer
 
 `AGENTTAB_AGENT_TOKEN` is one secret. Anyone who holds it can spend up to the
-gateway policy. `AGENTTAB_AGENT_TOKENS` attributes executions and spend to a
-named `agentId` so an operator can revoke one process, but it does **not**
-split `maxDailyUsdMicros`. A compromised named token can still exhaust the
-global daily cap. Per-agent quotas are out of scope until they have an
-explicit policy schema and fail-closed interaction with the gateway cap.
+gateway policy, including any explicit per-agent quota for that identity.
+`AGENTTAB_AGENT_TOKENS` attributes executions and spend to a named `agentId`.
+Optional `maxDailyUsdMicrosByAgent` is an extra rolling-24h bound for those
+ids; it does not raise `maxDailyUsdMicros`. A named agent with no map entry,
+and any unattributed operation, stay on the gateway-wide cap only. A
+compromised named token cannot occupy another agent's configured quota, but
+it can still exhaust the global ceiling and its own quota. Identity is taken
+from the bearer, never from a payment intent.
 
 ### Operator notify is fail-open
 

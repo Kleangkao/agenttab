@@ -36,6 +36,7 @@ describe("operator console", () => {
       expect(html).toContain("solscan.io/tx/");
       expect(html).toContain("/ui/app.css");
       expect(html).toContain("/ui/app.js");
+      expect(html).toContain("maxDailyUsdMicrosByAgent");
       expect(html).toContain('"adminRequired":true');
 
       const css = await gateway.app.request("/ui/app.css");
@@ -75,6 +76,7 @@ describe("operator console", () => {
       expect(js).toContain("notifyDeliveries");
       expect(js).toContain("agentId");
       expect(js).toContain(">Agent ");
+      expect(js).toContain("agent_daily_limit_exceeded");
 
       const intent = {
         operationId: "console-park-1",

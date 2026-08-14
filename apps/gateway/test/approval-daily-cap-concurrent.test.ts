@@ -99,22 +99,24 @@ class ArmedSpendLedger {
     operationId: string,
     usdMicros: string,
     capUsdMicros: string,
-    agentId?: string | undefined
-  ): "reserved" | "duplicate" | "cap_exceeded" {
+    agentId?: string | undefined,
+    agentCapUsdMicros?: string | undefined
+  ): "reserved" | "duplicate" | "cap_exceeded" | "agent_cap_exceeded" {
     const fn = (
       this.inner as {
         tryReserveOperationSpend?: (
           operationId: string,
           usdMicros: string,
           capUsdMicros: string,
-          agentId?: string | undefined
-        ) => "reserved" | "duplicate" | "cap_exceeded";
+          agentId?: string | undefined,
+          agentCapUsdMicros?: string | undefined
+        ) => "reserved" | "duplicate" | "cap_exceeded" | "agent_cap_exceeded";
       }
     ).tryReserveOperationSpend;
     if (fn === undefined) {
       throw new Error("tryReserveOperationSpend is missing");
     }
-    return fn.call(this.inner, operationId, usdMicros, capUsdMicros, agentId);
+    return fn.call(this.inner, operationId, usdMicros, capUsdMicros, agentId, agentCapUsdMicros);
   }
 
   releaseOperationSpend(operationId: string): boolean {

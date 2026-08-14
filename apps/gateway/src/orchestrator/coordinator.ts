@@ -1,5 +1,6 @@
 import {
   evaluatePaymentPolicy,
+  maxDailyUsdMicrosForAgent,
   type ExecutionRecord,
   type ExecutionStore,
   type FundingCandidate,
@@ -111,7 +112,7 @@ async function assertPaymentAssetHeld(
   }
 }
 
-export type SpendReserveResult = "reserved" | "duplicate" | "cap_exceeded";
+export type SpendReserveResult = "reserved" | "duplicate" | "cap_exceeded" | "agent_cap_exceeded";
 
 type SpendEntryStatus = "reserved" | "committed";
 
@@ -144,7 +145,8 @@ export interface SpendLedger {
     operationId: string,
     usdMicros: string,
     capUsdMicros: string,
-    agentId?: string | undefined
+    agentId?: string | undefined,
+    agentCapUsdMicros?: string | undefined
   ): SpendReserveResult;
   /** Drop a reservation that never funded. Never deletes realized spend. */
   releaseOperationSpend(operationId: string): boolean;
@@ -180,6 +182,15 @@ export class InMemorySpendLedger implements SpendLedger {
     return total;
   }
 
+  #occupiedByAgentExcluding(operationId: string, agentId: string): bigint {
+    let total = 0n;
+    for (const [id, row] of this.#operations) {
+      if (id === operationId || row.agentId !== agentId) continue;
+      total += row.usdMicros;
+    }
+    return total;
+  }
+
   recordSpend(usdMicros: string): void {
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
@@ -196,10 +207,12 @@ export class InMemorySpendLedger implements SpendLedger {
     if (existing?.status === "committed") return false;
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
+    const stamped =
+      agentId !== undefined && agentId.length > 0 ? agentId : existing?.agentId;
     this.#operations.set(operationId, {
       usdMicros: amount,
       status: "committed",
-      ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
+      ...(stamped === undefined ? {} : { agentId: stamped })
     });
     return true;
   }
@@ -208,7 +221,8 @@ export class InMemorySpendLedger implements SpendLedger {
     operationId: string,
     usdMicros: string,
     capUsdMicros: string,
-    agentId?: string | undefined
+    agentId?: string | undefined,
+    agentCapUsdMicros?: string | undefined
   ): SpendReserveResult {
     if (!operationId) throw new Error("operationId required for tryReserveOperationSpend");
     const amount = BigInt(usdMicros);
@@ -216,19 +230,40 @@ export class InMemorySpendLedger implements SpendLedger {
     const cap = BigInt(capUsdMicros);
     const existing = this.#operations.get(operationId);
     if (existing?.status === "committed") return "duplicate";
+    const selfAmount = existing?.status === "reserved" ? existing.usdMicros : amount;
+    const namedAgent =
+      existing?.status === "reserved" && existing.agentId !== undefined
+        ? existing.agentId
+        : agentId !== undefined && agentId.length > 0
+          ? agentId
+          : undefined;
     const others = this.#occupiedExcluding(operationId);
+    const agentCap =
+      agentCapUsdMicros !== undefined && agentCapUsdMicros.length > 0
+        ? BigInt(agentCapUsdMicros)
+        : undefined;
+    const exceedsAgent =
+      agentCap !== undefined &&
+      namedAgent !== undefined &&
+      this.#occupiedByAgentExcluding(operationId, namedAgent) + selfAmount > agentCap;
+    const exceedsGlobal = others + selfAmount > cap;
     if (existing?.status === "reserved") {
-      if (others + existing.usdMicros > cap) {
+      if (exceedsAgent) {
+        this.#operations.delete(operationId);
+        return "agent_cap_exceeded";
+      }
+      if (exceedsGlobal) {
         this.#operations.delete(operationId);
         return "cap_exceeded";
       }
       return "duplicate";
     }
-    if (others + amount > cap) return "cap_exceeded";
+    if (exceedsAgent) return "agent_cap_exceeded";
+    if (exceedsGlobal) return "cap_exceeded";
     this.#operations.set(operationId, {
       usdMicros: amount,
       status: "reserved",
-      ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
+      ...(namedAgent === undefined ? {} : { agentId: namedAgent })
     });
     return "reserved";
   }
@@ -396,7 +431,8 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
           });
 
     const spend: SpendSnapshot = {
-      spentUsdMicrosLast24h: this.#spend.getSpentUsdMicrosLast24h()
+      spentUsdMicrosLast24h: this.#spend.getSpentUsdMicrosLast24h(),
+      spentUsdMicrosLast24hByAgent: this.#spend.getSpentUsdMicrosLast24hByAgent()
     };
     const parkedAt = parkedAtOf(record);
     const decision = evaluatePaymentPolicy({
@@ -404,7 +440,8 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       policy,
       spend,
       ...(fundingCandidate === undefined ? {} : { fundingCandidate }),
-      ...(parkedAt === undefined ? {} : { parkedAt })
+      ...(parkedAt === undefined ? {} : { parkedAt }),
+      ...(record.agentId === undefined ? {} : { agentId: record.agentId })
     });
 
     const humanApproved = record.state === "approved" || record.state === "funding_submitted";
@@ -461,20 +498,26 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         record.operationId,
         input.intent.amountUsdMicros,
         policy.maxDailyUsdMicros,
-        record.agentId
+        record.agentId,
+        maxDailyUsdMicrosForAgent(policy, record.agentId)
       );
-      if (reserved === "cap_exceeded") {
+      if (reserved === "agent_cap_exceeded" || reserved === "cap_exceeded") {
         this.#spend.releaseOperationSpend(record.operationId);
+        const policyReason =
+          reserved === "agent_cap_exceeded" ? "agent_daily_limit_exceeded" : "daily_limit_exceeded";
         if (record.state === "approved" || record.state === "funding_submitted") {
           record = await transition(this.#store, record, "denied", "policy.denied", {
-            reason: "daily_limit_exceeded",
+            reason: policyReason,
             afterApproval: true
           });
         }
         return {
           status: "policy_denied",
-          reason: "Rolling daily limit exceeded.",
-          policyReason: "daily_limit_exceeded"
+          reason:
+            reserved === "agent_cap_exceeded"
+              ? "This agent exceeded its rolling daily limit."
+              : "Rolling daily limit exceeded.",
+          policyReason
         };
       }
     }

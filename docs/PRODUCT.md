@@ -118,7 +118,9 @@ denial, not a permissive default.
   use the same bearer as approve/deny. When `AGENTTAB_AGENT_TOKEN` is set,
   preview/fund/pay/fulfill and requestHash resume require that bearer (or admin).
   Several agents share one gateway via `AGENTTAB_AGENT_TOKENS`; spend and
-  executions carry `agentId`. Daily and per-payment caps remain gateway-wide.
+  executions carry `agentId`. `maxDailyUsdMicros` stays the gateway-wide
+  ceiling. Optional `maxDailyUsdMicrosByAgent` is an extra bound for named
+  ids; omitted ids and unattributed operations stay on the gateway cap only.
 - Operator product is the `/ui` console (Now / Ledger / Policy). Now is the
   core loop — paid resource, x402 asset, wallet, exact deficit, DFlow, pay,
   original request continues — plus HTTP + CLI (`policy:get|set|mode`, `approve`,

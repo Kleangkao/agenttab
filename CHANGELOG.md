@@ -19,7 +19,13 @@
   `GET /v1/executions/:id` (`notifyDeliveries`). Failure never reverses a park.
 - Named agent identity: `AGENTTAB_AGENT_TOKENS` plus the existing
   `AGENTTAB_AGENT_TOKEN` stamp `agentId` on executions, spend, audit, and
-  `/ui`. Unset tokens stay unattributed. Policy caps remain gateway-wide.
+  `/ui`. Unset tokens stay unattributed. Optional `maxDailyUsdMicrosByAgent`
+  caps a named agent on the same atomic reservation as the gateway-wide
+  `maxDailyUsdMicros` ceiling. Omitted ids and unattributed spend stay on
+  that ceiling only; malformed per-agent values fail closed instead of
+  becoming unlimited. Concurrent same-agent $1 funds cannot both clear a
+  $1.50 agent cap. `agent_daily_limit_exceeded` is distinct from
+  `daily_limit_exceeded`.
 - Removed the empty `apps/dashboard/` placeholder. Operator UI stays
   `apps/gateway/src/ui`.
 - Buildathon path: `docs/DEMO.md` plus a public Mainnet receipt with Solscan

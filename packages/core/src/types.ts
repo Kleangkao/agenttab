@@ -3,6 +3,12 @@ import { httpOriginSchema } from "./origin.js";
 
 export const atomicAmountSchema = z.string().regex(/^\d+$/, "must be atomic units");
 
+/** Same shape as `AGENTTAB_AGENT_TOKENS` / `AGENTTAB_AGENT_ID` keys. */
+export const AGENT_ID_PATTERN = /^[a-zA-Z0-9._-]{1,64}$/;
+export const namedAgentIdSchema = z
+  .string()
+  .regex(AGENT_ID_PATTERN, "must be a named agent id");
+
 export const paymentIntentSchema = z.object({
   operationId: z.string().min(1).max(160),
   requestHash: z.string().min(16).max(256),
@@ -43,6 +49,7 @@ export type PolicyReasonCode =
   | "usd_value_unknown"
   | "per_payment_limit_exceeded"
   | "daily_limit_exceeded"
+  | "agent_daily_limit_exceeded"
   | "approval_threshold_exceeded"
   | "challenge_expired"
   | "parked_approval_expired";
@@ -55,6 +62,8 @@ export interface PolicyDecision {
 
 export interface SpendSnapshot {
   spentUsdMicrosLast24h?: string;
+  /** Realized spend by gateway-stamped agentId. Reservations are excluded. */
+  spentUsdMicrosLast24hByAgent?: Record<string, string>;
 }
 
 export interface PaymentPolicy {
@@ -67,6 +76,12 @@ export interface PaymentPolicy {
   requireVerifiedFundingAssets: boolean;
   maxPaymentUsdMicros: string;
   maxDailyUsdMicros: string;
+  /**
+   * Optional per-named-agent rolling 24h caps (USD micros).
+   * Omitted ids have no extra bound — only `maxDailyUsdMicros` applies.
+   * Unattributed operations are always global-cap-only.
+   */
+  maxDailyUsdMicrosByAgent?: Record<string, string> | undefined;
   requireApprovalAboveUsdMicros?: string | undefined;
   maxSlippageBps: number;
   maxPriceImpactPct: number;
@@ -84,6 +99,7 @@ export const paymentPolicySchema = z.object({
   requireVerifiedFundingAssets: z.boolean(),
   maxPaymentUsdMicros: atomicAmountSchema,
   maxDailyUsdMicros: atomicAmountSchema,
+  maxDailyUsdMicrosByAgent: z.record(namedAgentIdSchema, atomicAmountSchema).optional(),
   requireApprovalAboveUsdMicros: atomicAmountSchema.optional(),
   maxSlippageBps: z.number().int().min(0).max(10_000),
   maxPriceImpactPct: z.number().min(0).max(100),

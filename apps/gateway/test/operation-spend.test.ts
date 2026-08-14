@@ -91,6 +91,41 @@ function assertResumeDoesNotDoubleCount(ledger: InMemorySpendLedger | SqliteSpen
   expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
 }
 
+function assertAgentQuotaContract(ledger: InMemorySpendLedger | SqliteSpendLedger): void {
+  const global = "20000000";
+  expect(ledger.tryReserveOperationSpend("r1", "1000000", global, "research", "1500000")).toBe(
+    "reserved"
+  );
+  expect(ledger.tryReserveOperationSpend("r2", "1000000", global, "research", "1500000")).toBe(
+    "agent_cap_exceeded"
+  );
+  expect(ledger.tryReserveOperationSpend("o1", "1000000", global, "ops", "12000000")).toBe(
+    "reserved"
+  );
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+  expect(ledger.getSpentUsdMicrosLast24hByAgent()).toEqual({});
+  expect(ledger.ensureOperationSpend("r1", "1000000", "research")).toBe(true);
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("1000000");
+  expect(ledger.getSpentUsdMicrosLast24hByAgent()).toEqual({ research: "1000000" });
+  expect(ledger.releaseOperationSpend("o1")).toBe(true);
+  expect(ledger.getSpentUsdMicrosLast24hByAgent()).toEqual({ research: "1000000" });
+  expect(ledger.tryReserveOperationSpend("r1", "1000000", global, "research", "1500000")).toBe(
+    "duplicate"
+  );
+  expect(ledger.tryReserveOperationSpend("r3", "1000000", global, "research", "400000")).toBe(
+    "agent_cap_exceeded"
+  );
+  expect(ledger.tryReserveOperationSpend("o2", "1000000", global, "ops", "12000000")).toBe(
+    "reserved"
+  );
+  expect(ledger.tryReserveOperationSpend("o2", "1000000", global, "ops", "500000")).toBe(
+    "agent_cap_exceeded"
+  );
+  expect(ledger.tryReserveOperationSpend("o3", "1000000", global, "ops", "12000000")).toBe(
+    "reserved"
+  );
+}
+
 describe("tryReserveOperationSpend", () => {
   it("enforces the cap atomically in memory without realizing spend", () => {
     assertReserveContract(new InMemorySpendLedger());
@@ -113,6 +148,19 @@ describe("tryReserveOperationSpend", () => {
     const db = new DatabaseSync(":memory:");
     try {
       assertResumeDoesNotDoubleCount(new SqliteSpendLedger(db));
+    } finally {
+      db.close();
+    }
+  });
+
+  it("enforces per-agent occupancy in the same atomic window in memory", () => {
+    assertAgentQuotaContract(new InMemorySpendLedger());
+  });
+
+  it("enforces per-agent occupancy in the same atomic window in sqlite", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      assertAgentQuotaContract(new SqliteSpendLedger(db));
     } finally {
       db.close();
     }
