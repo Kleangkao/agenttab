@@ -19,7 +19,7 @@ describe("operator notify webhook", () => {
         body: init?.body ? JSON.parse(String(init.body)) : null,
         signature: new Headers(init?.headers).get("x-agenttab-signature")
       });
-      return new Response("ok", { status: 204 });
+      return new Response(null, { status: 204 });
     });
     const policy = loadPolicyFile(
       resolve(process.cwd(), "../../examples/policies/approve.local.json")
@@ -105,6 +105,7 @@ describe("operator notify webhook", () => {
       notifyFetch: (async () => {
         throw new Error("webhook down");
       }) as unknown as typeof fetch,
+      notifyRetryDelayMs: 0,
       initialUsdcAtomic: "0"
     });
     const outcome = await gateway.coordinator.ensurePaymentAsset({
@@ -183,7 +184,7 @@ describe("operator notify webhook", () => {
       notifyUrl: "http://notify.test/hook",
       notifyFetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
         calls.push(init?.body ? JSON.parse(String(init.body)) : null);
-        return new Response("ok", { status: 204 });
+        return new Response(null, { status: 204 });
       }) as unknown as typeof fetch,
       signer,
       initialUsdcAtomic: "0",
@@ -211,5 +212,120 @@ describe("operator notify webhook", () => {
       state: "funding_submitted"
     });
     gateway.close();
+  });
+
+  it("retries a transient webhook failure and records the successful delivery", async () => {
+    let calls = 0;
+    const notifyFetch = vi.fn(async () => {
+      calls += 1;
+      if (calls === 1) return new Response("busy", { status: 503 });
+      return new Response(null, { status: 204 });
+    });
+    const gateway = createGatewayRuntime({
+      merchantOrigin: "http://127.0.0.1:8791",
+      policy: loadPolicyFile(
+        resolve(process.cwd(), "../../examples/policies/approve.local.json")
+      ),
+      notifyUrl: "http://notify.test/hook",
+      notifyFetch: notifyFetch as unknown as typeof fetch,
+      notifyRetryDelayMs: 0,
+      notifyMaxAttempts: 3,
+      wallet: "NotifyRetryBuyer11111111111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    try {
+      const intent = {
+        operationId: "notify-retry-1",
+        requestHash: "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        protocol: "x402",
+        network: LOCAL_NETWORK,
+        merchantId: "127.0.0.1:8791",
+        merchantOrigin: "http://127.0.0.1:8791",
+        destination: "NeutralMerchant111111111111111111111111111",
+        assetMint: USDC_MINT,
+        amountAtomic: "1000",
+        amountUsdMicros: "1000",
+        resource: "http://127.0.0.1:8791/v1/market-snapshot"
+      };
+      expect((await gateway.coordinator.ensurePaymentAsset({ intent })).status).toBe(
+        "approval_required"
+      );
+      expect((await gateway.store.get("notify-retry-1"))?.state).toBe("approval_required");
+      expect(notifyFetch).toHaveBeenCalledTimes(2);
+      const body = (await (
+        await gateway.app.request("/v1/executions/notify-retry-1")
+      ).json()) as {
+        state: string;
+        notifyDeliveries: Array<{ attempt: number; ok: boolean; status?: number; event: string }>;
+      };
+      expect(body.state).toBe("approval_required");
+      expect(body.notifyDeliveries).toEqual([
+        expect.objectContaining({
+          event: "approval_required",
+          attempt: 1,
+          ok: false,
+          status: 503
+        }),
+        expect.objectContaining({
+          event: "approval_required",
+          attempt: 2,
+          ok: true,
+          status: 204
+        })
+      ]);
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("records a permanent webhook failure without reversing the parked operation", async () => {
+    const notifyFetch = vi.fn(async () => {
+      throw new Error("webhook down");
+    });
+    const gateway = createGatewayRuntime({
+      merchantOrigin: "http://127.0.0.1:8791",
+      policy: loadPolicyFile(
+        resolve(process.cwd(), "../../examples/policies/approve.local.json")
+      ),
+      notifyUrl: "http://notify.test/hook",
+      notifyFetch: notifyFetch as unknown as typeof fetch,
+      notifyRetryDelayMs: 0,
+      notifyMaxAttempts: 3,
+      wallet: "NotifyPermBuyer111111111111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    try {
+      const intent = {
+        operationId: "notify-permanent-1",
+        requestHash: "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        protocol: "x402",
+        network: LOCAL_NETWORK,
+        merchantId: "127.0.0.1:8791",
+        merchantOrigin: "http://127.0.0.1:8791",
+        destination: "NeutralMerchant111111111111111111111111111",
+        assetMint: USDC_MINT,
+        amountAtomic: "1000",
+        amountUsdMicros: "1000",
+        resource: "http://127.0.0.1:8791/v1/market-snapshot"
+      };
+      expect((await gateway.coordinator.ensurePaymentAsset({ intent })).status).toBe(
+        "approval_required"
+      );
+      expect((await gateway.store.get("notify-permanent-1"))?.state).toBe("approval_required");
+      expect(notifyFetch).toHaveBeenCalledTimes(3);
+      const body = (await (
+        await gateway.app.request("/v1/executions/notify-permanent-1")
+      ).json()) as {
+        notifyDeliveries: Array<{ attempt: number; ok: boolean; error?: string }>;
+      };
+      expect(body.notifyDeliveries).toHaveLength(3);
+      expect(body.notifyDeliveries.every((row) => row.ok === false)).toBe(true);
+      expect(body.notifyDeliveries.map((row) => row.attempt)).toEqual([1, 2, 3]);
+      expect(body.notifyDeliveries[0]?.error).toMatch(/webhook down/);
+    } finally {
+      gateway.close();
+    }
   });
 });

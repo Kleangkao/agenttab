@@ -118,7 +118,8 @@ async function auditLocalSqlite(): Promise<void> {
               to: event.to,
               at: event.at,
               details: omitHeavyDetails(event.details)
-            }))
+            })),
+            notifyDeliveries: store.createNotifyDeliveryStore().listForOperation(operationId)
           },
           null,
           2
