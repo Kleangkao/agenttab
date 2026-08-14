@@ -390,6 +390,7 @@ describe("approval cannot override hard policy denials", () => {
       });
       expect(resumed.status).toBe("funded");
       expect((await gateway.store.get("interrupt-side-effect-1"))?.state).toBe("funded");
+      expect(gateway.spend.getSpentUsdMicrosLast24h()).toBe("1000000");
     } finally {
       gateway.close();
     }

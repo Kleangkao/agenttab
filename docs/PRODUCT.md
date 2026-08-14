@@ -64,7 +64,8 @@ time — a tightened cap, denylist, removed allowlist asset, or expired
 challenge fails closed (`policy_denied`, state `denied`) and does not
 fund. Already `funded` or `paid` operations are not clawed back.
 Overlapping in-flight funds share one atomic daily-cap reservation: two
-`$1` approvals cannot both clear a `$1.50` cap. Interrupted
+`$1` approvals cannot both clear a `$1.50` cap. That occupancy is not
+realized spend until funding succeeds (`GET /v1/spend`, `/health`). Interrupted
 `funding_submitted` with a **side-effect receipt** still
 resumes (chain work already started). A plan-only interruption re-binds
 to live policy on resume and fails closed if the merchant, asset, cap, or

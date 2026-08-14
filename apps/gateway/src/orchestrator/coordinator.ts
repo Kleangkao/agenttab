@@ -113,18 +113,31 @@ async function assertPaymentAssetHeld(
 
 export type SpendReserveResult = "reserved" | "duplicate" | "cap_exceeded";
 
+type SpendEntryStatus = "reserved" | "committed";
+
+type SpendEntry = {
+  usdMicros: bigint;
+  status: SpendEntryStatus;
+  agentId?: string;
+};
+
 export interface SpendLedger {
+  /** Realized (funded) rolling 24h spend. In-flight reservations are excluded. */
   getSpentUsdMicrosLast24h(): string;
   getSpentUsdMicrosLast24hByAgent(): Record<string, string>;
   recordSpend(usdMicros: string): void;
-  /** Idempotent spend keyed by operationId. Returns true when a new row was written. */
+  /**
+   * Idempotent realized spend keyed by operationId.
+   * Promotes an existing reservation; returns true when a new committed row is written.
+   */
   ensureOperationSpend(
     operationId: string,
     usdMicros: string,
     agentId?: string | undefined
   ): boolean;
   /**
-   * Atomically check the rolling 24h cap and insert this operation's spend.
+   * Atomically check occupancy (realized last 24h + active reservations) and
+   * insert this operation's reservation. Counts this operationId at most once.
    * Synchronous: no await between read and insert.
    */
   tryReserveOperationSpend(
@@ -133,29 +146,44 @@ export interface SpendLedger {
     capUsdMicros: string,
     agentId?: string | undefined
   ): SpendReserveResult;
-  /** Drop a reservation that never funded. No-op if the operationId is absent. */
+  /** Drop a reservation that never funded. Never deletes realized spend. */
   releaseOperationSpend(operationId: string): boolean;
 }
 
 export class InMemorySpendLedger implements SpendLedger {
-  #spentUsdMicros = 0n;
-  readonly #operations = new Map<string, { usdMicros: bigint; agentId?: string }>();
+  #anonymousCommittedUsdMicros = 0n;
+  readonly #operations = new Map<string, SpendEntry>();
 
   getSpentUsdMicrosLast24h(): string {
-    return this.#spentUsdMicros.toString();
+    let total = this.#anonymousCommittedUsdMicros;
+    for (const row of this.#operations.values()) {
+      if (row.status === "committed") total += row.usdMicros;
+    }
+    return total.toString();
   }
 
   getSpentUsdMicrosLast24hByAgent(): Record<string, string> {
     const out: Record<string, string> = {};
     for (const row of this.#operations.values()) {
-      if (row.agentId === undefined) continue;
+      if (row.status !== "committed" || row.agentId === undefined) continue;
       out[row.agentId] = (BigInt(out[row.agentId] ?? "0") + row.usdMicros).toString();
     }
     return out;
   }
 
+  #occupiedExcluding(operationId: string): bigint {
+    let total = this.#anonymousCommittedUsdMicros;
+    for (const [id, row] of this.#operations) {
+      if (id === operationId) continue;
+      total += row.usdMicros;
+    }
+    return total;
+  }
+
   recordSpend(usdMicros: string): void {
-    this.#spentUsdMicros += BigInt(usdMicros);
+    const amount = BigInt(usdMicros);
+    if (amount < 0n) throw new Error("spend cannot be negative");
+    this.#anonymousCommittedUsdMicros += amount;
   }
 
   ensureOperationSpend(
@@ -163,13 +191,16 @@ export class InMemorySpendLedger implements SpendLedger {
     usdMicros: string,
     agentId?: string | undefined
   ): boolean {
-    if (this.#operations.has(operationId)) return false;
+    if (!operationId) throw new Error("operationId required for ensureOperationSpend");
+    const existing = this.#operations.get(operationId);
+    if (existing?.status === "committed") return false;
     const amount = BigInt(usdMicros);
+    if (amount < 0n) throw new Error("spend cannot be negative");
     this.#operations.set(operationId, {
       usdMicros: amount,
+      status: "committed",
       ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
     });
-    this.#spentUsdMicros += amount;
     return true;
   }
 
@@ -180,29 +211,37 @@ export class InMemorySpendLedger implements SpendLedger {
     agentId?: string | undefined
   ): SpendReserveResult {
     if (!operationId) throw new Error("operationId required for tryReserveOperationSpend");
-    if (this.#operations.has(operationId)) return "duplicate";
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
     const cap = BigInt(capUsdMicros);
-    if (this.#spentUsdMicros + amount > cap) return "cap_exceeded";
+    const existing = this.#operations.get(operationId);
+    if (existing?.status === "committed") return "duplicate";
+    const others = this.#occupiedExcluding(operationId);
+    if (existing?.status === "reserved") {
+      if (others + existing.usdMicros > cap) {
+        this.#operations.delete(operationId);
+        return "cap_exceeded";
+      }
+      return "duplicate";
+    }
+    if (others + amount > cap) return "cap_exceeded";
     this.#operations.set(operationId, {
       usdMicros: amount,
+      status: "reserved",
       ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
     });
-    this.#spentUsdMicros += amount;
     return "reserved";
   }
 
   releaseOperationSpend(operationId: string): boolean {
     const row = this.#operations.get(operationId);
-    if (row === undefined) return false;
+    if (row === undefined || row.status !== "reserved") return false;
     this.#operations.delete(operationId);
-    this.#spentUsdMicros -= row.usdMicros;
     return true;
   }
 
   reset(spentUsdMicros = "0"): void {
-    this.#spentUsdMicros = BigInt(spentUsdMicros);
+    this.#anonymousCommittedUsdMicros = BigInt(spentUsdMicros);
     this.#operations.clear();
   }
 }
@@ -276,6 +315,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
   /**
    * Drop a reservation that never became funded and never mutated chain.
    * Interrupted funding_submitted keeps the row so a concurrent peer cannot sneak in.
+   * Realized (committed) spend is never deleted.
    */
   #releaseUnfundedReservation(record: ExecutionRecord): void {
     if (record.events.some((event) => event.kind === "funding.side_effect_receipt")) return;
@@ -326,6 +366,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     }
 
     if (record.state === "denied" || record.state === "failed") {
+      this.#releaseUnfundedReservation(record);
       return {
         status: "denied",
         reason: `Execution is terminal: ${record.state}`
@@ -423,6 +464,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         record.agentId
       );
       if (reserved === "cap_exceeded") {
+        this.#spend.releaseOperationSpend(record.operationId);
         if (record.state === "approved" || record.state === "funding_submitted") {
           record = await transition(this.#store, record, "denied", "policy.denied", {
             reason: "daily_limit_exceeded",
@@ -492,7 +534,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     }
 
     if (fundingCandidate === undefined) {
-      if (record.state === "approved") {
+      if (record.state === "approved" || record.state === "funding_submitted") {
         record = await transition(this.#store, record, "failed", "funding.no_candidate");
         this.#releaseUnfundedReservation(record);
       }
@@ -503,7 +545,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     }
 
     if (BigInt(fundingCandidate.balanceAtomic) <= 0n) {
-      if (record.state === "approved") {
+      if (record.state === "approved" || record.state === "funding_submitted") {
         record = await transition(this.#store, record, "failed", "funding.insufficient_candidate", {
           mint: fundingCandidate.mint
         });
@@ -632,6 +674,12 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
   ): Promise<FundingOutcome> {
     const transaction = detailString(details, "transaction", "");
     if (!transaction) {
+      if (record.state === "approved" || record.state === "funding_submitted") {
+        record = await transition(this.#store, record, "failed", "funding.failed", {
+          message: "missing_plan_payload"
+        });
+      }
+      this.#releaseUnfundedReservation(record);
       return {
         status: "denied",
         reason:
