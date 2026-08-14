@@ -50,9 +50,12 @@
     "policy.approval_required": "AgentTab paused the 402 for you",
     "approval.granted": "You approved",
     "approval.denied": "You rejected",
+    "policy.denied": "Live policy refused this payment",
     "funding.submitted": "Buying only the exact deficit",
     "funding.attempt_locked": "Funding attempt locked",
     "funding.plan_receipt": "Funding plan received",
+    "funding.failed": "Funding failed",
+    "funding.no_candidate": "No allowed funding asset available",
     "funding.signer_failed": "Funding paused; same payment can retry",
     "funding.confirm_interrupted": "Funding needs confirmation; same payment can retry",
     "funding.balances_applied": "Wallet balances updated",
@@ -78,6 +81,7 @@
     per_payment_limit_exceeded: "This amount is over the per-payment limit.",
     daily_limit_exceeded: "This would exceed today's spend limit.",
     challenge_expired: "The payment challenge has expired.",
+    parked_approval_expired: "This parked approval expired. It cannot be funded.",
     invalid_intent: "The payment intent is not valid.",
     allowed: "The live policy would allow this.",
   };
@@ -433,11 +437,20 @@
     let kicker = STATES[st] || st;
     let amountLabel = `${assetLabel(mint)} asked by the merchant`;
     if (st === "denied") {
-      kicker = "Rejected";
-      amountLabel = "this request will not be paid";
+      const last = record?.events?.at(-1);
+      const policyAfterApprove =
+        last?.kind === "policy.denied" && last.details?.afterApproval === true;
+      kicker = policyAfterApprove
+        ? "Policy denied this after approval"
+        : last?.kind === "policy.denied"
+          ? "Rejected by policy"
+          : "Rejected";
+      amountLabel = policyAfterApprove
+        ? "approval does not override a hard policy denial"
+        : "this request will not be paid";
     } else if (st === "failed") {
-      kicker = "Failed";
-      amountLabel = "stopped before the original request continued";
+      kicker = "Funding failed";
+      amountLabel = "policy allowed this; funding did not finish";
     } else if (fulfilled || st === "fulfilled") {
       kicker = "The agent received the resource";
       amountLabel = alreadyHeld
@@ -462,11 +475,15 @@
       kicker = st === "approval_required" ? "Wallet can pay — waiting for you" : kicker;
       amountLabel = "no DFlow buy — pay and continue";
     } else if (st === "approval_required") {
-      kicker = "The agent is blocked";
-      amountLabel = `${deficitLabel} missing — buy only this, then continue`;
+      kicker = row.parkedExpired ? "Parked approval expired" : "The agent is blocked";
+      amountLabel = row.parkedExpired
+        ? "this request can no longer be funded"
+        : `${deficitLabel} missing — buy only this, then continue`;
     }
     let stepNow = openLoopCopy(row, record);
-    if (st === "approval_required" && !alreadyHeld) {
+    if (st === "approval_required" && row.parkedExpired) {
+      stepNow = `This parked approval expired after the policy TTL. It cannot be funded. Reject it, or wait for a new request.`;
+    } else if (st === "approval_required" && !alreadyHeld) {
       stepNow = `The agent cannot fetch ${access || "this resource"} until the wallet holds ${askedLabel}. AgentTab will buy only ${deficitLabel} from ${fromLabel} via ${fund.honest}, pay the merchant, and retry the same request.`;
     } else if (st === "approval_required" && alreadyHeld) {
       stepNow = `Wallet already holds ${askedLabel}. Confirming pays the merchant and retries ${access || "the original request"} — no DFlow buy.`;
@@ -480,6 +497,16 @@
       stepNow = `Merchant was paid ${askedLabel}. Continue marks ${access || "the resource"} delivered so the agent can proceed.`;
     } else if (st === "fulfillment_failed") {
       stepNow = `Paid, but ${access || "the resource"} was not marked delivered. Continue retries delivery only.`;
+    } else if (st === "denied") {
+      const last = record?.events?.at(-1);
+      stepNow =
+        last?.kind === "policy.denied" && last.details?.afterApproval === true
+          ? `Live policy denied this after you approved (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}). This id will not fund.`
+          : last?.kind === "policy.denied"
+            ? `Live policy denied this payment (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}).`
+            : "You rejected this payment. It will not be funded or paid.";
+    } else if (st === "failed") {
+      stepNow = `Funding failed before the original request continued. Policy had allowed this payment; the buy did not finish.`;
     } else if (fulfilled || st === "fulfilled") {
       stepNow = `The agent got ${access || "the resource"} after AgentTab ${alreadyHeld ? "paid" : `bought ${deficitLabel} and paid`} ${askedLabel}.`;
     }
@@ -520,6 +547,34 @@
     return EVENTS[kind] || kind;
   }
 
+  function notifyLine(record) {
+    const rows = record?.notifyDeliveries;
+    if (!rows || !rows.length) return "";
+    const last = rows[rows.length - 1];
+    const text = last.ok
+      ? last.attempt > 1
+        ? `Alert delivered on attempt ${last.attempt}`
+        : "Alert delivered"
+      : `Alert not delivered after ${last.attempt} attempt${last.attempt === 1 ? "" : "s"}`;
+    return `<p class="sub">${esc(text)}</p>`;
+  }
+
+  function notifyTrail(record) {
+    const rows = record?.notifyDeliveries || [];
+    return rows
+      .map((row) => {
+        const result = row.ok
+          ? "delivered"
+          : row.error
+            ? row.error
+            : row.status
+              ? `HTTP ${row.status}`
+              : "failed";
+        return `<li><time>${esc(when(row.at))}</time><span>Notify ${esc(row.event)} attempt ${row.attempt}: ${esc(result)}</span></li>`;
+      })
+      .join("");
+  }
+
   function setStatus(kind, text) {
     statusEl.className = `status ${kind || ""}`;
     statusEl.textContent = text || "";
@@ -545,7 +600,7 @@
       );
     }
     if (!res.ok) {
-      throw new Error(body.error || body.message || `${res.status} ${path}`);
+      throw new Error(body.message || body.error || `${res.status} ${path}`);
     }
     return body;
   }
@@ -695,6 +750,10 @@
             </div>`
           : done
             ? ""
+            : parked && row.parkedExpired
+            ? `<div class="actions">
+              <button class="btn danger" data-act="deny" type="button">Reject expired</button>
+            </div>`
             : parked
             ? `<div class="actions">
               <button class="btn primary" data-act="approve" type="button">${esc(primaryLabel(row, loop))}</button>
@@ -720,8 +779,16 @@
                 : ""
             }
             ${confirm}
-            <p class="rail-line">${esc(loop.rail)} · ${esc(originHost(loop.intent.merchantOrigin))}</p>
-            <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p></details>
+            <p class="rail-line">${esc(loop.rail)} · ${esc(originHost(loop.intent.merchantOrigin))}${
+              (record && record.agentId) || row.agentId
+                ? ` · ${esc((record && record.agentId) || row.agentId)}`
+                : ""
+            }</p>
+            <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p>${
+              (record && record.agentId) || row.agentId
+                ? `<p class="sub">Agent ${esc((record && record.agentId) || row.agentId)}</p>`
+                : ""
+            }${notifyLine(record)}</details>
           </article>`;
       })
       .join("");
@@ -765,12 +832,14 @@
           <article class="entry" data-id="${esc(row.operationId)}">
             <div class="state">${esc(loop.kicker)}</div>
             <div>
-              <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}</div>
+              <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}${
+                row.agentId ? ` · ${esc(row.agentId)}` : ""
+              }</div>
               <div class="sub">${esc(loopLine)}</div>
               <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
             </div>
             <div class="amount">${esc(loop.hero)}</div>
-            ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}</ol>` : ""}
+            ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>` : ""}
           </article>`;
       })
       .join("");
@@ -957,7 +1026,22 @@
         await finishRequest(id);
         return;
       }
+      if (body.outcome?.status === "policy_denied" || body.record?.state === "denied") {
+        setStatus(
+          "bad",
+          `Policy denied this after approval · ${reasonText(body.outcome?.policyReason, body.outcome?.reason)}`,
+        );
+        return;
+      }
+      if (body.record?.state === "failed") {
+        setStatus("bad", `Funding failed · ${body.outcome?.reason || "the buy did not finish"}`);
+        return;
+      }
       setStatus("ok", `Approved · ${STATES[body.record?.state] || body.record?.state || "updated"}`);
+    } catch (error) {
+      state.pending = null;
+      await refresh();
+      setStatus("bad", error.message);
     } finally {
       state.busy = false;
     }

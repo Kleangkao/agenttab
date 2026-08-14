@@ -68,6 +68,13 @@ describe("operator console", () => {
       expect(js).toContain("local DFlow mock");
       expect(js).toContain("solscan.io/tx/");
       expect(js).toContain("finishRequest");
+      expect(js).toContain("Policy denied this after approval");
+      expect(js).toContain("Funding failed");
+      expect(js).toContain("policy.denied");
+      expect(js).toContain("Alert delivered");
+      expect(js).toContain("notifyDeliveries");
+      expect(js).toContain("agentId");
+      expect(js).toContain(">Agent ");
 
       const intent = {
         operationId: "console-park-1",
@@ -140,6 +147,80 @@ describe("operator console", () => {
       });
       expect(approved.status).toBe(200);
       expect((await gateway.store.get("console-park-1"))?.state).toBe("funded");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("keeps approve/deny, USD scale, and halt labels from being swapped", async () => {
+    const gateway = createGatewayRuntime({
+      merchantOrigin: "http://127.0.0.1:8791",
+      policy: loadPolicyFile(
+        resolve(process.cwd(), "../../examples/policies/approve.local.json")
+      ),
+      adminToken: "console-admin",
+      wallet: "OperatorMoneyUiBuyer1111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    try {
+      const js = await (await gateway.app.request("/ui/app.js")).text();
+      expect(js).toMatch(
+        /async function approve\(id\)[\s\S]*?\/v1\/approvals\/\$\{encodeURIComponent\(id\)\}/
+      );
+      expect(js).toMatch(
+        /async function deny\(id\)[\s\S]*?\/v1\/denials\/\$\{encodeURIComponent\(id\)\}/
+      );
+      expect(js).toContain('if (state.pending?.act === "approve") approve(id)');
+      expect(js).toContain('if (state.pending?.act === "deny") deny(id)');
+      expect(js).toContain(USDC_MINT);
+      expect(js).toContain("n / 1_000_000");
+      expect(js).toContain("Math.round(n * 1_000_000)");
+      expect(js).toContain("parkedExpired");
+      expect(js).toContain("Reject expired");
+      expect(js).toContain("Parked approval expired");
+      expect(js).toContain("policy_denied");
+      expect(js).toContain("This check did not move money");
+
+      const intent = {
+        operationId: "console-deny-1",
+        requestHash:
+          "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        protocol: "x402",
+        network: LOCAL_NETWORK,
+        merchantId: "127.0.0.1:8791",
+        merchantOrigin: "http://127.0.0.1:8791",
+        destination: "NeutralMerchant111111111111111111111111111",
+        assetMint: USDC_MINT,
+        amountAtomic: "2500000",
+        amountUsdMicros: "2500000",
+        resource: "http://127.0.0.1:8791/v1/market-snapshot"
+      };
+      expect((await gateway.coordinator.ensurePaymentAsset({ intent })).status).toBe(
+        "approval_required"
+      );
+      const auth = { authorization: "Bearer console-admin" };
+      const parked = await gateway.app.request(
+        "/v1/executions?state=approval_required&limit=20",
+        { headers: auth }
+      );
+      const parkedBody = (await parked.json()) as {
+        executions: Array<{ operationId: string; amountUsdMicros?: string; amountAtomic: string }>;
+      };
+      expect(parkedBody.executions.find((row) => row.operationId === "console-deny-1")).toMatchObject({
+        amountUsdMicros: "2500000",
+        amountAtomic: "2500000"
+      });
+
+      const denied = await gateway.app.request("/v1/denials/console-deny-1", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...auth },
+        body: JSON.stringify({ reason: "operator_denied" })
+      });
+      expect(denied.status).toBe(200);
+      expect(await denied.json()).toMatchObject({ denied: true, funded: false });
+      expect((await gateway.store.get("console-deny-1"))?.state).toBe("denied");
+      expect(gateway.spend.getSpentUsdMicrosLast24h()).toBe("0");
     } finally {
       gateway.close();
     }

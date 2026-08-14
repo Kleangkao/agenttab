@@ -20,9 +20,16 @@ pnpm demo:adopt          # one-shot HTTP preview / approve / deny
 
 When `AGENTTAB_ADMIN_TOKEN` is set, operator reads/writes need
 `Authorization: Bearer …`. When `AGENTTAB_AGENT_TOKEN` is set, preview / fund /
-pay / fulfill need the agent bearer (admin also works).
+pay / fulfill need the agent bearer (admin also works). Several agents: set
+`AGENTTAB_AGENT_TOKENS` on the gateway; each agent process keeps using
+`AGENTTAB_AGENT_TOKEN` with its own secret. `GET /v1/executions` and
+`pnpm audit:recent` include `agentId`.
 
 ## Notify
+
+Delivery retries up to three times. Each attempt is stored and shown on
+`/ui`, `GET /v1/executions/:id` (`notifyDeliveries`), and
+`pnpm audit:recent` with `AUDIT_OPERATION_ID`. Failure never reverses a park.
 
 ```bash
 pnpm notify:sink

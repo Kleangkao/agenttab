@@ -17,6 +17,15 @@ A resource can return a challenge with an unexpected recipient, network,
 asset, amount or expiry. AgentTab binds approvals to the normalized challenge
 and denies merchants outside the allowlist.
 
+### Approval used as a policy override
+
+A parked payment can sit while policy or spend changes. Human approval is
+not a universal override: `ensurePaymentAsset` re-evaluates the live policy,
+including rolling daily spend, challenge expiry, and allowlists. Hard denials
+become terminal `denied` with `policy.denied` and do not fund. Already
+`funded` or `paid` operations are not clawed back; interrupted funding with
+a plan or side-effect receipt still resumes.
+
 ### Retry double spend
 
 Network failure after settlement can cause an agent to retry. Every flow uses a
@@ -32,6 +41,15 @@ verify the message against the approved execution plan before signing.
 
 Unknown USD value, rolling spend, token verification or merchant identity
 results in `deny` or `approval_required`; it never results in autopay.
+
+### Approval as a universal override
+
+A human approval satisfies `approval_required` and nothing else. Current
+policy is re-evaluated before new spend: daily cap, merchant denylist,
+expired challenge, and asset allowlists still fail closed. Spend is
+committed when funding succeeds so later approvals see the rolling cap.
+Already `funded` / `paid` operations are not clawed back; in-flight
+`funding_submitted` resume is not aborted by a later tighten.
 
 ### Prompt injection
 
@@ -53,6 +71,23 @@ orchestrator APIs and must never enter logs, traces or audit payloads.
 
 Funding tokens are allowlisted. Plans cap transaction fees, associated-token
 account creation, route price impact and attempts per rolling window.
+
+### Shared agent bearer
+
+`AGENTTAB_AGENT_TOKEN` is one secret. Anyone who holds it can spend up to the
+gateway policy. `AGENTTAB_AGENT_TOKENS` attributes executions and spend to a
+named `agentId` so an operator can revoke one process, but it does **not**
+split `maxDailyUsdMicros`. A compromised named token can still exhaust the
+global daily cap. Per-agent quotas are out of scope until they have an
+explicit policy schema and fail-closed interaction with the gateway cap.
+
+### Operator notify is fail-open
+
+`AGENTTAB_NOTIFY_URL` is an operator convenience, not a control-plane
+guarantee. Park, fund, and deny proceed even when every webhook attempt
+fails. Treat `notifyDeliveries` on `GET /v1/executions/:id`, `/ui`, and
+`pnpm audit:recent` as the source of truth for "was I told?", not
+receipt of the HTTP POST.
 
 ## Production blockers
 
