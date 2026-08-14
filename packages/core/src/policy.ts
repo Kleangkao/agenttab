@@ -17,12 +17,38 @@ const decision = (
 const toAtomic = (value: string | undefined): bigint | undefined =>
   value === undefined ? undefined : BigInt(value);
 
+/** Default park lifetime when policy omits `parkedApprovalTtlSeconds`. */
+export const DEFAULT_PARKED_APPROVAL_TTL_SECONDS = 3600;
+
+export function parkedApprovalTtlSeconds(policy: {
+  parkedApprovalTtlSeconds?: number | undefined;
+}): number {
+  return policy.parkedApprovalTtlSeconds ?? DEFAULT_PARKED_APPROVAL_TTL_SECONDS;
+}
+
+export function parkedApprovalDeadline(
+  parkedAt: Date,
+  policy: { parkedApprovalTtlSeconds?: number | undefined }
+): Date {
+  return new Date(parkedAt.getTime() + parkedApprovalTtlSeconds(policy) * 1000);
+}
+
+export function isParkedApprovalExpired(
+  parkedAt: Date,
+  policy: { parkedApprovalTtlSeconds?: number | undefined },
+  now: Date = new Date()
+): boolean {
+  return now.getTime() >= parkedApprovalDeadline(parkedAt, policy).getTime();
+}
+
 export function evaluatePaymentPolicy(input: {
   intent: PaymentIntent;
   policy: PaymentPolicy;
   spend: SpendSnapshot;
   fundingCandidate?: FundingCandidate;
   now?: Date;
+  /** When set, a parked approval older than policy TTL is denied. */
+  parkedAt?: Date;
 }): PolicyDecision {
   const parsed = paymentIntentSchema.safeParse(input.intent);
   if (!parsed.success) {
@@ -54,6 +80,10 @@ export function evaluatePaymentPolicy(input: {
 
   if (intent.expiresAt !== undefined && new Date(intent.expiresAt) <= now) {
     return decision("deny", "challenge_expired", "Payment challenge has expired.");
+  }
+
+  if (input.parkedAt !== undefined && isParkedApprovalExpired(input.parkedAt, policy, now)) {
+    return decision("deny", "parked_approval_expired", "Parked approval has expired.");
   }
 
   if (deniedOrigins.has(merchantOrigin)) {

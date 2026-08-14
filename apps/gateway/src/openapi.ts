@@ -35,7 +35,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   },
   "/openapi.json": { get: { summary: "This OpenAPI document" } },
   "/v1/spend": {
-    get: { summary: "Rolling 24h spend vs daily and per-payment caps", admin: true }
+    get: { summary: "Rolling 24h spend vs daily and per-payment caps, plus spend by agentId", admin: true }
   },
   "/v1/policy": {
     get: { summary: "Current payment policy", admin: true },
@@ -47,7 +47,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   "/v1/executions": {
     get: {
       summary:
-        "Recent execution summaries. Unfiltered lists require admin when AGENTTAB_ADMIN_TOKEN is set; requestHash lookup stays available for agent resume.",
+        "Recent execution summaries including agentId. Unfiltered lists require admin when AGENTTAB_ADMIN_TOKEN is set; requestHash lookup stays available for agent resume.",
       admin: true
     },
     post: {
@@ -57,7 +57,10 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
     }
   },
   "/v1/executions/{operationId}": {
-    get: { summary: "Full execution record and events", agent: true }
+    get: {
+      summary: "Full execution record, events, notify delivery attempts, and agentId",
+      agent: true
+    }
   },
   "/v1/preview": {
     post: {
@@ -69,7 +72,12 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
     post: { summary: "Ensure payment asset (may park, fund, or deny)", funds: true, agent: true }
   },
   "/v1/approvals/{operationId}": {
-    post: { summary: "Human approve a parked execution, then fund", admin: true, funds: true }
+    post: {
+      summary:
+        "Human approve a parked execution, then fund. Re-evaluates live policy; hard denials return policy_denied and do not fund.",
+      admin: true,
+      funds: true
+    }
   },
   "/v1/denials/{operationId}": {
     post: { summary: "Terminal reject. Same operationId will not fund later.", admin: true }
@@ -130,6 +138,14 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
           ...(method === "post" && path === "/v1/executions"
             ? { "201": { description: "Created" } }
             : {}),
+          ...(method === "post" && path === "/v1/approvals/{operationId}"
+            ? {
+                "409": {
+                  description:
+                    "Not awaiting approval. Live policy hard denials still return 200 with outcome.status=policy_denied and do not fund."
+                }
+              }
+            : {}),
           ...(op.admin === true ? { "401": { description: "Unauthorized" } } : {})
         }
       };
@@ -145,7 +161,8 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
       description:
         "Buyer-side policy + exact-deficit funding around standard x402. " +
         "POST /v1/preview never funds. POST /v1/denials/:id is terminal. " +
-        "Observe mode is not a dry-run — approving still funds."
+        "Human approval satisfies approval_required only — live policy hard denials still fail closed. " +
+        "Observe mode is not a dry-run — approving still funds when policy allows."
     },
     servers: [{ url: "/", description: "This gateway process" }],
     tags: [
@@ -162,7 +179,7 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
         bearerAgent: {
           type: "http",
           scheme: "bearer",
-          description: "AGENTTAB_AGENT_TOKEN when configured (admin bearer also accepted)"
+          description: "AGENTTAB_AGENT_TOKEN or a token from AGENTTAB_AGENT_TOKENS (admin bearer also accepted)"
         }
       }
     },

@@ -20,6 +20,8 @@ export interface AgentTabExecutionSummary {
   amountAtomic?: string;
   amountUsdMicros?: string;
   lastEventKind?: string | null;
+  parkedExpiresAt?: string;
+  parkedExpired?: boolean;
 }
 
 export interface AgentTabSpendSnapshot {

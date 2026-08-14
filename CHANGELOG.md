@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Approval satisfies `approval_required` only. Live policy hard denials
+  (daily cap, allowlists, challenge expiry) bind at approve/fund time,
+  return `policy_denied`, and do not fund. Already funded/paid operations
+  are not clawed back. Plan-only interrupted funding re-binds to live
+  policy; only a chain side-effect receipt is a standing exemption.
+- Operator notify webhooks retry up to 3 times inside a 300ms payment-path
+  budget (200ms per attempt). Those defaults assume a local receiver;
+  `AGENTTAB_NOTIFY_BUDGET_MS` and `AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`
+  raise them for a remote webhook. Invalid values fall back to the
+  defaults. A hanging webhook is recorded as `timeout` and cannot stall
+  park, approve, or deny. Each attempt is stored on `/ui` plus
+  `GET /v1/executions/:id` (`notifyDeliveries`). Failure never reverses a park.
+- Named agent identity: `AGENTTAB_AGENT_TOKENS` plus the existing
+  `AGENTTAB_AGENT_TOKEN` stamp `agentId` on executions, spend, audit, and
+  `/ui`. Unset tokens stay unattributed. Policy caps remain gateway-wide.
+- Removed the empty `apps/dashboard/` placeholder. Operator UI stays
+  `apps/gateway/src/ui`.
 - Buildathon path: `docs/DEMO.md` plus a public Mainnet receipt with Solscan
   links for the already-fulfilled DFlow deficit + x402 pay. `/ui` and
   `pnpm demo:judge` state that the live path is a local mock and point at that

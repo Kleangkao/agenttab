@@ -58,7 +58,21 @@ Approving still runs funding — observe is **not** estimate-only / dry-run.
 Prepare an execution plan and require a human approval for every payment
 (`pnpm approve -- <operationId>` or `POST /v1/approvals/:id`). Parked
 payments can also be rejected (`pnpm deny -- <operationId>` or
-`POST /v1/denials/:id`) without funding.
+`POST /v1/denials/:id`) without funding. Approval satisfies the
+`approval_required` gate only. The live policy is re-evaluated at fund
+time — a tightened cap, denylist, removed allowlist asset, or expired
+challenge fails closed (`policy_denied`, state `denied`) and does not
+fund. Already `funded` or `paid` operations are not clawed back.
+Interrupted `funding_submitted` with a **side-effect receipt** still
+resumes (chain work already started). A plan-only interruption re-binds
+to live policy on resume and fails closed if the merchant, asset, cap, or
+challenge would now deny. Parked approvals expire after one hour by default
+(`parkedApprovalTtlSeconds`). Optional `AGENTTAB_NOTIFY_URL` retries a
+park/approve/deny/interrupted webhook up to three times inside a 300ms
+budget (200ms per attempt). Raise `AGENTTAB_NOTIFY_BUDGET_MS` and
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS` for a remote TLS webhook; a hang is
+recorded as `timeout`. Webhook failure never parks, funds, or reverses
+an execution.
 
 ### Autopay
 
@@ -100,6 +114,8 @@ denial, not a permissive default.
 - When `AGENTTAB_ADMIN_TOKEN` is set, operator reads (policy/spend/balances/lists)
   use the same bearer as approve/deny. When `AGENTTAB_AGENT_TOKEN` is set,
   preview/fund/pay/fulfill and requestHash resume require that bearer (or admin).
+  Several agents share one gateway via `AGENTTAB_AGENT_TOKENS`; spend and
+  executions carry `agentId`. Daily and per-payment caps remain gateway-wide.
 - Operator product is the `/ui` console (Now / Ledger / Policy). Now is the
   core loop — paid resource, x402 asset, wallet, exact deficit, DFlow, pay,
   original request continues — plus HTTP + CLI (`policy:get|set|mode`, `approve`,

@@ -27,6 +27,9 @@ export class SqliteSpendLedger implements SpendLedger {
     if (!columns.some((column) => column.name === "operation_id")) {
       this.#db.exec("ALTER TABLE spend_events ADD COLUMN operation_id TEXT");
     }
+    if (!columns.some((column) => column.name === "agent_id")) {
+      this.#db.exec("ALTER TABLE spend_events ADD COLUMN agent_id TEXT");
+    }
     this.#db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS spend_events_operation_id
         ON spend_events(operation_id)
@@ -44,15 +47,39 @@ export class SqliteSpendLedger implements SpendLedger {
     return total.toString();
   }
 
+  getSpentUsdMicrosLast24hByAgent(): Record<string, string> {
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+    const rows = this.#db
+      .prepare(
+        "SELECT agent_id, usd_micros FROM spend_events WHERE at_ms >= ? AND agent_id IS NOT NULL"
+      )
+      .all(cutoff) as Array<{ agent_id: string; usd_micros: string }>;
+    const totals = new Map<string, bigint>();
+    for (const row of rows) {
+      totals.set(row.agent_id, (totals.get(row.agent_id) ?? 0n) + BigInt(row.usd_micros));
+    }
+    const out: Record<string, string> = {};
+    for (const [agentId, total] of totals) {
+      out[agentId] = total.toString();
+    }
+    return out;
+  }
+
   recordSpend(usdMicros: string): void {
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
     this.#db
-      .prepare("INSERT INTO spend_events (usd_micros, at_ms, operation_id) VALUES (?, ?, NULL)")
+      .prepare(
+        "INSERT INTO spend_events (usd_micros, at_ms, operation_id, agent_id) VALUES (?, ?, NULL, NULL)"
+      )
       .run(amount.toString(), Date.now());
   }
 
-  ensureOperationSpend(operationId: string, usdMicros: string): boolean {
+  ensureOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    agentId?: string | undefined
+  ): boolean {
     if (!operationId) throw new Error("operationId required for ensureOperationSpend");
     const amount = BigInt(usdMicros);
     if (amount < 0n) throw new Error("spend cannot be negative");
@@ -63,9 +90,14 @@ export class SqliteSpendLedger implements SpendLedger {
     try {
       this.#db
         .prepare(
-          "INSERT INTO spend_events (usd_micros, at_ms, operation_id) VALUES (?, ?, ?)"
+          "INSERT INTO spend_events (usd_micros, at_ms, operation_id, agent_id) VALUES (?, ?, ?, ?)"
         )
-        .run(amount.toString(), Date.now(), operationId);
+        .run(
+          amount.toString(),
+          Date.now(),
+          operationId,
+          agentId !== undefined && agentId.length > 0 ? agentId : null
+        );
       return true;
     } catch {
       // Concurrent insert won the unique race.

@@ -44,7 +44,8 @@ export type PolicyReasonCode =
   | "per_payment_limit_exceeded"
   | "daily_limit_exceeded"
   | "approval_threshold_exceeded"
-  | "challenge_expired";
+  | "challenge_expired"
+  | "parked_approval_expired";
 
 export interface PolicyDecision {
   kind: DecisionKind;
@@ -69,6 +70,8 @@ export interface PaymentPolicy {
   requireApprovalAboveUsdMicros?: string | undefined;
   maxSlippageBps: number;
   maxPriceImpactPct: number;
+  /** Seconds a parked approval remains approvable. Omitted → 3600 (1 hour). */
+  parkedApprovalTtlSeconds?: number | undefined;
 }
 
 export const paymentPolicySchema = z.object({
@@ -83,7 +86,8 @@ export const paymentPolicySchema = z.object({
   maxDailyUsdMicros: atomicAmountSchema,
   requireApprovalAboveUsdMicros: atomicAmountSchema.optional(),
   maxSlippageBps: z.number().int().min(0).max(10_000),
-  maxPriceImpactPct: z.number().min(0).max(100)
+  maxPriceImpactPct: z.number().min(0).max(100),
+  parkedApprovalTtlSeconds: z.number().int().min(1).max(604_800).optional()
 });
 
 export type FundingStatus =
@@ -92,11 +96,14 @@ export type FundingStatus =
   | "funded"
   | "approval_required"
   | "interrupted"
-  | "denied";
+  | "denied"
+  | "policy_denied";
 
 export interface FundingOutcome {
   status: FundingStatus;
   reason: string;
+  /** Set when status is `policy_denied` or a discovered hard deny. */
+  policyReason?: PolicyReasonCode;
   fundingTransaction?: string;
   inputMint?: string;
   inputAmountAtomic?: string;

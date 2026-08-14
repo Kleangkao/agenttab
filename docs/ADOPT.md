@@ -45,6 +45,14 @@ spend, lists, approve/deny) and `AGENTTAB_AGENT_TOKEN` (preview, fund, pay,
 fulfill, requestHash resume). The admin bearer is also accepted on agent
 routes. Local demos leave both unset.
 
+To attribute spend across several agent processes, keep each process on
+`AGENTTAB_AGENT_TOKEN=<its secret>` and configure the gateway with
+`AGENTTAB_AGENT_TOKENS='{"research":"<secret1>","ops":"<secret2>"}'`.
+Optional `AGENTTAB_AGENT_ID` names the single-token identity (default
+`agent`). Executions, `GET /v1/spend` (`spentUsdMicrosLast24hByAgent`),
+`pnpm audit:recent`, and `/ui` show that id. Policy caps stay gateway-wide
+— attribution is not a per-agent quota.
+
 ```bash
 docker pull ghcr.io/kleangkao/agenttab-gateway:latest
 docker compose up --build
@@ -81,6 +89,11 @@ pnpm audit:recent
 
 `pnpm notify:sink` is a local webhook printer (`http://127.0.0.1:8792/hook`).
 Point `AGENTTAB_NOTIFY_URL` at it (optional `AGENTTAB_NOTIFY_SECRET` HMAC).
+The 300ms / 200ms defaults assume that loopback sink. A remote webhook over
+TLS will likely need `AGENTTAB_NOTIFY_BUDGET_MS` and
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS` raised; `timeout` rows against a
+healthy endpoint usually mean the handshake exceeded the per-attempt
+ceiling. Invalid values fall back to the defaults and do not crash boot.
 
 `pnpm demo:stack` prints the operator UI (`http://127.0.0.1:8787/ui`). Then
 `pnpm demo:remote-agent` in a second terminal. Parked payments can be approved
@@ -101,7 +114,7 @@ Edit merchant origins / caps / mode:
 | Mode | Behavior |
 |------|----------|
 | `autopay` | Pay only when every policy check passes (fail-closed) |
-| `approve` | Park at `approval_required` until a human approves that **operationId** |
+| `approve` | Park at `approval_required` until a human approves that **operationId**. Parked approvals expire after **1 hour** by default (`parkedApprovalTtlSeconds`); approving an expired park fails closed. |
 | `observe` | Same park-then-approve loop as `approve`. Unknown USD parks instead of deny. **Approving still funds** — this is not a dry-run. |
 
 ## 2. Start the gateway
@@ -166,7 +179,9 @@ pnpm demo:adopt
 ## 5. Approve loop (same operationId)
 
 1. Agent fetch throws `AgentTabApprovalRequiredError` with `error.operationId`
-2. Operator: `pnpm approve -- <operationId>` (gateway funds under that id),
+2. Operator: `pnpm approve -- <operationId>` (gateway re-checks live policy,
+   then funds under that id if allowed; a hard denial is `policy_denied`
+   and does not fund),
    or `pnpm deny -- <operationId>` (terminal; that id will not fund)
 3. Agent retries the **same** request (same method + URL + body). The parked
    `operationId` is reused from memory **or** looked up on the gateway by
@@ -183,6 +198,13 @@ again. That only happens if you pass a `createOperationId` that returns a fresh
 id on every call, or if the previous execution already reached `fulfilled` /
 `denied` / `failed`.
 
+Parked approvals are a pending decision, not an immortal one. The default
+TTL is **3600 seconds (1 hour)** when `parkedApprovalTtlSeconds` is omitted.
+`pnpm parked` and `GET /v1/executions?state=approval_required` split `live`
+vs `expired`. Approving an expired park returns `policy_denied`
+(`parked_approval_expired`) and does not fund. Set the field on the live
+policy to change the bound (1 second–7 days).
+
 Live policy changes: `pnpm policy:set -- examples/policies/autopay.local.json`
 (no restart), the operator UI, or `PUT /v1/policy`.
 `AGENTTAB_ADMIN_TOKEN` gates policy writes, `POST /v1/approvals`, and
@@ -191,8 +213,17 @@ evaluates policy without creating an execution or funding. Deny is terminal
 for that `operationId`; a later fetch of the same URL starts a new execution.
 
 Optional `AGENTTAB_NOTIFY_URL` receives a fail-open JSON POST on first park,
-approve, and deny (`{ event, operationId, state, merchantOrigin, resource, … }`).
-Preview never notifies.
+approve, deny, and interrupted funding. Delivery is retried up to 3 times
+inside a 300ms payment-path budget (200ms per attempt). Those defaults
+assume a local receiver (`pnpm notify:sink`). A remote webhook over TLS
+will likely need a larger `AGENTTAB_NOTIFY_BUDGET_MS` /
+`AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`; invalid values fall back to the
+defaults. A hanging webhook is recorded as `timeout` (not an HTTP status)
+and never stalls park, fund, or deny.
+Each attempt is stored and returned on `GET /v1/executions/:id` as
+`notifyDeliveries` (also `pnpm audit:recent` with `AUDIT_OPERATION_ID`, and
+on `/ui` Ledger/Now). A failed webhook never parks, funds, or reverses an
+execution. Preview never notifies.
 
 ## 6. Higher fidelity
 

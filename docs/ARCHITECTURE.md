@@ -41,10 +41,19 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     balances, unfiltered lists, approve, deny).
   - Optional `AGENTTAB_AGENT_TOKEN` gates preview/fund/pay/fulfill/get-by-id
     and `requestHash` resume. Admin bearer is also accepted on those routes.
+    `AGENTTAB_AGENT_TOKENS` maps extra named secrets → `agentId` on executions,
+    spend, audit, and `/ui`. Single-token identity is `AGENTTAB_AGENT_ID`
+    (default `agent`). Local demos leave tokens unset and stay unattributed.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
-  - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny.
-    `AGENTTAB_NOTIFY_SECRET` adds `x-agenttab-signature` (HMAC-SHA256).
-    `pnpm notify:sink` is a local receiver.
+  - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny /
+    interrupted. Bounded retry (3 attempts) inside a 300ms payment-path
+    budget (overridable via `AGENTTAB_NOTIFY_BUDGET_MS` /
+    `AGENTTAB_NOTIFY_ATTEMPT_TIMEOUT_MS`; defaults assume a local receiver);
+    a hanging webhook is recorded as `timeout` and cannot stall
+    park/approve/deny. Each attempt is durable in
+    SQLite `notify_deliveries` and visible on `GET /v1/executions/:id` and
+    `/ui`. `AGENTTAB_NOTIFY_SECRET` adds `x-agenttab-signature` (HMAC-SHA256).
+    Notify failure never changes funding. `pnpm notify:sink` is a local receiver.
   - `GET /openapi.json` is the live HTTP contract (test-locked to Hono routes).
 - `examples/*`: local HMAC demo, Devnet official x402, Mainnet gated path,
   plus `neutral-merchant` / `remote-agent` for remote HTTP adoption.
@@ -52,9 +61,9 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
 
 ## Planned / not required for the core thesis
 
-- Separate SPA hosting is optional. The first product surface is the gateway
-  console at `/ui`, served from the same process as the control plane so Docker
-  and `demo:stack` stay one product.
+- A separate frontend app is not part of this repo. The operator surface is
+  the gateway console at `/ui`, served from the same process as the control
+  plane so Docker and `demo:stack` stay one product.
 
 ## Execution state machine
 
@@ -63,14 +72,18 @@ discovered
   -> denied
   -> approval_required
   -> approved
+       -> denied   (live policy hard-denied after human approval)
   -> funding_submitted
+       -> denied   (hard-deny before a chain side-effect receipt)
   -> funded
   -> payment_submitted
   -> paid
   -> fulfilled
 
 Any submitted state may move to failed, but never back to an earlier state.
-Retries resume from the durable state using the same idempotency key.
+`approved -> denied` is a terminal fail-closed path when current policy
+would deny; it is not a rewind. Retries resume from the durable state using
+the same idempotency key.
 ```
 
 ## Important design choice

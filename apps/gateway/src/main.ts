@@ -1,6 +1,8 @@
 import { serve } from "@hono/node-server";
 import { DFLOW_DEV_BASE_URL } from "@agenttab/dflow";
 import { createGatewayRuntime, type FundingMode } from "./app.js";
+import { parseAgentTokenMap } from "./agent-identity.js";
+import { notifyBoundsFromEnv } from "./notify.js";
 import { loadPolicyFromEnv } from "./policy/load-policy-file.js";
 
 const port = Number(process.env.PORT ?? "8787");
@@ -30,6 +32,7 @@ if (process.env.AGENTTAB_BROADCAST === "1") {
 }
 
 const policyFromFile = loadPolicyFromEnv();
+const notifyBounds = notifyBoundsFromEnv();
 const merchantOrigin =
   process.env.MERCHANT_ORIGIN ??
   policyFromFile?.policy.allowedMerchantOrigins[0] ??
@@ -55,6 +58,12 @@ const runtime = createGatewayRuntime({
   ...(process.env.AGENTTAB_AGENT_TOKEN
     ? { agentToken: process.env.AGENTTAB_AGENT_TOKEN }
     : {}),
+  ...(process.env.AGENTTAB_AGENT_ID
+    ? { agentId: process.env.AGENTTAB_AGENT_ID }
+    : {}),
+  ...(process.env.AGENTTAB_AGENT_TOKENS
+    ? { agentTokens: parseAgentTokenMap(process.env.AGENTTAB_AGENT_TOKENS) }
+    : {}),
   ...(process.env.AGENTTAB_INITIAL_USDC_ATOMIC
     ? { initialUsdcAtomic: process.env.AGENTTAB_INITIAL_USDC_ATOMIC }
     : {}),
@@ -66,7 +75,9 @@ const runtime = createGatewayRuntime({
     : {}),
   ...(process.env.AGENTTAB_NOTIFY_SECRET
     ? { notifySecret: process.env.AGENTTAB_NOTIFY_SECRET }
-    : {})
+    : {}),
+  notifyBudgetMs: notifyBounds.budgetMs,
+  notifyAttemptTimeoutMs: notifyBounds.attemptTimeoutMs
 });
 
 if (policyFromFile?.replace === true) {
@@ -90,7 +101,9 @@ serve({ fetch: runtime.app.fetch, port, hostname: host }, (info) => {
         policySource: policyFromFile?.path ?? "demo-seed",
         policyReplaced: policyFromFile?.replace === true,
         allowedMerchantOrigins: policy.allowedMerchantOrigins,
-        notifyUrl: process.env.AGENTTAB_NOTIFY_URL ?? null
+        notifyUrl: process.env.AGENTTAB_NOTIFY_URL ?? null,
+        notifyBudgetMs: notifyBounds.budgetMs,
+        notifyAttemptTimeoutMs: notifyBounds.attemptTimeoutMs
       },
       null,
       2

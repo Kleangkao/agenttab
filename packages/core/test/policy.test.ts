@@ -81,6 +81,40 @@ describe("evaluatePaymentPolicy", () => {
     expect(result).toMatchObject({ kind: "deny", reason: "merchant_not_allowed" });
   });
 
+  it("denies a parked approval after the policy TTL", () => {
+    const parkedAt = new Date("2026-01-01T00:00:00.000Z");
+    const now = new Date("2026-01-01T01:00:00.000Z");
+    expect(
+      evaluatePaymentPolicy({
+        intent,
+        policy,
+        spend: { spentUsdMicrosLast24h: "0" },
+        fundingCandidate: { mint: SOL, balanceAtomic: "100000000", verified: true },
+        parkedAt,
+        now
+      })
+    ).toMatchObject({ kind: "deny", reason: "parked_approval_expired" });
+    expect(
+      evaluatePaymentPolicy({
+        intent,
+        policy: { ...policy, parkedApprovalTtlSeconds: 7200 },
+        spend: { spentUsdMicrosLast24h: "0" },
+        fundingCandidate: { mint: SOL, balanceAtomic: "100000000", verified: true },
+        parkedAt,
+        now
+      }).kind
+    ).toBe("allow");
+  });
+
+  it("denies when the payment would exceed the rolling daily cap", () => {
+    const result = evaluatePaymentPolicy({
+      intent,
+      policy,
+      spend: { spentUsdMicrosLast24h: "1990000" }
+    });
+    expect(result).toMatchObject({ kind: "deny", reason: "daily_limit_exceeded" });
+  });
+
   it("requires approval above the configured threshold", () => {
     const result = evaluatePaymentPolicy({
       intent: { ...intent, amountUsdMicros: "120000" },

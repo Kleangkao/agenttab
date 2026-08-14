@@ -135,6 +135,32 @@ describe("execution state", () => {
     expect(record.events.filter(event => event.to === "paid")).toHaveLength(1);
   });
 
+  it("allows approved to denied when live policy hard-denies after a human click", async () => {
+    const store = new InMemoryExecutionStore();
+    let { record } = await store.createOrGet(intent);
+    record = await store.transition({
+      operationId: record.operationId,
+      expectedVersion: record.version,
+      to: "approval_required",
+      kind: "policy.approval_required"
+    });
+    record = await store.transition({
+      operationId: record.operationId,
+      expectedVersion: record.version,
+      to: "approved",
+      kind: "approval.granted"
+    });
+    record = await store.transition({
+      operationId: record.operationId,
+      expectedVersion: record.version,
+      to: "denied",
+      kind: "policy.denied",
+      details: { reason: "daily_limit_exceeded", afterApproval: true }
+    });
+    expect(record.state).toBe("denied");
+    expect(record.events.at(-1)?.kind).toBe("policy.denied");
+  });
+
   it("appends audit events without changing state", async () => {
     const store = new InMemoryExecutionStore();
     const { record: created } = await store.createOrGet(intent);
@@ -147,5 +173,17 @@ describe("execution state", () => {
     expect(locked.state).toBe("discovered");
     expect(locked.version).toBe(created.version + 1);
     expect(locked.events.at(-1)?.kind).toBe("funding.attempt_locked");
+  });
+
+  it("stamps agentId on create and rejects a different agent on replay", async () => {
+    const store = new InMemoryExecutionStore();
+    const first = await store.createOrGet(intent, { agentId: "research" });
+    expect(first.record.agentId).toBe("research");
+    const replay = await store.createOrGet({ ...intent }, { agentId: "research" });
+    expect(replay.created).toBe(false);
+    expect(replay.record.agentId).toBe("research");
+    await expect(store.createOrGet({ ...intent }, { agentId: "ops" })).rejects.toMatchObject({
+      name: "AgentIdentityConflictError"
+    });
   });
 });
