@@ -10,6 +10,18 @@ export type OperatorNotifyEventName =
 export const NOTIFY_SIGNATURE_HEADER = "x-agenttab-signature";
 export const DEFAULT_NOTIFY_MAX_ATTEMPTS = 3;
 export const DEFAULT_NOTIFY_RETRY_DELAY_MS = 50;
+/** Total time notify may add to a park/approve/deny/interrupted on the payment path. */
+export const DEFAULT_NOTIFY_BUDGET_MS = 300;
+/** Per-attempt ceiling; the sequence still stops when the overall budget is gone. */
+export const DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS = 200;
+export const NOTIFY_TIMEOUT_ERROR = "timeout";
+
+export class NotifyTimeoutError extends Error {
+  constructor() {
+    super(NOTIFY_TIMEOUT_ERROR);
+    this.name = "NotifyTimeoutError";
+  }
+}
 
 export interface OperatorNotifyEvent {
   event: OperatorNotifyEventName;
@@ -81,12 +93,28 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function timeoutAfter(ms: number): Promise<never> {
+  return new Promise((_, reject) => {
+    setTimeout(() => reject(new NotifyTimeoutError()), ms);
+  });
+}
+
+function isTimeout(error: unknown): boolean {
+  return (
+    error instanceof NotifyTimeoutError ||
+    (error instanceof Error && error.name === "AbortError") ||
+    (error instanceof Error && error.message === NOTIFY_TIMEOUT_ERROR)
+  );
+}
+
 export function createOperatorNotifier(options: {
   url: string;
   secret?: string;
   fetchImpl?: typeof fetch;
   maxAttempts?: number;
   retryDelayMs?: number;
+  budgetMs?: number;
+  attemptTimeoutMs?: number;
   recordAttempt?: (row: NotifyAttemptRecord) => void;
 }): (payload: OperatorNotifyEvent) => Promise<void> {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -94,6 +122,11 @@ export function createOperatorNotifier(options: {
   const secret = options.secret;
   const maxAttempts = Math.max(1, options.maxAttempts ?? DEFAULT_NOTIFY_MAX_ATTEMPTS);
   const retryDelayMs = Math.max(0, options.retryDelayMs ?? DEFAULT_NOTIFY_RETRY_DELAY_MS);
+  const budgetMs = Math.max(1, options.budgetMs ?? DEFAULT_NOTIFY_BUDGET_MS);
+  const attemptTimeoutMs = Math.max(
+    1,
+    options.attemptTimeoutMs ?? DEFAULT_NOTIFY_ATTEMPT_TIMEOUT_MS
+  );
   const recordAttempt = options.recordAttempt;
 
   return async (payload) => {
@@ -105,14 +138,34 @@ export function createOperatorNotifier(options: {
       headers[NOTIFY_SIGNATURE_HEADER] = signNotifyBody(body, secret);
     }
 
+    const started = Date.now();
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const at = new Date().toISOString();
-      try {
-        const response = await fetchImpl(url, {
-          method: "POST",
-          headers,
-          body
+      const remaining = budgetMs - (Date.now() - started);
+      if (remaining <= 0) {
+        rememberAttempt(recordAttempt, {
+          operationId: payload.operationId,
+          event: payload.event,
+          attempt,
+          ok: false,
+          at: new Date().toISOString(),
+          error: NOTIFY_TIMEOUT_ERROR
         });
+        return;
+      }
+      const attemptMs = Math.min(attemptTimeoutMs, remaining);
+      const at = new Date().toISOString();
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), attemptMs);
+      try {
+        const response = await Promise.race([
+          fetchImpl(url, {
+            method: "POST",
+            headers,
+            body,
+            signal: controller.signal
+          }),
+          timeoutAfter(attemptMs)
+        ]);
         rememberAttempt(recordAttempt, {
           operationId: payload.operationId,
           event: payload.event,
@@ -132,7 +185,12 @@ export function createOperatorNotifier(options: {
           })
         );
       } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const timedOut = isTimeout(error);
+        const message = timedOut
+          ? NOTIFY_TIMEOUT_ERROR
+          : error instanceof Error
+            ? error.message
+            : String(error);
         rememberAttempt(recordAttempt, {
           operationId: payload.operationId,
           event: payload.event,
@@ -143,15 +201,19 @@ export function createOperatorNotifier(options: {
         });
         console.error(
           JSON.stringify({
-            phase: "operator-notify-error",
+            phase: timedOut ? "operator-notify-timeout" : "operator-notify-error",
             event: payload.event,
             operationId: payload.operationId,
             attempt,
             message
           })
         );
+        if (timedOut && budgetMs - (Date.now() - started) <= 0) return;
+      } finally {
+        clearTimeout(abortTimer);
       }
-      if (attempt < maxAttempts && retryDelayMs > 0) {
+      const remainingAfter = budgetMs - (Date.now() - started);
+      if (attempt < maxAttempts && retryDelayMs > 0 && remainingAfter > retryDelayMs) {
         await sleep(retryDelayMs);
       }
     }

@@ -27,9 +27,11 @@ pay / fulfill need the agent bearer (admin also works). Several agents: set
 
 ## Notify
 
-Delivery retries up to three times. Each attempt is stored and shown on
-`/ui`, `GET /v1/executions/:id` (`notifyDeliveries`), and
-`pnpm audit:recent` with `AUDIT_OPERATION_ID`. Failure never reverses a park.
+Delivery retries up to three times inside a 300ms payment-path budget.
+A hanging webhook is recorded as `timeout`, not an HTTP status. Each
+attempt is stored and shown on `/ui`, `GET /v1/executions/:id`
+(`notifyDeliveries`), and `pnpm audit:recent` with `AUDIT_OPERATION_ID`.
+Failure never reverses a park.
 
 ```bash
 pnpm notify:sink

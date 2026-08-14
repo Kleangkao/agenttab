@@ -77,6 +77,8 @@ export {
   verifyNotifySignature,
   NOTIFY_SIGNATURE_HEADER,
   DEFAULT_NOTIFY_MAX_ATTEMPTS,
+  DEFAULT_NOTIFY_BUDGET_MS,
+  NOTIFY_TIMEOUT_ERROR,
   type OperatorNotifyEvent,
   type OperatorNotifyEventName,
   type NotifyAttemptRecord

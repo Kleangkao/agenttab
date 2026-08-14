@@ -208,7 +208,9 @@ evaluates policy without creating an execution or funding. Deny is terminal
 for that `operationId`; a later fetch of the same URL starts a new execution.
 
 Optional `AGENTTAB_NOTIFY_URL` receives a fail-open JSON POST on first park,
-approve, deny, and interrupted funding. Delivery is retried up to 3 times.
+approve, deny, and interrupted funding. Delivery is retried up to 3 times
+inside a 300ms payment-path budget. A hanging webhook is recorded as
+`timeout` (not an HTTP status) and never stalls park, fund, or deny.
 Each attempt is stored and returned on `GET /v1/executions/:id` as
 `notifyDeliveries` (also `pnpm audit:recent` with `AUDIT_OPERATION_ID`, and
 on `/ui` Ledger/Now). A failed webhook never parks, funds, or reverses an

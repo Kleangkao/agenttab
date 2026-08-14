@@ -328,4 +328,56 @@ describe("operator notify webhook", () => {
       gateway.close();
     }
   });
+
+  it("parks within the notify budget when the webhook never responds", async () => {
+    const notifyFetch = vi.fn(async () => new Promise<Response>(() => {}));
+    const gateway = createGatewayRuntime({
+      merchantOrigin: "http://127.0.0.1:8791",
+      policy: loadPolicyFile(
+        resolve(process.cwd(), "../../examples/policies/approve.local.json")
+      ),
+      notifyUrl: "http://notify.test/hook",
+      notifyFetch: notifyFetch as unknown as typeof fetch,
+      notifyRetryDelayMs: 0,
+      notifyMaxAttempts: 3,
+      notifyBudgetMs: 50,
+      notifyAttemptTimeoutMs: 20,
+      wallet: "NotifyHangBuyer11111111111111111111111111",
+      initialUsdcAtomic: "0",
+      initialSolAtomic: "5000000000"
+    });
+    try {
+      const started = Date.now();
+      const intent = {
+        operationId: "notify-hang-1",
+        requestHash: "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+        protocol: "x402",
+        network: LOCAL_NETWORK,
+        merchantId: "127.0.0.1:8791",
+        merchantOrigin: "http://127.0.0.1:8791",
+        destination: "NeutralMerchant111111111111111111111111111",
+        assetMint: USDC_MINT,
+        amountAtomic: "1000",
+        amountUsdMicros: "1000",
+        resource: "http://127.0.0.1:8791/v1/market-snapshot"
+      };
+      expect((await gateway.coordinator.ensurePaymentAsset({ intent })).status).toBe(
+        "approval_required"
+      );
+      const elapsed = Date.now() - started;
+      expect(elapsed).toBeLessThan(250);
+      expect((await gateway.store.get("notify-hang-1"))?.state).toBe("approval_required");
+      const body = (await (
+        await gateway.app.request("/v1/executions/notify-hang-1")
+      ).json()) as {
+        notifyDeliveries: Array<{ ok: boolean; status?: number; error?: string }>;
+      };
+      expect(body.notifyDeliveries.length).toBeGreaterThan(0);
+      expect(body.notifyDeliveries.every((row) => row.ok === false)).toBe(true);
+      expect(body.notifyDeliveries.some((row) => row.error === "timeout")).toBe(true);
+      expect(body.notifyDeliveries.every((row) => row.status === undefined)).toBe(true);
+    } finally {
+      gateway.close();
+    }
+  });
 });

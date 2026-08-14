@@ -106,8 +106,8 @@ export interface GatewayRuntimeOptions {
   agentTokens?: Record<string, string>;
   /**
    * Optional webhook for first-time park / approve / deny / interrupted.
-   * Bounded retry; each attempt is stored. Fail-open: notify errors never
-   * change funding.
+   * Bounded retry inside a payment-path time budget; each attempt is stored.
+   * Fail-open: notify errors never change funding.
    */
   notifyUrl?: string;
   notifyFetch?: typeof fetch;
@@ -116,6 +116,10 @@ export interface GatewayRuntimeOptions {
   /** Retry delay between notify attempts. Tests use 0. Default 50ms. */
   notifyRetryDelayMs?: number;
   notifyMaxAttempts?: number;
+  /** Overall payment-path ceiling for the notify sequence. Default 300ms. */
+  notifyBudgetMs?: number;
+  /** Per-attempt fetch ceiling. Default 200ms. */
+  notifyAttemptTimeoutMs?: number;
 }
 
 export interface GatewayRuntime {
@@ -246,6 +250,10 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
           ...(options.notifyMaxAttempts === undefined
             ? {}
             : { maxAttempts: options.notifyMaxAttempts }),
+          ...(options.notifyBudgetMs === undefined ? {} : { budgetMs: options.notifyBudgetMs }),
+          ...(options.notifyAttemptTimeoutMs === undefined
+            ? {}
+            : { attemptTimeoutMs: options.notifyAttemptTimeoutMs }),
           recordAttempt: (row) => notifyStore.recordAttempt(row)
         })
       : undefined;
