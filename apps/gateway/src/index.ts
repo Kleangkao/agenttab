@@ -8,6 +8,7 @@ export {
   SqliteExecutionStore,
   type ExecutionSummary
 } from "./store/sqlite-execution-store.js";
+export { SqliteNotifyDeliveryStore } from "./store/sqlite-notify-store.js";
 export { SqlitePolicyStore } from "./store/sqlite-policy-store.js";
 export { SqliteSpendLedger } from "./store/sqlite-spend-ledger.js";
 export {
@@ -59,13 +60,26 @@ export {
   loadPolicyFromEnv
 } from "./policy/load-policy-file.js";
 export {
+  annotateParkedExpiry,
+  parkedExpiryFor,
+  type ParkedExpiryFields
+} from "./parked-expiry.js";
+export {
+  parseAgentTokenMap,
+  mergeAgentCredentials,
+  resolveAgentIdFromBearer,
+  DEFAULT_AGENT_ID
+} from "./agent-identity.js";
+export {
   createOperatorNotifier,
   operatorNotifyPayload,
   signNotifyBody,
   verifyNotifySignature,
   NOTIFY_SIGNATURE_HEADER,
+  DEFAULT_NOTIFY_MAX_ATTEMPTS,
   type OperatorNotifyEvent,
-  type OperatorNotifyEventName
+  type OperatorNotifyEventName,
+  type NotifyAttemptRecord
 } from "./notify.js";
 export {
   createDevnetGatewayRuntime,

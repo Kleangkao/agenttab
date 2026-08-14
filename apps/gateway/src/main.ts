@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import { DFLOW_DEV_BASE_URL } from "@agenttab/dflow";
 import { createGatewayRuntime, type FundingMode } from "./app.js";
+import { parseAgentTokenMap } from "./agent-identity.js";
 import { loadPolicyFromEnv } from "./policy/load-policy-file.js";
 
 const port = Number(process.env.PORT ?? "8787");
@@ -54,6 +55,12 @@ const runtime = createGatewayRuntime({
     : {}),
   ...(process.env.AGENTTAB_AGENT_TOKEN
     ? { agentToken: process.env.AGENTTAB_AGENT_TOKEN }
+    : {}),
+  ...(process.env.AGENTTAB_AGENT_ID
+    ? { agentId: process.env.AGENTTAB_AGENT_ID }
+    : {}),
+  ...(process.env.AGENTTAB_AGENT_TOKENS
+    ? { agentTokens: parseAgentTokenMap(process.env.AGENTTAB_AGENT_TOKENS) }
     : {}),
   ...(process.env.AGENTTAB_INITIAL_USDC_ATOMIC
     ? { initialUsdcAtomic: process.env.AGENTTAB_INITIAL_USDC_ATOMIC }

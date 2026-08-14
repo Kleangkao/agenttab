@@ -3,8 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import {
   assertAllowedExecutionTransition,
   createIdempotencyKey,
+  AgentIdentityConflictError,
   ExecutionVersionConflictError,
   REUSABLE_EXECUTION_STATES,
+  type CreateExecutionOptions,
   type ExecutionEvent,
   type ExecutionRecord,
   type ExecutionState,
@@ -13,6 +15,7 @@ import {
 } from "@agenttab/core";
 import { SqliteSpendLedger } from "./sqlite-spend-ledger.js";
 import { SqlitePolicyStore } from "./sqlite-policy-store.js";
+import { SqliteNotifyDeliveryStore } from "./sqlite-notify-store.js";
 import type { PaymentPolicy } from "@agenttab/core";
 
 interface ExecutionRow {
@@ -23,6 +26,7 @@ interface ExecutionRow {
   intent_json: string;
   created_at: string;
   updated_at: string;
+  agent_id: string | null;
 }
 
 interface EventRow {
@@ -50,6 +54,20 @@ export interface ExecutionSummary {
   assetMint: string;
   network: string;
   lastEventKind: string | null;
+  agentId?: string;
+}
+
+function optionalAgentId(value: string | null | undefined): { agentId?: string } {
+  if (value === undefined || value === null || value.length === 0) return {};
+  return { agentId: value };
+}
+
+function assertCompatibleAgent(record: ExecutionRecord, agentId: string | undefined): void {
+  if (agentId === undefined || agentId.length === 0) return;
+  if (record.agentId === undefined || record.agentId.length === 0) return;
+  if (record.agentId !== agentId) {
+    throw new AgentIdentityConflictError(record.operationId);
+  }
 }
 
 export class SqliteExecutionStore implements ExecutionStore {
@@ -89,6 +107,19 @@ export class SqliteExecutionStore implements ExecutionStore {
       CREATE INDEX IF NOT EXISTS executions_request_hash
         ON executions(json_extract(intent_json, '$.requestHash'));
     `);
+    this.#ensureColumn("executions", "agent_id", "TEXT");
+    this.#db.exec(`
+      CREATE INDEX IF NOT EXISTS executions_agent_id ON executions(agent_id);
+    `);
+  }
+
+  #ensureColumn(table: string, column: string, sqlType: string): void {
+    const columns = this.#db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+      name: string;
+    }>;
+    if (!columns.some((row) => row.name === column)) {
+      this.#db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${sqlType}`);
+    }
   }
 
   close(): void {
@@ -108,6 +139,10 @@ export class SqliteExecutionStore implements ExecutionStore {
     return new SqlitePolicyStore(this.#db, seed);
   }
 
+  createNotifyDeliveryStore(): SqliteNotifyDeliveryStore {
+    return new SqliteNotifyDeliveryStore(this.#db);
+  }
+
   /**
    * Recent execution summaries for operator audit (newest first).
    * Detail receipts remain available via get(operationId).
@@ -117,6 +152,7 @@ export class SqliteExecutionStore implements ExecutionStore {
     state?: ExecutionState;
     requestHash?: string;
     reusable?: boolean;
+    agentId?: string | undefined;
   } = {}): Promise<ExecutionSummary[]> {
     const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
     const clauses: string[] = [];
@@ -136,12 +172,16 @@ export class SqliteExecutionStore implements ExecutionStore {
       clauses.push("json_extract(intent_json, '$.requestHash') = ?");
       params.push(options.requestHash);
     }
+    if (options.agentId !== undefined && options.agentId.length > 0) {
+      clauses.push("agent_id = ?");
+      params.push(options.agentId);
+    }
 
     const where = clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
     const rows = this.#db
       .prepare(
         `
-        SELECT operation_id, state, version, intent_json, created_at, updated_at
+        SELECT operation_id, state, version, intent_json, created_at, updated_at, agent_id
         FROM executions
         ${where}
         ORDER BY updated_at DESC, operation_id DESC
@@ -177,12 +217,16 @@ export class SqliteExecutionStore implements ExecutionStore {
           : { amountUsdMicros: intent.amountUsdMicros }),
         assetMint: intent.assetMint,
         network: intent.network,
-        lastEventKind: lastEvent?.kind ?? null
+        lastEventKind: lastEvent?.kind ?? null,
+        ...optionalAgentId(row.agent_id)
       };
     });
   }
 
-  async createOrGet(intent: PaymentIntent): Promise<{ record: ExecutionRecord; created: boolean }> {
+  async createOrGet(
+    intent: PaymentIntent,
+    options: CreateExecutionOptions = {}
+  ): Promise<{ record: ExecutionRecord; created: boolean }> {
     const idempotencyKey = createIdempotencyKey(intent);
     const existingByKey = this.#db
       .prepare("SELECT operation_id FROM executions WHERE idempotency_key = ?")
@@ -191,6 +235,7 @@ export class SqliteExecutionStore implements ExecutionStore {
     if (existingByKey !== undefined) {
       const record = await this.get(existingByKey.operation_id);
       if (record === undefined) throw new Error("Execution store index is inconsistent");
+      assertCompatibleAgent(record, options.agentId);
       return { record, created: false };
     }
 
@@ -204,11 +249,13 @@ export class SqliteExecutionStore implements ExecutionStore {
       to: "discovered",
       kind: "payment.discovered"
     };
+    const agentId =
+      options.agentId !== undefined && options.agentId.length > 0 ? options.agentId : null;
 
     const insertExecution = this.#db.prepare(`
       INSERT INTO executions (
-        operation_id, idempotency_key, state, version, intent_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        operation_id, idempotency_key, state, version, intent_json, created_at, updated_at, agent_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const insertEvent = this.#db.prepare(`
       INSERT INTO execution_events (
@@ -225,7 +272,8 @@ export class SqliteExecutionStore implements ExecutionStore {
         0,
         JSON.stringify(intent),
         now,
-        now
+        now,
+        agentId
       );
       insertEvent.run(event.id, event.operationId, event.sequence, event.at, null, event.to, event.kind, null);
       this.#db.exec("COMMIT");
@@ -237,6 +285,7 @@ export class SqliteExecutionStore implements ExecutionStore {
       if (raced !== undefined) {
         const record = await this.get(raced.operation_id);
         if (record === undefined) throw new Error("Execution store index is inconsistent");
+        assertCompatibleAgent(record, options.agentId);
         return { record, created: false };
       }
       throw error;
@@ -269,6 +318,7 @@ export class SqliteExecutionStore implements ExecutionStore {
       intent: JSON.parse(row.intent_json) as PaymentIntent,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+      ...optionalAgentId(row.agent_id),
       events: events.map((event) => {
         const details =
           event.details_json === null

@@ -14,6 +14,11 @@ import {
 } from "@agenttab/core";
 import { operatorCss, operatorHtml, operatorJs } from "./ui/operator-page.js";
 import { gatewayOpenApiDocument } from "./openapi.js";
+import { annotateParkedExpiry } from "./parked-expiry.js";
+import {
+  mergeAgentCredentials,
+  resolveAgentIdFromBearer
+} from "./agent-identity.js";
 import {
   createOperatorNotifier,
   operatorNotifyPayload,
@@ -89,16 +94,28 @@ export interface GatewayRuntimeOptions {
    * When set, agent spend paths (preview, fund, pay, fulfill, requestHash
    * resume, get-by-id) require this bearer or the admin bearer. Leave unset
    * for local demos; set AGENTTAB_AGENT_TOKEN before exposing the port.
+   * Identity defaults to `agent` (override with `agentId` / AGENTTAB_AGENT_ID).
    */
   agentToken?: string;
+  /** Identity label for `agentToken`. Default `agent`. */
+  agentId?: string;
   /**
-   * Optional webhook for first-time park / approve / deny.
-   * Fail-open: notify errors never change funding.
+   * Additional named agent bearers `{ id: secret }`. Each agent process still
+   * sends `Authorization: Bearer <its secret>` via AGENTTAB_AGENT_TOKEN.
+   */
+  agentTokens?: Record<string, string>;
+  /**
+   * Optional webhook for first-time park / approve / deny / interrupted.
+   * Bounded retry; each attempt is stored. Fail-open: notify errors never
+   * change funding.
    */
   notifyUrl?: string;
   notifyFetch?: typeof fetch;
   /** Optional HMAC-SHA256 secret for `x-agenttab-signature` on notify POSTs. */
   notifySecret?: string;
+  /** Retry delay between notify attempts. Tests use 0. Default 50ms. */
+  notifyRetryDelayMs?: number;
+  notifyMaxAttempts?: number;
 }
 
 export interface GatewayRuntime {
@@ -120,6 +137,10 @@ export interface GatewayRuntime {
 function ensureDbDir(dbPath: string): void {
   if (dbPath === ":memory:") return;
   mkdirSync(dirname(resolve(dbPath)), { recursive: true });
+}
+
+function isAgentIdentityConflict(error: unknown): boolean {
+  return error instanceof Error && error.name === "AgentIdentityConflictError";
 }
 
 async function transitionPayment(
@@ -205,6 +226,12 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   const fundingMode = options.fundingMode ?? "mock";
   const broadcastEnabled = options.broadcastEnabled ?? false;
   const adminToken = options.adminToken;
+  const agentCredentials = mergeAgentCredentials({
+    agentToken: options.agentToken,
+    agentId: options.agentId,
+    agentTokens: options.agentTokens
+  });
+  const notifyStore = store.createNotifyDeliveryStore();
   const notify =
     options.notifyUrl !== undefined && options.notifyUrl.length > 0
       ? createOperatorNotifier({
@@ -212,7 +239,14 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
           ...(options.notifyFetch === undefined ? {} : { fetchImpl: options.notifyFetch }),
           ...(options.notifySecret === undefined || options.notifySecret.length === 0
             ? {}
-            : { secret: options.notifySecret })
+            : { secret: options.notifySecret }),
+          ...(options.notifyRetryDelayMs === undefined
+            ? {}
+            : { retryDelayMs: options.notifyRetryDelayMs }),
+          ...(options.notifyMaxAttempts === undefined
+            ? {}
+            : { maxAttempts: options.notifyMaxAttempts }),
+          recordAttempt: (row) => notifyStore.recordAttempt(row)
         })
       : undefined;
   const emitNotify = async (
@@ -285,11 +319,11 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
 
   const app = new Hono();
   const adminRequired = adminToken !== undefined && adminToken.length > 0;
-  const agentRequired = options.agentToken !== undefined && options.agentToken.length > 0;
+  const agentRequired = agentCredentials.ids.length > 0;
   const hasAdminBearer = (header: string | undefined): boolean =>
     adminRequired && header === `Bearer ${adminToken}`;
   const hasAgentBearer = (header: string | undefined): boolean =>
-    agentRequired && header === `Bearer ${options.agentToken}`;
+    resolveAgentIdFromBearer(header, agentCredentials.tokens) !== undefined;
   const isAdmin = (header: string | undefined): boolean => {
     if (!adminRequired) return true;
     return hasAdminBearer(header);
@@ -297,6 +331,25 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   const isAgent = (header: string | undefined): boolean => {
     if (!agentRequired) return true;
     return hasAgentBearer(header) || hasAdminBearer(header);
+  };
+  const stampAgentId = (header: string | undefined): string | undefined => {
+    const named = resolveAgentIdFromBearer(header, agentCredentials.tokens);
+    if (named !== undefined) return named;
+    if (agentRequired && hasAdminBearer(header)) return "admin";
+    return undefined;
+  };
+  const createStamp = (header: string | undefined): { agentId?: string } => {
+    const agentId = stampAgentId(header);
+    return agentId === undefined ? {} : { agentId };
+  };
+  const callerCanSee = (
+    record: { agentId?: string },
+    header: string | undefined
+  ): boolean => {
+    if (!agentRequired || hasAdminBearer(header) || !hasAgentBearer(header)) return true;
+    const named = resolveAgentIdFromBearer(header, agentCredentials.tokens);
+    if (named === undefined || record.agentId === undefined) return true;
+    return record.agentId === named;
   };
 
   app.get("/", (c) => c.redirect("/ui", 302));
@@ -325,9 +378,13 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));
 
   app.get("/health", async (c) => {
-    const parked = await store.listRecent({ state: "approval_required", limit: 100 });
-    const openLoop = await store.listRecent({ reusable: true, limit: 100 });
     const policy = policies.get();
+    const parked = annotateParkedExpiry(
+      await store.listRecent({ state: "approval_required", limit: 100 }),
+      policy
+    );
+    const liveParked = parked.filter((row) => row.parkedExpired !== true);
+    const openLoop = await store.listRecent({ reusable: true, limit: 100 });
     return c.json({
       ok: true,
       service: "agenttab-gateway",
@@ -338,13 +395,15 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       policyMode: policy.mode,
       policyWriteAuth: adminRequired,
       agentAuth: agentRequired,
+      agentIds: agentCredentials.ids,
       operatorUi: "/ui",
       preview: "/v1/preview",
       openapi: "/openapi.json",
       notifyConfigured: notify !== undefined,
       notifySigned:
         options.notifySecret !== undefined && options.notifySecret.length > 0,
-      parkedCount: parked.length,
+      parkedCount: liveParked.length,
+      expiredParkedCount: parked.length - liveParked.length,
       openLoopCount: openLoop.length,
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros
@@ -358,6 +417,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const policy = policies.get();
     return c.json({
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      spentUsdMicrosLast24hByAgent: durableSpend.getSpentUsdMicrosLast24hByAgent(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros,
       maxPaymentUsdMicros: policy.maxPaymentUsdMicros
     });
@@ -414,13 +474,29 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     } else if (!isAgent(auth)) {
       return c.json({ error: "unauthorized" }, 401);
     }
-    const executions = await store.listRecent({
-      limit,
-      ...(stateRaw === undefined ? {} : { state: stateRaw }),
-      ...(requestHash === undefined ? {} : { requestHash }),
-      ...(reusable ? { reusable: true } : {})
+    const namedAgent =
+      !hasAdminBearer(auth) && hasAgentBearer(auth)
+        ? resolveAgentIdFromBearer(auth, agentCredentials.tokens)
+        : undefined;
+    const executions = annotateParkedExpiry(
+      await store.listRecent({
+        limit,
+        ...(stateRaw === undefined ? {} : { state: stateRaw }),
+        ...(requestHash === undefined ? {} : { requestHash }),
+        ...(reusable ? { reusable: true } : {}),
+        ...(namedAgent === undefined ? {} : { agentId: namedAgent })
+      }),
+      policies.get()
+    );
+    const live = executions.filter((row) => row.parkedExpired !== true);
+    const expired = executions.filter((row) => row.parkedExpired === true);
+    return c.json({
+      executions,
+      count: executions.length,
+      ...(stateRaw === "approval_required"
+        ? { live, expired, liveCount: live.length, expiredCount: expired.length }
+        : {})
     });
-    return c.json({ executions, count: executions.length });
   });
 
   app.post("/v1/executions", async (c) => {
@@ -428,8 +504,15 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "unauthorized" }, 401);
     }
     const body = paymentIntentSchema.parse(await c.req.json());
-    const result = await store.createOrGet(body);
-    return c.json(result, result.created ? 201 : 200);
+    try {
+      const result = await store.createOrGet(body, createStamp(c.req.header("authorization")));
+      return c.json(result, result.created ? 201 : 200);
+    } catch (error) {
+      if (isAgentIdentityConflict(error)) {
+        return c.json({ error: "agent_mismatch" }, 409);
+      }
+      throw error;
+    }
   });
 
   app.get("/v1/executions/:operationId", async (c) => {
@@ -438,7 +521,13 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     }
     const record = await store.get(c.req.param("operationId"));
     if (record === undefined) return c.json({ error: "not_found" }, 404);
-    return c.json(record);
+    if (!callerCanSee(record, c.req.header("authorization"))) {
+      return c.json({ error: "not_found" }, 404);
+    }
+    return c.json({
+      ...record,
+      notifyDeliveries: notifyStore.listForOperation(record.operationId)
+    });
   });
 
   app.post("/v1/preview", async (c) => {
@@ -471,9 +560,19 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "unauthorized" }, 401);
     }
     const intent = paymentIntentSchema.parse(await c.req.json());
-    const outcome = await coordinator.ensurePaymentAsset({ intent });
-    const record = await store.get(intent.operationId);
-    return c.json({ outcome, record });
+    try {
+      const outcome = await coordinator.ensurePaymentAsset({
+        intent,
+        ...createStamp(c.req.header("authorization"))
+      });
+      const record = await store.get(intent.operationId);
+      return c.json({ outcome, record });
+    } catch (error) {
+      if (isAgentIdentityConflict(error)) {
+        return c.json({ error: "agent_mismatch" }, 409);
+      }
+      throw error;
+    }
   });
 
   app.post("/v1/approvals/:operationId", async (c) => {
@@ -487,9 +586,13 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "not_awaiting_approval", state: record.state }, 409);
     }
     record = await transitionPayment(store, record, "approved", "approval.granted");
-    await emitNotify("approved", record);
     const outcome = await coordinator.ensurePaymentAsset({ intent: record.intent });
     record = (await store.get(operationId))!;
+    if (record.state === "denied") {
+      await emitNotify("denied", record);
+    } else {
+      await emitNotify("approved", record);
+    }
     return c.json({ outcome, record });
   });
 
@@ -522,10 +625,17 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const operationId = c.req.param("operationId");
     let record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
+    if (!callerCanSee(record, c.req.header("authorization"))) {
+      return c.json({ error: "not_found" }, 404);
+    }
 
     if (record.state === "paid" || record.state === "fulfilled" || record.state === "fulfillment_failed") {
       if (record.intent.amountUsdMicros !== undefined) {
-        durableSpend.ensureOperationSpend(operationId, record.intent.amountUsdMicros);
+        durableSpend.ensureOperationSpend(
+          operationId,
+          record.intent.amountUsdMicros,
+          record.agentId
+        );
       }
       const existing = record.events.find(
         (event) => event.kind === "payment.token_issued" || event.kind === "payment.settled"
@@ -580,7 +690,11 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
         ...(body.transaction === undefined ? {} : { transaction: body.transaction })
       });
       if (record.intent.amountUsdMicros !== undefined) {
-        durableSpend.ensureOperationSpend(operationId, record.intent.amountUsdMicros);
+        durableSpend.ensureOperationSpend(
+          operationId,
+          record.intent.amountUsdMicros,
+          record.agentId
+        );
       }
       return c.json({ settlementId: body.settlementId, record, replayed: false });
     }
@@ -605,7 +719,11 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     });
 
     if (record.intent.amountUsdMicros !== undefined) {
-      durableSpend.ensureOperationSpend(operationId, record.intent.amountUsdMicros);
+      durableSpend.ensureOperationSpend(
+        operationId,
+        record.intent.amountUsdMicros,
+        record.agentId
+      );
     }
 
     return c.json({ token, record, replayed: false });
@@ -618,6 +736,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const operationId = c.req.param("operationId");
     const record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
+    if (!callerCanSee(record, c.req.header("authorization"))) {
+      return c.json({ error: "not_found" }, 404);
+    }
     if (record.state === "approval_required") {
       return c.json(
         {
@@ -683,6 +804,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const operationId = c.req.param("operationId");
     let record = await store.get(operationId);
     if (record === undefined) return c.json({ error: "not_found" }, 404);
+    if (!callerCanSee(record, c.req.header("authorization"))) {
+      return c.json({ error: "not_found" }, 404);
+    }
 
     if (record.state === "fulfilled") {
       return c.json({ record, replayed: true });
@@ -771,7 +895,7 @@ function previewHint(decision: PolicyDecision, merchantOrigin: string): string {
     case "approval_threshold_exceeded":
     case "allowed":
       return decision.kind === "approval_required"
-        ? "Policy would park. POST /v1/approvals/:id still funds — this preview did not."
+        ? "Policy would park. POST /v1/approvals/:id funds only if live policy still allows — this preview did not."
         : "Policy would allow funding. This preview did not create an execution or fund.";
     default:
       return decision.message;

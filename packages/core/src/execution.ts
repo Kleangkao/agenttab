@@ -57,13 +57,40 @@ export interface ExecutionRecord {
   createdAt: string;
   updatedAt: string;
   events: readonly ExecutionEvent[];
+  /** Gateway-attributed agent identity. Never taken from the payment intent. */
+  agentId?: string;
+}
+
+export interface CreateExecutionOptions {
+  agentId?: string | undefined;
+}
+
+export class AgentIdentityConflictError extends Error {
+  readonly operationId: string;
+
+  constructor(operationId: string) {
+    super(`Execution ${operationId} belongs to a different agent`);
+    this.name = "AgentIdentityConflictError";
+    this.operationId = operationId;
+  }
+}
+
+function assertCompatibleAgent(
+  record: ExecutionRecord,
+  agentId: string | undefined
+): void {
+  if (agentId === undefined || agentId.length === 0) return;
+  if (record.agentId === undefined || record.agentId.length === 0) return;
+  if (record.agentId !== agentId) {
+    throw new AgentIdentityConflictError(record.operationId);
+  }
 }
 
 const allowedTransitions: Readonly<Record<ExecutionState, readonly ExecutionState[]>> = {
   discovered: ["approval_required", "approved", "denied", "failed"],
   approval_required: ["approved", "denied", "failed"],
-  approved: ["funding_submitted", "funded", "payment_submitted", "failed"],
-  funding_submitted: ["funded", "failed"],
+  approved: ["funding_submitted", "funded", "payment_submitted", "denied", "failed"],
+  funding_submitted: ["funded", "denied", "failed"],
   funded: ["payment_submitted", "failed"],
   payment_submitted: ["paid", "failed"],
   paid: ["fulfilled", "fulfillment_failed"],
@@ -121,7 +148,10 @@ export function createIdempotencyKey(intent: PaymentIntent): string {
 }
 
 export interface ExecutionStore {
-  createOrGet(intent: PaymentIntent): Promise<{ record: ExecutionRecord; created: boolean }>;
+  createOrGet(
+    intent: PaymentIntent,
+    options?: CreateExecutionOptions
+  ): Promise<{ record: ExecutionRecord; created: boolean }>;
   get(operationId: string): Promise<ExecutionRecord | undefined>;
   transition(input: {
     operationId: string;
@@ -149,12 +179,16 @@ export class InMemoryExecutionStore implements ExecutionStore {
   readonly #records = new Map<string, ExecutionRecord>();
   readonly #operationsByKey = new Map<string, string>();
 
-  async createOrGet(intent: PaymentIntent): Promise<{ record: ExecutionRecord; created: boolean }> {
+  async createOrGet(
+    intent: PaymentIntent,
+    options: CreateExecutionOptions = {}
+  ): Promise<{ record: ExecutionRecord; created: boolean }> {
     const idempotencyKey = createIdempotencyKey(intent);
     const existingOperationId = this.#operationsByKey.get(idempotencyKey);
     if (existingOperationId !== undefined) {
       const existing = this.#records.get(existingOperationId);
       if (existing === undefined) throw new Error("Execution store index is inconsistent");
+      assertCompatibleAgent(existing, options.agentId);
       return { record: structuredClone(existing), created: false };
     }
 
@@ -168,6 +202,8 @@ export class InMemoryExecutionStore implements ExecutionStore {
       to: "discovered",
       kind: "payment.discovered"
     };
+    const agentId =
+      options.agentId !== undefined && options.agentId.length > 0 ? options.agentId : undefined;
     const record: ExecutionRecord = {
       operationId: intent.operationId,
       idempotencyKey,
@@ -176,7 +212,8 @@ export class InMemoryExecutionStore implements ExecutionStore {
       intent: structuredClone(intent),
       createdAt: now,
       updatedAt: now,
-      events: [event]
+      events: [event],
+      ...(agentId === undefined ? {} : { agentId })
     };
     this.#operationsByKey.set(idempotencyKey, intent.operationId);
     this.#records.set(intent.operationId, record);

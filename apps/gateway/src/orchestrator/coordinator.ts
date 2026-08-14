@@ -25,6 +25,13 @@ function detailString(
   return typeof value === "string" ? value : fallback;
 }
 
+function parkedAtOf(record: ExecutionRecord): Date | undefined {
+  const parked = record.events.find((event) => event.kind === "policy.approval_required");
+  if (parked === undefined) return undefined;
+  const at = new Date(parked.at);
+  return Number.isNaN(at.getTime()) ? undefined : at;
+}
+
 /** True when the adapter itself already mutated chain state (mint / prior broadcast). */
 function adapterSideEffectSignature(transactionJson: string): string | undefined {
   try {
@@ -106,27 +113,49 @@ async function assertPaymentAssetHeld(
 
 export interface SpendLedger {
   getSpentUsdMicrosLast24h(): string;
+  getSpentUsdMicrosLast24hByAgent(): Record<string, string>;
   recordSpend(usdMicros: string): void;
   /** Idempotent spend keyed by operationId. Returns true when a new row was written. */
-  ensureOperationSpend(operationId: string, usdMicros: string): boolean;
+  ensureOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    agentId?: string | undefined
+  ): boolean;
 }
 
 export class InMemorySpendLedger implements SpendLedger {
   #spentUsdMicros = 0n;
-  readonly #operations = new Set<string>();
+  readonly #operations = new Map<string, { usdMicros: bigint; agentId?: string }>();
 
   getSpentUsdMicrosLast24h(): string {
     return this.#spentUsdMicros.toString();
+  }
+
+  getSpentUsdMicrosLast24hByAgent(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const row of this.#operations.values()) {
+      if (row.agentId === undefined) continue;
+      out[row.agentId] = (BigInt(out[row.agentId] ?? "0") + row.usdMicros).toString();
+    }
+    return out;
   }
 
   recordSpend(usdMicros: string): void {
     this.#spentUsdMicros += BigInt(usdMicros);
   }
 
-  ensureOperationSpend(operationId: string, usdMicros: string): boolean {
+  ensureOperationSpend(
+    operationId: string,
+    usdMicros: string,
+    agentId?: string | undefined
+  ): boolean {
     if (this.#operations.has(operationId)) return false;
-    this.#operations.add(operationId);
-    this.#spentUsdMicros += BigInt(usdMicros);
+    const amount = BigInt(usdMicros);
+    this.#operations.set(operationId, {
+      usdMicros: amount,
+      ...(agentId === undefined || agentId.length === 0 ? {} : { agentId })
+    });
+    this.#spentUsdMicros += amount;
     return true;
   }
 
@@ -192,16 +221,31 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     }
   }
 
+  /** Commit rolling spend when this operation is funded or already past funding. Idempotent. */
+  #commitSpend(record: ExecutionRecord): void {
+    if (record.intent.amountUsdMicros === undefined) return;
+    this.#spend.ensureOperationSpend(
+      record.operationId,
+      record.intent.amountUsdMicros,
+      record.agentId
+    );
+  }
+
   async ensurePaymentAsset(input: {
     intent: PaymentIntent;
+    agentId?: string | undefined;
     signal?: AbortSignal;
   }): Promise<FundingOutcome> {
     void input.signal;
     await maybeRefreshBalances(this.#balances);
-    const { record: existing } = await this.#store.createOrGet(input.intent);
+    const { record: existing } = await this.#store.createOrGet(
+      input.intent,
+      input.agentId === undefined ? {} : { agentId: input.agentId }
+    );
     let record = existing;
 
     if (record.state === "funded") {
+      this.#commitSpend(record);
       return {
         status: "already_funded",
         reason: `Execution already at ${record.state}`
@@ -214,6 +258,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       record.state === "fulfilled" ||
       record.state === "fulfillment_failed"
     ) {
+      this.#commitSpend(record);
       return {
         status: "already_paid",
         reason: `Execution already at ${record.state}`
@@ -252,22 +297,39 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
     const spend: SpendSnapshot = {
       spentUsdMicrosLast24h: this.#spend.getSpentUsdMicrosLast24h()
     };
+    const parkedAt = parkedAtOf(record);
     const decision = evaluatePaymentPolicy({
       intent: input.intent,
       policy,
       spend,
-      ...(fundingCandidate === undefined ? {} : { fundingCandidate })
+      ...(fundingCandidate === undefined ? {} : { fundingCandidate }),
+      ...(parkedAt === undefined ? {} : { parkedAt })
     });
 
     const humanApproved = record.state === "approved" || record.state === "funding_submitted";
+    // Plan/side-effect receipts mean chain work already started — resume, do not claw back.
+    const resumableFunding = record.events.some(
+      (event) =>
+        event.kind === "funding.plan_receipt" || event.kind === "funding.side_effect_receipt"
+    );
 
-    if (decision.kind === "deny" && !humanApproved) {
-      if (record.state === "discovered") {
+    if (decision.kind === "deny" && !resumableFunding) {
+      const afterApproval = record.state !== "discovered";
+      if (
+        record.state === "discovered" ||
+        record.state === "approved" ||
+        record.state === "funding_submitted"
+      ) {
         record = await transition(this.#store, record, "denied", "policy.denied", {
-          reason: decision.reason
+          reason: decision.reason,
+          ...(afterApproval ? { afterApproval: true } : {})
         });
       }
-      return { status: "denied", reason: decision.message };
+      return {
+        status: afterApproval ? "policy_denied" : "denied",
+        reason: decision.message,
+        policyReason: decision.reason
+      };
     }
 
     if (decision.kind === "approval_required" && !humanApproved) {
@@ -299,6 +361,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       if (record.state === "funding_submitted") {
         await transition(this.#store, record, "funded", "funding.confirmed", priorFunding.details);
       }
+      this.#commitSpend(record);
       return {
         status: "already_funded",
         reason: "Funding already confirmed for this operation"
@@ -337,6 +400,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
           paymentBalanceAtomic: heldAtomic.toString()
         });
       }
+      this.#commitSpend(record);
       return {
         status: "already_funded",
         reason: "Wallet already holds the requested payment asset"
@@ -461,6 +525,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
         resumed
       });
     }
+    this.#commitSpend(record);
     return {
       status: "funded",
       reason: resumed
@@ -644,6 +709,7 @@ export class GatewayFundingCoordinator implements PaymentFundingCoordinator {
       });
     }
 
+    this.#commitSpend(record);
     return {
       status: "funded",
       reason: resumed

@@ -236,6 +236,9 @@ describe("operator control spine", () => {
     expect(js).toContain("/v1/denials/");
     expect(js).toContain("/v1/preview");
     expect(js).toContain("Confirm — buy and continue");
+    expect(js).toContain("Policy denied this after approval");
+    expect(js).toContain("Funding failed");
+    expect(js).toContain("Parked approval expired");
 
     const health = await gateway.app.request("/health");
     expect(await health.json()).toMatchObject({
