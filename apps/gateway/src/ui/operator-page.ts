@@ -100,7 +100,7 @@ export function operatorHtml(input: {
         </form>
 
         <h2>How much</h2>
-        <p>Limits are stored as millionths of a dollar. You edit them as dollars.</p>
+        <p>Limits are stored as millionths of a dollar. You edit them as dollars. The daily field is gateway-wide. Optional per-agent daily quotas live in Advanced policy JSON as <code>maxDailyUsdMicrosByAgent</code>; omitted agent ids stay on the gateway cap only.</p>
         <form class="row" id="caps-form">
           <label class="field">Max payment
             <input id="max-payment" inputmode="decimal" placeholder="5.00" />

@@ -46,9 +46,11 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     (default `agent`). Local demos leave tokens unset and stay unattributed.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
     Daily-cap reservation is synchronous (`tryReserveOperationSpend`) before
-    funding I/O so overlapping in-flight funds cannot both clear the cap.
-    Reservations occupy the cap; `/health` and `GET /v1/spend` report realized
-    spend only after funding succeeds.
+    funding I/O so overlapping in-flight funds cannot both clear the gateway
+    cap or an applicable per-agent `maxDailyUsdMicrosByAgent` quota. Identity
+    for that quota is the gateway-stamped bearer `agentId`, never the intent.
+    Reservations occupy both applicable bounds; `/health` and `GET /v1/spend`
+    report realized spend only after funding succeeds.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny /
     interrupted. Bounded retry (3 attempts) inside a 300ms payment-path
     budget (overridable via `AGENTTAB_NOTIFY_BUDGET_MS` /

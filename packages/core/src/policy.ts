@@ -26,6 +26,16 @@ export function parkedApprovalTtlSeconds(policy: {
   return policy.parkedApprovalTtlSeconds ?? DEFAULT_PARKED_APPROVAL_TTL_SECONDS;
 }
 
+/** Explicit per-agent cap, or undefined when only the gateway-wide cap applies. */
+export function maxDailyUsdMicrosForAgent(
+  policy: Pick<PaymentPolicy, "maxDailyUsdMicrosByAgent">,
+  agentId: string | undefined
+): string | undefined {
+  if (agentId === undefined || agentId.length === 0) return undefined;
+  const cap = policy.maxDailyUsdMicrosByAgent?.[agentId];
+  return cap === undefined || cap.length === 0 ? undefined : cap;
+}
+
 export function parkedApprovalDeadline(
   parkedAt: Date,
   policy: { parkedApprovalTtlSeconds?: number | undefined }
@@ -49,6 +59,8 @@ export function evaluatePaymentPolicy(input: {
   now?: Date;
   /** When set, a parked approval older than policy TTL is denied. */
   parkedAt?: Date;
+  /** Gateway-resolved bearer identity. Never taken from the payment intent. */
+  agentId?: string;
 }): PolicyDecision {
   const parsed = paymentIntentSchema.safeParse(input.intent);
   if (!parsed.success) {
@@ -121,6 +133,23 @@ export function evaluatePaymentPolicy(input: {
 
   if (paymentUsd > BigInt(policy.maxPaymentUsdMicros)) {
     return decision("deny", "per_payment_limit_exceeded", "Per-payment limit exceeded.");
+  }
+
+  const agentCap = maxDailyUsdMicrosForAgent(policy, input.agentId);
+  if (agentCap !== undefined && input.agentId !== undefined) {
+    const agentSpent = toAtomic(spend.spentUsdMicrosLast24hByAgent?.[input.agentId] ?? "0");
+    if (agentSpent === undefined) {
+      return policy.mode === "observe"
+        ? decision("approval_required", "usd_value_unknown", "USD value requires review.")
+        : decision("deny", "usd_value_unknown", "USD value or rolling spend is unknown.");
+    }
+    if (paymentUsd + agentSpent > BigInt(agentCap)) {
+      return decision(
+        "deny",
+        "agent_daily_limit_exceeded",
+        "This agent exceeded its rolling daily limit."
+      );
+    }
   }
 
   if (paymentUsd + spentUsd > BigInt(policy.maxDailyUsdMicros)) {

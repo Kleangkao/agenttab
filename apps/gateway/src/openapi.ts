@@ -39,7 +39,11 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   },
   "/v1/policy": {
     get: { summary: "Current payment policy", admin: true },
-    put: { summary: "Replace payment policy", admin: true }
+    put: {
+      summary:
+        "Replace payment policy. Optional maxDailyUsdMicrosByAgent is an extra bound per named agent; maxDailyUsdMicros remains the gateway-wide ceiling.",
+      admin: true
+    }
   },
   "/v1/balances": {
     get: { summary: "Buyer wallet balances as seen by the coordinator", admin: true }
@@ -162,6 +166,7 @@ export function gatewayOpenApiDocument(): Record<string, unknown> {
         "Buyer-side policy + exact-deficit funding around standard x402. " +
         "POST /v1/preview never funds. POST /v1/denials/:id is terminal. " +
         "Human approval satisfies approval_required only — live policy hard denials still fail closed. " +
+        "Optional maxDailyUsdMicrosByAgent caps a named agent; omitted ids and unattributed spend stay on the gateway-wide maxDailyUsdMicros ceiling. " +
         "Observe mode is not a dry-run — approving still funds when policy allows."
     },
     servers: [{ url: "/", description: "This gateway process" }],

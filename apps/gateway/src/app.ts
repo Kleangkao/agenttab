@@ -547,11 +547,16 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ error: "invalid_intent", message: parsed.error.message }, 400);
     }
     const policy = policies.get();
-    const spend = { spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h() };
+    const namedAgent = stampAgentId(c.req.header("authorization"));
+    const spend = {
+      spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      spentUsdMicrosLast24hByAgent: durableSpend.getSpentUsdMicrosLast24hByAgent()
+    };
     const decision = evaluatePaymentPolicy({
       intent: parsed.data,
       policy,
-      spend
+      spend,
+      ...(namedAgent === undefined ? {} : { agentId: namedAgent })
     });
     return c.json({
       preview: true,
@@ -900,6 +905,10 @@ function previewHint(decision: PolicyDecision, merchantOrigin: string): string {
       return "Add this mint to allowedPaymentAssets on the live policy.";
     case "usd_value_unknown":
       return "Provide amountUsdMicros. observe parks; approve/autopay deny. Approving still funds.";
+    case "agent_daily_limit_exceeded":
+      return "This named agent hit maxDailyUsdMicrosByAgent. The gateway-wide maxDailyUsdMicros is a separate ceiling.";
+    case "daily_limit_exceeded":
+      return "Gateway-wide maxDailyUsdMicros would be exceeded. Per-agent quotas do not raise that ceiling.";
     case "approval_threshold_exceeded":
     case "allowed":
       return decision.kind === "approval_required"

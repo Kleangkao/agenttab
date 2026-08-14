@@ -50,8 +50,14 @@ To attribute spend across several agent processes, keep each process on
 `AGENTTAB_AGENT_TOKENS='{"research":"<secret1>","ops":"<secret2>"}'`.
 Optional `AGENTTAB_AGENT_ID` names the single-token identity (default
 `agent`). Executions, `GET /v1/spend` (`spentUsdMicrosLast24hByAgent`),
-`pnpm audit:recent`, and `/ui` show that id. Policy caps stay gateway-wide
-— attribution is not a per-agent quota.
+`pnpm audit:recent`, and `/ui` show that id. `maxDailyUsdMicros` remains the
+gateway-wide ceiling. Optional policy field `maxDailyUsdMicrosByAgent` maps
+named agent ids to USD-micros caps. An id with no entry, and unattributed
+spend, stay on the gateway cap only. A named agent cannot occupy more than
+its own cap even when the gateway still has room; the sum of everybody still
+cannot exceed `maxDailyUsdMicros`. Put invalid micros or ids and the policy
+write fails — they do not become unlimited. Preview is not the concurrent
+authority; reservation is.
 
 ```bash
 docker pull ghcr.io/kleangkao/agenttab-gateway:latest

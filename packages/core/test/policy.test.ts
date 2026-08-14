@@ -115,6 +115,59 @@ describe("evaluatePaymentPolicy", () => {
     expect(result).toMatchObject({ kind: "deny", reason: "daily_limit_exceeded" });
   });
 
+  it("denies a named agent that would exceed its own quota while the gateway still has room", () => {
+    const result = evaluatePaymentPolicy({
+      intent,
+      policy: {
+        ...policy,
+        maxDailyUsdMicros: "2000000",
+        maxDailyUsdMicrosByAgent: { research: "40000" }
+      },
+      spend: {
+        spentUsdMicrosLast24h: "0",
+        spentUsdMicrosLast24hByAgent: { research: "20000" }
+      },
+      agentId: "research"
+    });
+    expect(result).toMatchObject({ kind: "deny", reason: "agent_daily_limit_exceeded" });
+  });
+
+  it("still denies on the gateway-wide cap when the agent quota has room", () => {
+    const result = evaluatePaymentPolicy({
+      intent,
+      policy: {
+        ...policy,
+        maxDailyUsdMicros: "40000",
+        maxDailyUsdMicrosByAgent: { research: "2000000" }
+      },
+      spend: { spentUsdMicrosLast24h: "20000" },
+      agentId: "research"
+    });
+    expect(result).toMatchObject({ kind: "deny", reason: "daily_limit_exceeded" });
+  });
+
+  it("does not apply another agent's quota or invent a quota for an omitted id", () => {
+    const withMap = {
+      ...policy,
+      maxDailyUsdMicrosByAgent: { research: "40000" }
+    };
+    expect(
+      evaluatePaymentPolicy({
+        intent,
+        policy: withMap,
+        spend: { spentUsdMicrosLast24h: "0", spentUsdMicrosLast24hByAgent: { research: "40000" } },
+        agentId: "ops"
+      }).kind
+    ).toBe("allow");
+    expect(
+      evaluatePaymentPolicy({
+        intent,
+        policy: withMap,
+        spend: { spentUsdMicrosLast24h: "0" }
+      }).kind
+    ).toBe("allow");
+  });
+
   it("requires approval above the configured threshold", () => {
     const result = evaluatePaymentPolicy({
       intent: { ...intent, amountUsdMicros: "120000" },
@@ -154,6 +207,34 @@ describe("paymentPolicySchema", () => {
   it("accepts a complete policy and rejects partial payloads", () => {
     expect(paymentPolicySchema.parse(policy).mode).toBe("autopay");
     expect(() => paymentPolicySchema.parse({ mode: "autopay" })).toThrow();
+  });
+
+  it("accepts optional per-agent caps and rejects malformed values", () => {
+    expect(
+      paymentPolicySchema.parse({
+        ...policy,
+        maxDailyUsdMicrosByAgent: { research: "5000000", ops: "0" }
+      }).maxDailyUsdMicrosByAgent
+    ).toEqual({ research: "5000000", ops: "0" });
+    expect(paymentPolicySchema.parse(policy).maxDailyUsdMicrosByAgent).toBeUndefined();
+    expect(() =>
+      paymentPolicySchema.parse({
+        ...policy,
+        maxDailyUsdMicrosByAgent: { research: "-1" }
+      })
+    ).toThrow();
+    expect(() =>
+      paymentPolicySchema.parse({
+        ...policy,
+        maxDailyUsdMicrosByAgent: { "bad id": "1" }
+      })
+    ).toThrow();
+    expect(() =>
+      paymentPolicySchema.parse({
+        ...policy,
+        maxDailyUsdMicrosByAgent: { research: "unlimited" }
+      })
+    ).toThrow();
   });
 });
 

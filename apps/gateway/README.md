@@ -23,7 +23,9 @@ When `AGENTTAB_ADMIN_TOKEN` is set, operator reads/writes need
 pay / fulfill need the agent bearer (admin also works). Several agents: set
 `AGENTTAB_AGENT_TOKENS` on the gateway; each agent process keeps using
 `AGENTTAB_AGENT_TOKEN` with its own secret. `GET /v1/executions` and
-`pnpm audit:recent` include `agentId`.
+`pnpm audit:recent` include `agentId`. Optional `maxDailyUsdMicrosByAgent` on
+the policy JSON is an extra daily bound per named id; `maxDailyUsdMicros`
+stays the gateway-wide ceiling.
 
 ## Notify
 
