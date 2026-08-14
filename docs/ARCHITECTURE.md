@@ -45,6 +45,10 @@ Funding tx (when needed) -> standard x402 payment -> resource retry -> audit
     spend, audit, and `/ui`. Single-token identity is `AGENTTAB_AGENT_ID`
     (default `agent`). Local demos leave tokens unset and stay unattributed.
   - `GET /health` includes `parkedCount` and rolling 24h spend; `GET /v1/spend` remains.
+    Daily-cap reservation is synchronous (`tryReserveOperationSpend`) before
+    funding I/O so overlapping in-flight funds cannot both clear the cap.
+    Reservations occupy the cap; `/health` and `GET /v1/spend` report realized
+    spend only after funding succeeds.
   - Optional `AGENTTAB_NOTIFY_URL` webhook on first park / approve / deny /
     interrupted. Bounded retry (3 attempts) inside a 300ms payment-path
     budget (overridable via `AGENTTAB_NOTIFY_BUDGET_MS` /

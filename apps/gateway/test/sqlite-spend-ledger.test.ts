@@ -13,6 +13,11 @@ describe("SqliteSpendLedger", () => {
 
     const second = new SqliteSpendLedger(db);
     expect(second.getSpentUsdMicrosLast24h()).toBe("3500");
+    expect(second.tryReserveOperationSpend("held", "1000", "5000")).toBe("reserved");
+    expect(second.getSpentUsdMicrosLast24h()).toBe("3500");
+    expect(second.tryReserveOperationSpend("peer", "1000", "5000")).toBe("cap_exceeded");
+    expect(second.ensureOperationSpend("held", "1000")).toBe(true);
+    expect(second.getSpentUsdMicrosLast24h()).toBe("4500");
     db.close();
   });
 });

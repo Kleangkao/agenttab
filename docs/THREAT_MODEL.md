@@ -22,8 +22,14 @@ and denies merchants outside the allowlist.
 A parked payment can sit while policy or spend changes. Human approval is
 not a universal override: `ensurePaymentAsset` re-evaluates the live policy,
 including rolling daily spend, challenge expiry, and allowlists. Hard denials
-become terminal `denied` with `policy.denied` and do not fund. Already
-`funded` or `paid` operations are not clawed back. Interrupted funding with
+become terminal `denied` with `policy.denied` and do not fund. Spend is
+reserved synchronously against `maxDailyUsdMicros` before funding I/O, so
+two overlapping in-flight funds cannot both pass a cap that only fits one.
+Reservations occupy the cap without appearing in realized spend until
+funding succeeds. A plan-only resume counts its own reservation once;
+tightening the cap below what that operation can occupy denies it and
+releases the row. Already `funded` or `paid` operations are not clawed back.
+Interrupted funding with
 a **side-effect receipt** (chain state already mutated) still resumes even
 if policy later denies. A plan-only interruption is only a quote: resume
 re-evaluates live policy and fails closed.
@@ -50,8 +56,9 @@ A human approval satisfies `approval_required` and nothing else. Current
 policy is re-evaluated before new spend: daily cap, merchant denylist,
 expired challenge, and asset allowlists still fail closed. Spend is
 committed when funding succeeds so later approvals see the rolling cap.
-Already `funded` / `paid` operations are not clawed back; in-flight
-`funding_submitted` resume is not aborted by a later tighten.
+Already `funded` / `paid` operations are not clawed back. Plan-only
+`funding_submitted` resume re-binds live policy; a side-effect receipt
+still resumes even if policy later denies.
 
 ### Prompt injection
 

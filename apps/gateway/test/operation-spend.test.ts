@@ -60,3 +60,61 @@ describe("operation-keyed spend", () => {
     gateway.close();
   });
 });
+
+function assertReserveContract(ledger: InMemorySpendLedger | SqliteSpendLedger): void {
+  expect(ledger.tryReserveOperationSpend("c", "700000", "1500000")).toBe("reserved");
+  expect(ledger.tryReserveOperationSpend("d", "700000", "1500000")).toBe("reserved");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+  expect(ledger.releaseOperationSpend("c")).toBe(true);
+  expect(ledger.releaseOperationSpend("d")).toBe(true);
+
+  expect(ledger.tryReserveOperationSpend("a", "1000000", "1500000", "research")).toBe("reserved");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+  expect(ledger.getSpentUsdMicrosLast24hByAgent()).toEqual({});
+  expect(ledger.tryReserveOperationSpend("b", "1000000", "1500000")).toBe("cap_exceeded");
+  expect(ledger.tryReserveOperationSpend("a", "1000000", "1500000")).toBe("duplicate");
+  expect(ledger.ensureOperationSpend("a", "1000000", "research")).toBe(true);
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("1000000");
+  expect(ledger.getSpentUsdMicrosLast24hByAgent()).toEqual({ research: "1000000" });
+  expect(ledger.ensureOperationSpend("a", "1000000", "research")).toBe(false);
+  expect(ledger.releaseOperationSpend("a")).toBe(false);
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("1000000");
+}
+
+function assertResumeDoesNotDoubleCount(ledger: InMemorySpendLedger | SqliteSpendLedger): void {
+  expect(ledger.tryReserveOperationSpend("resume-a", "1000000", "1500000")).toBe("reserved");
+  expect(ledger.tryReserveOperationSpend("resume-a", "1000000", "1500000")).toBe("duplicate");
+  expect(ledger.tryReserveOperationSpend("peer", "1000000", "1500000")).toBe("cap_exceeded");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+  expect(ledger.tryReserveOperationSpend("resume-a", "1000000", "500000")).toBe("cap_exceeded");
+  expect(ledger.tryReserveOperationSpend("peer", "1000000", "1500000")).toBe("reserved");
+  expect(ledger.getSpentUsdMicrosLast24h()).toBe("0");
+}
+
+describe("tryReserveOperationSpend", () => {
+  it("enforces the cap atomically in memory without realizing spend", () => {
+    assertReserveContract(new InMemorySpendLedger());
+  });
+
+  it("enforces the cap atomically in sqlite without realizing spend", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      assertReserveContract(new SqliteSpendLedger(db));
+    } finally {
+      db.close();
+    }
+  });
+
+  it("counts a retained reservation once on resume in memory", () => {
+    assertResumeDoesNotDoubleCount(new InMemorySpendLedger());
+  });
+
+  it("counts a retained reservation once on resume in sqlite", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      assertResumeDoesNotDoubleCount(new SqliteSpendLedger(db));
+    } finally {
+      db.close();
+    }
+  });
+});

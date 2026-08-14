@@ -15,7 +15,8 @@ export {
   GatewayFundingCoordinator,
   InMemorySpendLedger,
   selectFundingCandidate,
-  type SpendLedger
+  type SpendLedger,
+  type SpendReserveResult
 } from "./orchestrator/coordinator.js";
 export { MockBalanceProvider } from "./funding/mock-balances.js";
 export type { BalanceProvider, TokenBalance } from "./funding/mock-balances.js";
