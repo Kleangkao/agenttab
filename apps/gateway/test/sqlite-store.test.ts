@@ -143,4 +143,30 @@ describe("SqliteExecutionStore", () => {
       store.close();
     }
   });
+
+  it("persists agentId and lists by it", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenttab-"));
+    dirs.push(dir);
+    const store = new SqliteExecutionStore(join(dir, "agent.db"));
+    const created = await store.createOrGet(
+      { ...intent, operationId: "agent-sqlite-1" },
+      { agentId: "research" }
+    );
+    expect(created.record.agentId).toBe("research");
+    store.close();
+    const reopened = new SqliteExecutionStore(join(dir, "agent.db"));
+    const loaded = await reopened.get("agent-sqlite-1");
+    expect(loaded?.agentId).toBe("research");
+    const listed = await reopened.listRecent({ agentId: "research", limit: 5 });
+    expect(listed).toHaveLength(1);
+    expect(listed[0]?.agentId).toBe("research");
+    expect(await reopened.listRecent({ agentId: "ops", limit: 5 })).toHaveLength(0);
+    try {
+      await expect(
+        reopened.createOrGet({ ...intent, operationId: "agent-sqlite-1" }, { agentId: "ops" })
+      ).rejects.toMatchObject({ name: "AgentIdentityConflictError" });
+    } finally {
+      reopened.close();
+    }
+  });
 });
