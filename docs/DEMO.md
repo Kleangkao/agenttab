@@ -46,6 +46,13 @@ Optional one-command audit of the same loop with no browser:
 pnpm demo:judge
 ```
 
+Optional: run the *real* wallet-valuation task-agent through its payment
+barrier in-process (no human approval; prints a stable JSON valuation report):
+
+```bash
+pnpm demo:task-agent
+```
+
 ## What is mock vs already proven
 
 | What you are looking at | Funding | Payment | Chain |

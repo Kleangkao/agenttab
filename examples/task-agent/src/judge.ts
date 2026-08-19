@@ -29,32 +29,38 @@ async function main(): Promise<void> {
 
   const priceOracle = createPriceOracle({ origin: priceOracleOrigin });
 
-  serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: host }, () => {
+  const gatewayServer = serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: host }, () => {
     console.log(JSON.stringify({ phase: "task-agent-gateway-listen", gatewayOrigin }));
   });
-  serve(
+  const priceOracleServer = serve(
     { fetch: priceOracle.fetch, port: merchantPort, hostname: host },
     () => {
       console.log(JSON.stringify({ phase: "task-agent-price-oracle-listen", priceOracleOrigin }));
     }
   );
 
-  const taskId = `task-agent-judge-${Date.now()}`;
-  const taskContext = {
-    purpose: "USD valuation report (judge run)",
-    stepLabel: "Paid oracle step if SOL price is missing"
-  };
+  try {
+    const taskId = `task-agent-judge-${Date.now()}`;
+    const taskContext = {
+      purpose: "USD valuation report (judge run)",
+      stepLabel: "Paid oracle step if SOL price is missing"
+    };
 
-  const result = await runWalletValuationTask({
-    gatewayBaseUrl: gatewayOrigin,
-    priceOracleOrigin,
-    taskId,
-    taskContext,
-    autoApprove: true
-  });
+    const result = await runWalletValuationTask({
+      gatewayBaseUrl: gatewayOrigin,
+      priceOracleOrigin,
+      taskId,
+      taskContext,
+      autoApprove: true
+    });
 
-  console.log(JSON.stringify({ phase: "task-agent-judge-complete", result }, null, 2));
-  gateway.close();
+    console.log(JSON.stringify({ phase: "task-agent-judge-complete", result }, null, 2));
+  } finally {
+    // Ensure CI doesn’t hang: close servers and then close the gateway store.
+    priceOracleServer.close();
+    gatewayServer.close();
+    gateway.close();
+  }
 }
 
 void main().catch((error) => {

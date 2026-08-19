@@ -699,9 +699,23 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     }
 
     if (body.settlementId) {
+      const now = new Date();
+      const claims = {
+        operationId: record.operationId,
+        amountAtomic: record.intent.amountAtomic,
+        assetMint: record.intent.assetMint,
+        destination: record.intent.destination,
+        merchantOrigin: record.intent.merchantOrigin,
+        resource: record.intent.resource,
+        network: record.intent.network,
+        issuedAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString()
+      };
+      const token = issuePaymentToken(claims, paymentHmacSecret);
       record = await transitionPayment(store, record, "paid", "payment.settled", {
         settlementId: body.settlementId,
-        ...(body.transaction === undefined ? {} : { transaction: body.transaction })
+        ...(body.transaction === undefined ? {} : { transaction: body.transaction }),
+        token
       });
       if (record.intent.amountUsdMicros !== undefined) {
         durableSpend.ensureOperationSpend(
@@ -801,7 +815,8 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
 
     if (record.state === "paid" || record.state === "fulfillment_failed") {
       const tokenEvent = record.events.find(
-        (e) => e.kind === "payment.token_issued" && e.details !== undefined
+        (e) =>
+          (e.kind === "payment.token_issued" || e.kind === "payment.settled") && e.details !== undefined
       );
       const token =
         tokenEvent?.details && typeof tokenEvent.details.token === "string"

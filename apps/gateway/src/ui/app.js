@@ -514,7 +514,7 @@
     }
 
     if (taskPurpose) {
-      stepNow = `Task: ${taskPurpose}${taskStepLabel ? ` · ${taskStepLabel}` : ""}. ${stepNow}`;
+      stepNow = `Agent task: ${taskPurpose}${taskStepLabel ? ` · ${taskStepLabel}` : ""}. ${stepNow}`;
     }
     return {
       intent,
@@ -844,7 +844,7 @@
                 row.agentId ? ` · ${esc(row.agentId)}` : ""
               }</div>
               <div class="sub">${esc(loopLine)}${
-                loop.taskPurpose ? ` · Task: ${esc(loop.taskPurpose)}` : ""
+                loop.taskPurpose ? ` · Agent task: ${esc(loop.taskPurpose)}` : ""
               }</div>
               <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
             </div>

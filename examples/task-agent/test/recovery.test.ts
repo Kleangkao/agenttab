@@ -25,13 +25,21 @@ function createDispatchFetch(
   oracle: ReturnType<typeof createPriceOracle>
 ) {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-    const url = typeof input === "string" ? new URL(input) : input instanceof URL ? input : new URL(input.url);
+    const request = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(request.url);
     const path = `${url.pathname}${url.search}`;
+    const forwardedInit: RequestInit = {
+      method: request.method,
+      headers: request.headers,
+    };
+    if (!["GET", "HEAD"].includes(request.method.toUpperCase()) && request.body) {
+      forwardedInit.body = await request.clone().text();
+    }
     if (url.origin === GATEWAY_ORIGIN) {
-      return gateway.app.request(path, init);
+      return gateway.app.request(path, forwardedInit);
     }
     if (url.origin === ORACLE_ORIGIN) {
-      return oracle.request(path, init);
+      return oracle.request(path, forwardedInit);
     }
     throw new Error(`Unexpected URL origin: ${url.origin}`);
   };
@@ -383,8 +391,13 @@ describe("task-agent recovery", () => {
       initialSolAtomic: "5000000000"
     });
     const oracle = createPriceOracle({ origin: ORACLE_ORIGIN });
+    let previousFetch: typeof fetch | undefined;
     try {
       const fetchImpl = createDispatchFetch(gateway, oracle);
+      previousFetch = (globalThis as any).fetch;
+      // The gateway's /resume handler uses the global fetch, so in-process tests
+      // must route those requests through our dispatch shim.
+      (globalThis as any).fetch = fetchImpl;
 
       // Custom audit recorder: record the payment, but intentionally skip
       // recording fulfillment so the execution remains in `paid`.
@@ -435,6 +448,8 @@ describe("task-agent recovery", () => {
       expect(typeof responseHash).toBe("string");
       expect(responseHash).not.toBe("sha256:local");
     } finally {
+      // Restore global fetch for other test files.
+      (globalThis as any).fetch = previousFetch;
       gateway.close();
     }
   });

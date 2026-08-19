@@ -430,7 +430,7 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
               | { events?: Array<{ kind?: string; details?: { token?: string } }> }
               | undefined;
             const token = execution?.events?.find(
-              (e) => e.kind === "payment.token_issued"
+              (e) => e.kind === "payment.token_issued" || e.kind === "payment.settled"
             )?.details?.token;
             if (typeof token === "string" && token.length > 0) {
               const headers = new Headers(materialized.init.headers ?? undefined);
