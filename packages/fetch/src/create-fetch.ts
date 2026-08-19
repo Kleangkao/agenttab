@@ -134,7 +134,7 @@ export interface CreateAgentTabFetchOptions {
    * can resume after `pnpm approve -- <id>`. Coordinator-only clients skip
    * this (the in-memory map is enough). `createOperationId` still wins.
    */
-  lookupPendingOperationId?: (requestHash: string) => Promise<string | undefined>;
+  lookupPendingOperationId?: (requestHash: string, taskId?: string) => Promise<string | undefined>;
 }
 
 const bindingStore = new AsyncLocalStorage<RequestBinding>();
@@ -365,7 +365,7 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
   }
 
   const paidFetch = wrapFetchWithPayment(guardedFetch, client);
-  const pendingByRequestHash = new Map<string, string>();
+  const pendingByRequestKey = new Map<string, string>();
   const reusePending = options.reusePendingOperationId !== false;
   const http = gatewayHttpOptions(options);
   const gatewayLookup =
@@ -376,7 +376,8 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
     options.lookupPendingOperationId ??
     (gatewayLookup === undefined
       ? undefined
-      : (requestHash: string) => gatewayLookup.findReusableOperationId(requestHash));
+      : (requestHash: string, taskId?: string) =>
+          gatewayLookup.findReusableOperationId(requestHash, taskId));
 
   return async (input, init) => {
     const materialized = await materializeRequest(input, init);
@@ -389,18 +390,31 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
       resourceUrl,
       materialized.bodyText
     );
+    const taskId = (init as unknown as { agenttabTaskId?: string } | undefined)?.agenttabTaskId;
+    const taskContext = (init as unknown as {
+      agenttabTaskContext?: RequestBinding["taskContext"];
+    } | undefined)?.agenttabTaskContext;
+    const requestKey = `${taskId ?? ""}|${requestHash}`;
     let operationId =
       options.createOperationId?.({
         url: resourceUrl,
         method: materialized.method
-      }) ?? (reusePending ? pendingByRequestHash.get(requestHash) : undefined);
+      }) ?? (reusePending ? pendingByRequestKey.get(requestKey) : undefined);
     if (operationId === undefined && reusePending && lookupPending !== undefined) {
-      operationId = await lookupPending(requestHash);
+      operationId = await lookupPending(requestHash, taskId);
     }
     if (operationId === undefined) {
       operationId = `agenttab-${randomUUID()}`;
     }
-    const binding: RequestBinding = { operationId, requestHash, merchantId };
+    const binding: RequestBinding = {
+      operationId,
+      requestHash,
+      merchantId,
+      ...(taskId === undefined ? {} : { taskId }),
+      ...(taskContext === undefined ? {} : { taskContext }),
+      resourceMethod: materialized.method,
+      resourceBodyText: materialized.bodyText
+    };
 
     return bindingStore.run(binding, async () => {
       let response: Response;
@@ -409,27 +423,43 @@ export function createAgentTabFetch(options: CreateAgentTabFetchOptions): AgentT
       } catch (error) {
         const fundingError = toAgentTabFundingError(error);
         if (fundingError !== undefined && isAgentTabAlreadyPaidError(fundingError)) {
-          const replay = await fetchImpl(resourceUrl, materialized.init);
+          let replay: Response | undefined;
+          // When a payment is already submitted, try to replay with the gateway-issued token.
+          if (audit?.getExecution !== undefined) {
+            const execution = (await audit.getExecution(fundingError.operationId)) as
+              | { events?: Array<{ kind?: string; details?: { token?: string } }> }
+              | undefined;
+            const token = execution?.events?.find(
+              (e) => e.kind === "payment.token_issued"
+            )?.details?.token;
+            if (typeof token === "string" && token.length > 0) {
+              const headers = new Headers(materialized.init.headers ?? undefined);
+              headers.set("PAYMENT-SIGNATURE", token);
+              headers.set("X-PAYMENT", token);
+              replay = await fetchImpl(resourceUrl, { ...materialized.init, headers });
+            }
+          }
+          if (replay === undefined) replay = await fetchImpl(resourceUrl, materialized.init);
           if (replay.ok) {
             response = replay;
           } else {
             if (reusePending) {
-              pendingByRequestHash.set(requestHash, fundingError.operationId);
+              pendingByRequestKey.set(requestKey, fundingError.operationId);
             }
             throw fundingError;
           }
         } else if (fundingError !== undefined) {
           if (shouldReuseOperationId(fundingError) && reusePending) {
-            pendingByRequestHash.set(requestHash, fundingError.operationId);
+            pendingByRequestKey.set(requestKey, fundingError.operationId);
           } else {
-            pendingByRequestHash.delete(requestHash);
+            pendingByRequestKey.delete(requestKey);
           }
           throw fundingError;
         } else {
           throw error;
         }
       }
-      pendingByRequestHash.delete(requestHash);
+      pendingByRequestKey.delete(requestKey);
       let auditRecorded = false;
       let auditError: string | undefined;
 

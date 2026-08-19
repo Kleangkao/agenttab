@@ -30,6 +30,14 @@ export interface RequestBinding {
   operationId: string;
   requestHash: string;
   merchantId: string;
+  /** Optional task identifier supplied by the agent. */
+  taskId?: string;
+  /** Optional task context supplied by the agent for operator UX. */
+  taskContext?: PaymentIntent["taskContext"];
+  /** Method used by the original resource request (for honest post-payment resume). */
+  resourceMethod?: string;
+  /** Body used by the original resource request (for honest post-payment resume). */
+  resourceBodyText?: string;
 }
 
 /**
@@ -72,6 +80,21 @@ export function createAgentTabFundingHook(input: {
       assetMint: selectedRequirements.asset,
       amountAtomic: selectedRequirements.amount,
       resource: resourceUrl,
+      ...(binding.taskId === undefined ? {} : { taskId: binding.taskId }),
+      ...(binding.taskContext === undefined
+        ? {}
+        : {
+            taskContext: {
+              purpose: binding.taskContext.purpose,
+              ...(binding.taskContext.stepLabel === undefined
+                ? {}
+                : { stepLabel: binding.taskContext.stepLabel })
+            }
+          }),
+      ...(binding.resourceMethod === undefined ? {} : { resourceMethod: binding.resourceMethod }),
+      ...(binding.resourceBodyText === undefined
+        ? {}
+        : { resourceBodyText: binding.resourceBodyText }),
       ...(amountUsdMicros === undefined ? {} : { amountUsdMicros })
     };
 

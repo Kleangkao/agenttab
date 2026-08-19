@@ -15,6 +15,8 @@ export interface AgentTabExecutionSummary {
   operationId: string;
   state: string;
   requestHash?: string;
+  taskId?: string;
+  taskContext?: PaymentIntent["taskContext"];
   merchantOrigin?: string;
   resource?: string;
   amountAtomic?: string;
@@ -53,12 +55,16 @@ export interface AgentTabGatewayClient {
     limit?: number;
     state?: string;
     requestHash?: string;
+    taskId?: string;
     reusable?: boolean;
   }): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
   listParked(): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
   /** Parked, mid-fund, mid-pay, or unpaid fulfill — same ids the agent can resume. */
   listOpenLoop(): Promise<{ executions: AgentTabExecutionSummary[]; count: number }>;
-  findReusableOperationId(requestHash: string): Promise<string | undefined>;
+  findReusableOperationId(
+    requestHash: string,
+    taskId?: string
+  ): Promise<string | undefined>;
   /** Advance fund / pay / fulfill for an existing operationId. */
   resume(operationId: string): Promise<unknown>;
   getPolicy(): Promise<PaymentPolicy>;
@@ -106,6 +112,9 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
     if (query.state !== undefined) url.searchParams.set("state", query.state);
     if (query.requestHash !== undefined) {
       url.searchParams.set("requestHash", query.requestHash);
+    }
+    if (query.taskId !== undefined) {
+      url.searchParams.set("taskId", query.taskId);
     }
     if (query.reusable === true) url.searchParams.set("reusable", "1");
     const response = await fetchImpl(url.toString(), {
@@ -160,9 +169,10 @@ export function createGatewayClient(options: GatewayHttpOptions): AgentTabGatewa
     listExecutions,
     listParked: () => listExecutions({ state: "approval_required", limit: 50 }),
     listOpenLoop: () => listExecutions({ reusable: true, limit: 50 }),
-    findReusableOperationId: async (requestHash) => {
+    findReusableOperationId: async (requestHash, taskId) => {
       const listed = await listExecutions({
         requestHash,
+        ...(taskId === undefined ? {} : { taskId }),
         reusable: true,
         limit: 1
       });
