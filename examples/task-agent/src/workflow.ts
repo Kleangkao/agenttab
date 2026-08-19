@@ -1,4 +1,4 @@
-import { createAgentTabClient, requestPaidResource } from "@agenttab/fetch";
+import { createAgentTabClient, requestPaidResource, isAgentTabApprovalRequiredError } from "@agenttab/fetch";
 import type { AgentTabApprovalRequiredError } from "@agenttab/fetch";
 import { createLocalSmokeScheme } from "@agenttab/fetch";
 import { LOCAL_NETWORK, USDC_MINT, WSOL_MINT } from "@agenttab/gateway";
@@ -89,6 +89,10 @@ export interface WalletValuationTaskInput {
     purpose: string;
     stepLabel?: string;
   };
+  /** Optional fetch override (useful for in-process tests). */
+  fetchImpl?: typeof fetch;
+  /** Optional gateway fetch override (useful for in-process tests). */
+  gatewayFetchImpl?: typeof fetch;
   /**
    * Optional automation for CI and local smoke. When true, the agent will ask
    * AgentTab to approve automatically instead of waiting for a human.
@@ -99,6 +103,7 @@ export interface WalletValuationTaskInput {
 export async function runWalletValuationTask(
   input: WalletValuationTaskInput
 ): Promise<WalletValuationResult> {
+  const fetchImpl = input.fetchImpl ?? fetch;
   const agent = createAgentTabClient({
     gatewayBaseUrl: input.gatewayBaseUrl,
     schemes: [{ network: LOCAL_NETWORK, client: createLocalSmokeScheme() }],
@@ -106,11 +111,20 @@ export async function runWalletValuationTask(
     getUsdValueMicros: async ({ assetMint, amountAtomic }) =>
       assetMint === USDC_MINT ? amountAtomic : undefined,
     // In local demo we want audit records for operator UI.
-    recordAudit: true
+    recordAudit: true,
+    fetchImpl,
+    gatewayFetchImpl: input.gatewayFetchImpl ?? fetchImpl
   });
 
-  const balancesPayload = await readGatewayBalances(input.gatewayBaseUrl);
-  const balances = balancesPayload.balances;
+  // Balances are read outside of AgentTab fetch so we can keep the agent loop simple.
+  let balancesPayload = await (async () => {
+    const res = await fetchImpl(`${input.gatewayBaseUrl}/v1/balances`);
+    if (!res.ok) {
+      throw new Error(`Failed to read balances (${res.status})`);
+    }
+    return (await res.json()) as Awaited<ReturnType<typeof readGatewayBalances>>;
+  })();
+  let balances = balancesPayload.balances;
 
   const usdc = balances.find((b) => b.mint === USDC_MINT);
   const sol = balances.find((b) => b.mint === WSOL_MINT);
@@ -118,7 +132,7 @@ export async function runWalletValuationTask(
   const usdcAtomic = usdc?.balanceAtomic ?? "0";
   const solAtomic = sol?.balanceAtomic ?? "0";
 
-  const usdcUsdMicros = asBigInt(usdcAtomic); // 1 USDC atomic == 1 USD micros here.
+  let usdcUsdMicros = asBigInt(usdcAtomic); // 1 USDC atomic == 1 USD micros here.
   const paid: WalletValuationResult["paid"] = [];
 
   let solPriceUsdMicros: string | undefined;
@@ -147,14 +161,26 @@ export async function runWalletValuationTask(
       );
       solPriceUsdMicros = String((paidResult.body as { priceUsdMicros?: string }).priceUsdMicros ?? "0");
       const priceUsdMicros = asBigInt(solPriceUsdMicros);
+      // Re-read balances so the valuation matches the post-payment wallet state.
+      balancesPayload = await (async () => {
+        const res = await fetchImpl(`${input.gatewayBaseUrl}/v1/balances`);
+        if (!res.ok) throw new Error(`Failed to re-read balances (${res.status})`);
+        return (await res.json()) as Awaited<ReturnType<typeof readGatewayBalances>>;
+      })();
+      balances = balancesPayload.balances;
+
+      const usdcAfter = balances.find((b) => b.mint === USDC_MINT);
+      const solAfter = balances.find((b) => b.mint === WSOL_MINT);
+      usdcUsdMicros = asBigInt(usdcAfter?.balanceAtomic ?? "0");
+      const solAtomicAfter = solAfter?.balanceAtomic ?? "0";
       // SOL has 9 decimals (lamports). USD micros are per 1 SOL.
-      solUsdMicros = (asBigInt(solAtomic) * priceUsdMicros) / 1_000_000_000n;
+      solUsdMicros = (asBigInt(solAtomicAfter) * priceUsdMicros) / 1_000_000_000n;
       paid.push({ resourceUrl: priceResourceUrl, priceUsdMicros: solPriceUsdMicros });
     } catch (e) {
+      if (!isAgentTabApprovalRequiredError(e)) throw e;
+
       // Wait for human approval, then retry with the same operationId.
-      const maybe = e as { operationId?: string; requestHash?: string };
-      const operationId = typeof maybe.operationId === "string" ? maybe.operationId : undefined;
-      if (!operationId) throw e;
+      const operationId = e.operationId;
 
       await pollExecutionState(
         agent,
@@ -163,9 +189,17 @@ export async function runWalletValuationTask(
           state === "funded" ||
           state === "payment_submitted" ||
           state === "paid" ||
-          state === "fulfilled",
+          state === "fulfilled" ||
+          state === "denied" ||
+          state === "failed",
         60_000
       );
+
+      const execution = await agent.getExecution(operationId);
+      const state = (execution as { state?: string }).state ?? "";
+      if (state === "denied" || state === "failed") {
+        throw new Error(`AgentTab operator denied the paid step (state=${state})`);
+      }
 
       const paidResult = await requestPaidResource(
         agent,
@@ -180,7 +214,17 @@ export async function runWalletValuationTask(
 
       solPriceUsdMicros = String((paidResult.body as { priceUsdMicros?: string }).priceUsdMicros ?? "0");
       const priceUsdMicros = asBigInt(solPriceUsdMicros);
-      solUsdMicros = (asBigInt(solAtomic) * priceUsdMicros) / 1_000_000_000n;
+      balancesPayload = await (async () => {
+        const res = await fetchImpl(`${input.gatewayBaseUrl}/v1/balances`);
+        if (!res.ok) throw new Error(`Failed to re-read balances (${res.status})`);
+        return (await res.json()) as Awaited<ReturnType<typeof readGatewayBalances>>;
+      })();
+      balances = balancesPayload.balances;
+      const usdcAfter = balances.find((b) => b.mint === USDC_MINT);
+      const solAfter = balances.find((b) => b.mint === WSOL_MINT);
+      usdcUsdMicros = asBigInt(usdcAfter?.balanceAtomic ?? "0");
+      const solAtomicAfter = solAfter?.balanceAtomic ?? "0";
+      solUsdMicros = (asBigInt(solAtomicAfter) * priceUsdMicros) / 1_000_000_000n;
       paid.push({ resourceUrl: priceResourceUrl, priceUsdMicros: solPriceUsdMicros });
     }
   }

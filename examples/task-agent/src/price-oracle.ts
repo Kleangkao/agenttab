@@ -28,7 +28,7 @@ export function createPriceOracle(options: PriceOracleOptions): Hono {
 
   app.get("/v1/price", (c) => {
     const requestUrl = new URL(c.req.url);
-    const resourceUrl = requestUrl.toString();
+    const resourceUrl = `${options.origin}${requestUrl.pathname}${requestUrl.search}`;
 
     const asset = requestUrl.searchParams.get("asset") ?? requestUrl.searchParams.get("symbol") ?? "SOL";
     const assetUpper = asset.toUpperCase();
