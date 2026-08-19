@@ -306,6 +306,25 @@ importers:
         specifier: ^4.21.0
         version: 4.23.12
 
+  examples/task-agent:
+    dependencies:
+      '@agenttab/fetch':
+        specifier: workspace:*
+        version: link:../../packages/fetch
+      '@hono/node-server':
+        specifier: ^1.19.9
+        version: 1.19.17(hono@4.13.1)
+      hono:
+        specifier: ^4.11.3
+        version: 4.13.1
+    devDependencies:
+      '@agenttab/gateway':
+        specifier: workspace:*
+        version: link:../../apps/gateway
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.12
+
   packages/core:
     dependencies:
       zod:

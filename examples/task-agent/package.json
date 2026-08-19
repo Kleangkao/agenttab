@@ -1,0 +1,30 @@
+{
+  "name": "@agenttab/example-task-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "demo": "tsx src/demo.ts",
+    "judge": "tsx src/judge.ts",
+    "test": "vitest run --passWithNoTests --exclude 'dist/**'"
+  },
+  "dependencies": {
+    "@agenttab/fetch": "workspace:*",
+    "@hono/node-server": "^1.19.9",
+    "hono": "^4.11.3"
+  },
+  "devDependencies": {
+    "@agenttab/gateway": "workspace:*",
+    "tsx": "^4.23.12"
+  }
+}
+
