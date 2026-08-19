@@ -313,6 +313,8 @@
 
   function loopModel(row, record) {
     const intent = record?.intent || row;
+    const taskPurpose = intent?.taskContext?.purpose;
+    const taskStepLabel = intent?.taskContext?.stepLabel;
     const mint = intent.assetMint;
     const asked = Number(intent.amountAtomic || row.amountAtomic || 0);
     const heldRow = state.balances.find((item) => item.mint === mint);
@@ -510,6 +512,10 @@
     } else if (fulfilled || st === "fulfilled") {
       stepNow = `The agent got ${access || "the resource"} after AgentTab ${alreadyHeld ? "paid" : `bought ${deficitLabel} and paid`} ${askedLabel}.`;
     }
+
+    if (taskPurpose) {
+      stepNow = `Task: ${taskPurpose}${taskStepLabel ? ` · ${taskStepLabel}` : ""}. ${stepNow}`;
+    }
     return {
       intent,
       mint,
@@ -526,6 +532,8 @@
       kicker,
       amountLabel,
       lead: "",
+      taskPurpose,
+      taskStepLabel,
       stepNow,
       beats,
       rail: railFor(intent.network || row.network),
@@ -835,7 +843,9 @@
               <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}${
                 row.agentId ? ` · ${esc(row.agentId)}` : ""
               }</div>
-              <div class="sub">${esc(loopLine)}</div>
+              <div class="sub">${esc(loopLine)}${
+                loop.taskPurpose ? ` · Task: ${esc(loop.taskPurpose)}` : ""
+              }</div>
               <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
             </div>
             <div class="amount">${esc(loop.hero)}</div>
