@@ -77,8 +77,13 @@ async function seedNowIfEmpty(): Promise<string | undefined> {
   });
   if (parked[0]) return parked[0].operationId;
   const operationId = `demo-now-${randomUUID()}`;
+  const taskId = `wallet-valuation-${randomUUID()}`;
   const requestHash = `sha256:${createHash("sha256").update(operationId).digest("hex")}`;
   const resource = `${merchantOrigin}/v1/market-snapshot`;
+  const taskContext = {
+    purpose: "Estimate my wallet's USD value",
+    stepLabel: "Paid market snapshot step"
+  };
   const result = await gateway.coordinator.ensurePaymentAsset({
     intent: {
       operationId,
@@ -91,7 +96,10 @@ async function seedNowIfEmpty(): Promise<string | undefined> {
       assetMint: USDC_MINT,
       amountAtomic: "4000000",
       amountUsdMicros: "4000000",
-      resource
+      resource,
+      taskId,
+      taskContext,
+      resourceMethod: "GET"
     }
   });
   if (result.status !== "approval_required") {

@@ -142,6 +142,7 @@ export function createIdempotencyKey(intent: PaymentIntent): string {
     intent.destination,
     intent.assetMint,
     intent.amountAtomic,
+    ...(intent.taskId === undefined ? [] : [intent.taskId]),
     intent.resource
   ]);
   return `agt_${createHash("sha256").update(material).digest("hex")}`;

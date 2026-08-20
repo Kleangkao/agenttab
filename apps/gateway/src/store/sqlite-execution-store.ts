@@ -53,6 +53,8 @@ export interface ExecutionSummary {
   amountUsdMicros?: string;
   assetMint: string;
   network: string;
+  taskId?: string;
+  taskContext?: PaymentIntent["taskContext"];
   lastEventKind: string | null;
   agentId?: string;
 }
@@ -153,6 +155,7 @@ export class SqliteExecutionStore implements ExecutionStore {
     requestHash?: string;
     reusable?: boolean;
     agentId?: string | undefined;
+    taskId?: string | undefined;
   } = {}): Promise<ExecutionSummary[]> {
     const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
     const clauses: string[] = [];
@@ -171,6 +174,10 @@ export class SqliteExecutionStore implements ExecutionStore {
     if (options.requestHash !== undefined) {
       clauses.push("json_extract(intent_json, '$.requestHash') = ?");
       params.push(options.requestHash);
+    }
+    if (options.taskId !== undefined && options.taskId.length > 0) {
+      clauses.push("json_extract(intent_json, '$.taskId') = ?");
+      params.push(options.taskId);
     }
     if (options.agentId !== undefined && options.agentId.length > 0) {
       clauses.push("agent_id = ?");
@@ -217,6 +224,8 @@ export class SqliteExecutionStore implements ExecutionStore {
           : { amountUsdMicros: intent.amountUsdMicros }),
         assetMint: intent.assetMint,
         network: intent.network,
+        ...(intent.taskId === undefined ? {} : { taskId: intent.taskId }),
+        ...(intent.taskContext === undefined ? {} : { taskContext: intent.taskContext }),
         lastEventKind: lastEvent?.kind ?? null,
         ...optionalAgentId(row.agent_id)
       };

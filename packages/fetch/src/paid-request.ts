@@ -18,6 +18,18 @@ export interface RequestPaidResourceOptions {
   onApprovalRequired?: (
     error: AgentTabApprovalRequiredError
   ) => Promise<"approve" | "deny" | "abort"> | "approve" | "deny" | "abort";
+
+  /** Optional task identifier used to scope reuse and prevent cross-task payment collisions. */
+  taskId?: string;
+
+  /**
+   * Optional task context supplied by the agent for operator UX.
+   * This is display/audit only; it does not relax any policy checks.
+   */
+  taskContext?: {
+    purpose: string;
+    stepLabel?: string;
+  };
 }
 
 export interface PaidResourceResult {
@@ -66,7 +78,14 @@ export async function requestPaidResource(
   options: RequestPaidResourceOptions = {}
 ): Promise<PaidResourceResult> {
   const attempt = async (): Promise<PaidResourceResult> => {
-    const response = await agent.fetch(resourceUrl, init);
+    const response = await agent.fetch(
+      resourceUrl,
+      {
+        ...init,
+        ...(options.taskId === undefined ? {} : { agenttabTaskId: options.taskId }),
+        ...(options.taskContext === undefined ? {} : { agenttabTaskContext: options.taskContext })
+      } as RequestInit
+    );
     const meta = agent.getMeta(response);
     const body = await readBody(response);
     let execution: unknown;

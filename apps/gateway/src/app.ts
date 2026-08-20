@@ -1,4 +1,5 @@
 import { mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import {
   evaluatePaymentPolicy,
@@ -460,6 +461,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const limitRaw = c.req.query("limit");
     const stateRaw = c.req.query("state");
     const requestHash = c.req.query("requestHash");
+    const taskId = c.req.query("taskId");
     const reusableRaw = c.req.query("reusable");
     const limit = limitRaw === undefined ? 20 : Number(limitRaw);
     if (!Number.isFinite(limit) || limit < 1) {
@@ -473,6 +475,9 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       (requestHash.length < 16 || requestHash.length > 256)
     ) {
       return c.json({ error: "invalid_request_hash" }, 400);
+    }
+    if (taskId !== undefined && (taskId.length < 1 || taskId.length > 64)) {
+      return c.json({ error: "invalid_task_id" }, 400);
     }
     const reusable = reusableRaw === "1" || reusableRaw === "true";
     const listingWithoutHash = requestHash === undefined || requestHash.length === 0;
@@ -491,6 +496,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
         limit,
         ...(stateRaw === undefined ? {} : { state: stateRaw }),
         ...(requestHash === undefined ? {} : { requestHash }),
+        ...(taskId === undefined ? {} : { taskId }),
         ...(reusable ? { reusable: true } : {}),
         ...(namedAgent === undefined ? {} : { agentId: namedAgent })
       }),
@@ -693,9 +699,23 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     }
 
     if (body.settlementId) {
+      const now = new Date();
+      const claims = {
+        operationId: record.operationId,
+        amountAtomic: record.intent.amountAtomic,
+        assetMint: record.intent.assetMint,
+        destination: record.intent.destination,
+        merchantOrigin: record.intent.merchantOrigin,
+        resource: record.intent.resource,
+        network: record.intent.network,
+        issuedAt: now.toISOString(),
+        expiresAt: new Date(now.getTime() + 5 * 60_000).toISOString()
+      };
+      const token = issuePaymentToken(claims, paymentHmacSecret);
       record = await transitionPayment(store, record, "paid", "payment.settled", {
         settlementId: body.settlementId,
-        ...(body.transaction === undefined ? {} : { transaction: body.transaction })
+        ...(body.transaction === undefined ? {} : { transaction: body.transaction }),
+        token
       });
       if (record.intent.amountUsdMicros !== undefined) {
         durableSpend.ensureOperationSpend(
@@ -793,6 +813,89 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       return c.json({ resumed: true, step: "pay", ...body }, pay.status as 200);
     }
 
+    if (record.state === "paid" || record.state === "fulfillment_failed") {
+      const tokenEvent = record.events.find(
+        (e) =>
+          (e.kind === "payment.token_issued" || e.kind === "payment.settled") && e.details !== undefined
+      );
+      const token =
+        tokenEvent?.details && typeof tokenEvent.details.token === "string"
+          ? tokenEvent.details.token
+          : undefined;
+
+      if (typeof token !== "string" || token.length === 0) {
+        const fulfill = await app.request(
+          `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ fail: true })
+          }
+        );
+        const body = (await fulfill.json()) as Record<string, unknown>;
+        return c.json({ resumed: true, step: "fulfill", ...body }, fulfill.status as 200);
+      }
+
+      const resourceUrl = record.intent.resource;
+      const method = record.intent.resourceMethod ?? "GET";
+      const bodyText = record.intent.resourceBodyText ?? "";
+
+      const fetchHeaders: Record<string, string> = {
+        "PAYMENT-SIGNATURE": token,
+        "X-PAYMENT": token
+      };
+
+      const fetchInit: RequestInit = {
+        method,
+        headers: fetchHeaders,
+        ...(method !== "GET" && method !== "HEAD" && bodyText.length > 0
+          ? { body: bodyText }
+          : {})
+      };
+
+      try {
+        const response = await fetch(resourceUrl, fetchInit);
+        if (!response.ok) {
+          const fulfill = await app.request(
+            `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
+            {
+              method: "POST",
+              headers,
+              body: JSON.stringify({ fail: true })
+            }
+          );
+          const body = (await fulfill.json()) as Record<string, unknown>;
+          return c.json({ resumed: true, step: "fulfill", ...body }, fulfill.status as 200);
+        }
+
+        const responseText = await response.text();
+        const responseHash = `sha256:${createHash("sha256").update(`RESPONSE\n${resourceUrl}\n${responseText}`).digest("hex")}`;
+
+        const fulfill = await app.request(
+          `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ responseHash })
+          }
+        );
+        const body = (await fulfill.json()) as Record<string, unknown>;
+        return c.json({ resumed: true, step: "fulfill", ...body }, fulfill.status as 200);
+      } catch {
+        const fulfill = await app.request(
+          `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ fail: true })
+          }
+        );
+        const body = (await fulfill.json()) as Record<string, unknown>;
+        return c.json({ resumed: true, step: "fulfill", ...body }, fulfill.status as 200);
+      }
+    }
+
+    // Should be unreachable: resume only calls this branch for paid/fulfillment_failed.
     const fulfill = await app.request(
       `/v1/executions/${encodeURIComponent(operationId)}/fulfill`,
       {

@@ -75,6 +75,11 @@ describe("operator console", () => {
       expect(js).toContain("notifyDeliveries");
       expect(js).toContain("agentId");
       expect(js).toContain(">Agent ");
+      expect(js).toContain("detailIsStale");
+      expect(js).toContain("historicalDeficit");
+      expect(js).toContain("funding.plan_receipt");
+      expect(js).toContain("the exact deficit");
+      expect(js).not.toContain('alreadyHeld || (!deficitKnown && !inflight) ? "none"');
 
       const intent = {
         operationId: "console-park-1",
@@ -147,6 +152,11 @@ describe("operator console", () => {
       });
       expect(approved.status).toBe(200);
       expect((await gateway.store.get("console-park-1"))?.state).toBe("funded");
+      const funded = await gateway.store.get("console-park-1");
+      expect(funded?.events.some((event) => event.kind === "funding.submitted")).toBe(true);
+      expect(funded?.events.find((event) => event.kind === "funding.submitted")?.details).toMatchObject({
+        deficitAtomic: "2500000"
+      });
     } finally {
       gateway.close();
     }

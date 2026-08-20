@@ -26,6 +26,8 @@ jobs:
         run: pnpm test
       - name: Judge demo (in-process)
         run: pnpm demo:judge
+      - name: Task-agent demo (in-process)
+        run: pnpm demo:task-agent
       - name: HTTP adopt demo (preview / approve / deny)
         run: pnpm demo:adopt
       - name: Remote adoption smoke

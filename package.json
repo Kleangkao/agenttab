@@ -28,6 +28,7 @@
     "demo:paid-api": "pnpm --filter @agenttab/example-paid-api dev",
     "demo:agent": "pnpm --filter @agenttab/example-agent-client demo",
     "demo:judge": "pnpm --filter @agenttab/example-agent-client judge",
+    "demo:task-agent": "pnpm --filter @agenttab/example-task-agent judge",
     "integration:remote": "pnpm --filter @agenttab/example-remote-agent test",
     "integration:devnet-remote": "pnpm --filter @agenttab/example-remote-agent devnet:e2e",
     "demo:neutral-merchant": "pnpm --filter @agenttab/example-neutral-merchant dev",

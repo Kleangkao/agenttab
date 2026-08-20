@@ -14,6 +14,21 @@ export const paymentIntentSchema = z.object({
   assetMint: z.string().min(16).max(128),
   amountAtomic: atomicAmountSchema,
   amountUsdMicros: atomicAmountSchema.optional(),
+  /** Optional task identifier supplied by the agent. Used to scope reuse and avoid cross-task payment collisions. */
+  taskId: z.string().min(1).max(64).optional(),
+  /** Optional task context supplied by the agent for operator UX only. */
+  taskContext: z
+    .object({
+      /** Why the paid resource exists in the user's workflow (operator approval text). */
+      purpose: z.string().min(1).max(280),
+      /** Optional audit-only step label. */
+      stepLabel: z.string().min(1).max(120).optional()
+    })
+    .optional(),
+  /** Method used by the original resource request (needed for honest post-payment resume). */
+  resourceMethod: z.string().min(1).max(16).optional(),
+  /** Body used by the original resource request (stringified, for honest post-payment resume). */
+  resourceBodyText: z.string().max(50_000).optional(),
   resource: z.string().min(1).max(2048),
   expiresAt: z.iso.datetime().optional()
 });
