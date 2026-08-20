@@ -321,25 +321,33 @@
     const liveHeld = heldRow ? Number(heldRow.balanceAtomic) : NaN;
     const submitted = findLastEvent(record, ["funding.submitted", "funding.attempt_locked"]);
     const confirmed = findEvent(record, "funding.confirmed");
+    const planReceipt = findEvent(record, "funding.plan_receipt");
     const notRequired = findEvent(record, "funding.not_required");
     const fulfilled = findEvent(record, "resource.fulfilled");
     const source = pickFundingRow(mint);
     const st = row.state;
     const inflight = ["discovered", "approval_required", "approved", "funding_submitted"].includes(st);
-    let deficit;
-    let deficitKnown = true;
-    if (notRequired) deficit = 0;
-    else if (submitted?.details?.deficitAtomic != null) {
-      deficit = Number(submitted.details.deficitAtomic);
-    } else if (confirmed?.details?.outputAmountAtomic != null) {
-      deficit = Number(confirmed.details.outputAmountAtomic);
+    const historicalDeficit =
+      submitted?.details?.deficitAtomic ??
+      confirmed?.details?.outputAmountAtomic ??
+      planReceipt?.details?.outputAmountAtomic;
+    let deficit = 0;
+    let deficitKnown = false;
+    if (notRequired) {
+      deficit = 0;
+      deficitKnown = true;
+    } else if (historicalDeficit != null && historicalDeficit !== "") {
+      deficit = Number(historicalDeficit);
+      deficitKnown = Number.isFinite(deficit);
     } else if (inflight && Number.isFinite(liveHeld) && asked > 0) {
       deficit = Math.max(0, asked - liveHeld);
-    } else {
-      deficit = 0;
-      deficitKnown = Boolean(notRequired);
+      deficitKnown = true;
     }
-    const alreadyHeld = Boolean(notRequired) || (deficitKnown && deficit <= 0);
+    // A later live balance must not rewrite a completed DFlow buy into
+    // "bought none". alreadyHeld is audit `funding.not_required`, or an
+    // in-flight wallet that already covers the ask before any buy.
+    const alreadyHeld =
+      Boolean(notRequired) || (deficitKnown && deficit <= 0 && historicalDeficit == null);
     const fund = fundingHow();
     const access = accessPath(intent, row);
     const halted = st === "denied" || st === "failed";
@@ -350,7 +358,11 @@
         : assetLabel(inputMint)
       : "no allowed funding asset";
     const askedLabel = formatAssetAmount(asked, mint);
-    const deficitLabel = alreadyHeld || (!deficitKnown && !inflight) ? "none" : formatAssetAmount(deficit, mint);
+    const deficitLabel = alreadyHeld
+      ? "none"
+      : deficitKnown
+        ? formatAssetAmount(deficit, mint)
+        : "the exact deficit";
     const heldLabel = Number.isFinite(liveHeld) ? formatAssetAmount(liveHeld, mint) : "unknown";
     const beatOrder = ["resource", "asked", "missing", "buy", "finish"];
     let currentBeat = "resource";
@@ -883,17 +895,26 @@
     renderPolicy();
   }
 
+  function detailIsStale(row) {
+    const cached = state.detail[row.operationId];
+    if (!cached) return true;
+    if (cached.state !== row.state) return true;
+    if (cached.version !== row.version) return true;
+    return false;
+  }
+
   async function loadDetails(rows) {
-    const missing = rows
-      .map((row) => row.operationId)
-      .filter((id) => !state.detail[id])
-      .slice(0, 10);
+    const stale = rows.filter(detailIsStale).slice(0, 10);
     await Promise.all(
-      missing.map(async (id) => {
+      stale.map(async (row) => {
         try {
-          state.detail[id] = await api(`/v1/executions/${encodeURIComponent(id)}`);
+          const next = await api(`/v1/executions/${encodeURIComponent(row.operationId)}`);
+          const cached = state.detail[row.operationId];
+          if (!cached || (next.version ?? 0) >= (cached.version ?? 0)) {
+            state.detail[row.operationId] = next;
+          }
         } catch {
-          /* summary still renders */
+          /* keep last good audit record; summary still renders */
         }
       }),
     );

@@ -192,7 +192,7 @@ export async function runWalletValuationTask(
           state === "fulfilled" ||
           state === "denied" ||
           state === "failed",
-        60_000
+        300_000
       );
 
       const execution = await agent.getExecution(operationId);

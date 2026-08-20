@@ -40,7 +40,7 @@ async function main(): Promise<void> {
 
   const priceOracle = createPriceOracle({ origin: priceOracleOrigin });
 
-  serve(
+  const gatewayServer = serve(
     { fetch: gateway.app.fetch, port: gatewayPort, hostname: host },
     () => {
       console.log(
@@ -61,7 +61,7 @@ async function main(): Promise<void> {
     }
   );
 
-  serve(
+  const priceOracleServer = serve(
     { fetch: priceOracle.fetch, port: merchantPort, hostname: host },
     () => {
       console.log(
@@ -77,6 +77,20 @@ async function main(): Promise<void> {
       );
     }
   );
+
+  const shutdown = () => {
+    priceOracleServer.close();
+    gatewayServer.close();
+    gateway.close();
+  };
+  process.once("SIGINT", () => {
+    shutdown();
+    process.exit(process.exitCode ?? 0);
+  });
+  process.once("SIGTERM", () => {
+    shutdown();
+    process.exit(process.exitCode ?? 0);
+  });
 
   const taskId = `task-agent-${Date.now()}`;
   const taskContext = {
@@ -99,7 +113,8 @@ async function main(): Promise<void> {
           phase: "task-agent-complete",
           ok: true,
           result,
-          next: "Run the same command with AGENTTAB_INITIAL_USDC_ATOMIC=1000000 to see already-funded path."
+          operatorUi: `${gatewayOrigin}/ui`,
+          next: "Leave this process running so /ui stays readable. Ctrl+C to stop. AGENTTAB_INITIAL_USDC_ATOMIC=1000000 skips the DFlow buy."
         },
         null,
         2
@@ -108,14 +123,16 @@ async function main(): Promise<void> {
   } catch (error) {
     console.error(
       JSON.stringify(
-        { phase: "task-agent-failed", error: error instanceof Error ? error.message : String(error) },
+        {
+          phase: "task-agent-failed",
+          error: error instanceof Error ? error.message : String(error),
+          operatorUi: `${gatewayOrigin}/ui`
+        },
         null,
         2
       )
     );
     process.exitCode = 1;
-  } finally {
-    gateway.close();
   }
 }
 
