@@ -124,6 +124,8 @@ type SpendEntry = {
 export interface SpendLedger {
   /** Realized (funded) rolling 24h spend. In-flight reservations are excluded. */
   getSpentUsdMicrosLast24h(): string;
+  /** In-flight cap reservations that have not yet funded. */
+  getReservedUsdMicros(): string;
   getSpentUsdMicrosLast24hByAgent(): Record<string, string>;
   recordSpend(usdMicros: string): void;
   /**
@@ -158,6 +160,14 @@ export class InMemorySpendLedger implements SpendLedger {
     let total = this.#anonymousCommittedUsdMicros;
     for (const row of this.#operations.values()) {
       if (row.status === "committed") total += row.usdMicros;
+    }
+    return total.toString();
+  }
+
+  getReservedUsdMicros(): string {
+    let total = 0n;
+    for (const row of this.#operations.values()) {
+      if (row.status === "reserved") total += row.usdMicros;
     }
     return total.toString();
   }

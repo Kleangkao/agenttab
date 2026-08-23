@@ -64,6 +64,15 @@ export class SqliteSpendLedger implements SpendLedger {
     return total.toString();
   }
 
+  getReservedUsdMicros(): string {
+    const rows = this.#db
+      .prepare("SELECT usd_micros FROM spend_events WHERE status = 'reserved'")
+      .all() as Array<{ usd_micros: string }>;
+    let total = 0n;
+    for (const row of rows) total += BigInt(row.usd_micros);
+    return total.toString();
+  }
+
   getSpentUsdMicrosLast24hByAgent(): Record<string, string> {
     const cutoff = Date.now() - 24 * 60 * 60 * 1000;
     const rows = this.#db

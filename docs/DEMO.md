@@ -38,8 +38,21 @@ pnpm demo:stack
    already-settled Mainnet DFlow + x402 transactions.
 3. Confirm **Buy … and continue**. That buys only the deficit, pays the
    merchant, and retries the same resource.
-4. The card should end on **The agent received the resource**.
+4. The card should end on **The agent received the resource**. Within ~15s the
+   stack auto-reseeds a fresh Now card so the next visitor can repeat the loop.
 
+### Public demo host (no laptop)
+
+Same stack, containerized for Railway (see `Dockerfile.demo-stack` +
+`railway.toml` and `docs/adr/0001-public-live-demo-site.md`):
+
+```bash
+docker build -f Dockerfile.demo-stack -t agenttab-demo-stack .
+docker run --rm -p 8787:8787 -e HOST=0.0.0.0 agenttab-demo-stack
+```
+
+Open `/ui` on the public URL. Funding stays mock. Merchant stays on container
+loopback; only the gateway port is exposed.
 Optional one-command audit of the same loop with no browser:
 
 ```bash

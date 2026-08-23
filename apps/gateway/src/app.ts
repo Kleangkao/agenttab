@@ -415,6 +415,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       expiredParkedCount: parked.length - liveParked.length,
       openLoopCount: openLoop.length,
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      reservedUsdMicros: durableSpend.getReservedUsdMicros(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros
     });
   });
@@ -426,6 +427,7 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     const policy = policies.get();
     return c.json({
       spentUsdMicrosLast24h: durableSpend.getSpentUsdMicrosLast24h(),
+      reservedUsdMicros: durableSpend.getReservedUsdMicros(),
       spentUsdMicrosLast24hByAgent: durableSpend.getSpentUsdMicrosLast24hByAgent(),
       maxDailyUsdMicros: policy.maxDailyUsdMicros,
       maxPaymentUsdMicros: policy.maxPaymentUsdMicros

@@ -195,13 +195,20 @@
         short: "local mock",
         acquire: "local DFlow mock",
         honest: "local DFlow mock — no chain, not broadcasting",
+        badge: "LOCAL MOCK",
+        badgeClass: "mock",
       };
     }
     if (mode === "live-sim") {
+      const live = Boolean(state.health?.broadcastEnabled);
       return {
         short: "DFlow sim",
         acquire: "DFlow simulated send",
-        honest: "DFlow live quote, simulated send — not broadcasting unless enabled",
+        honest: live
+          ? "DFlow live sim — broadcasting enabled"
+          : "DFlow live quote, simulated send — not broadcasting unless enabled",
+        badge: live ? "MAINNET LIVE" : "DFLOW SIM",
+        badgeClass: live ? "live" : "sim",
       };
     }
     if (mode === "live-quote") {
@@ -209,6 +216,8 @@
         short: "DFlow quote",
         acquire: "DFlow live quote",
         honest: "DFlow live quote — plan only, not broadcasting",
+        badge: "DFLOW QUOTE",
+        badgeClass: "sim",
       };
     }
     if (mode === "devnet-mint") {
@@ -216,13 +225,153 @@
         short: "Devnet mint",
         acquire: "Devnet mint stand-in",
         honest: "Devnet mint stand-in — not DFlow",
+        badge: "DEVNET",
+        badgeClass: "devnet",
       };
     }
     return {
       short: mode || "gateway",
       acquire: "funding coordinator",
       honest: mode || "gateway",
+      badge: (mode || "GATEWAY").toUpperCase(),
+      badgeClass: "sim",
     };
+  }
+
+  function isOnChainSignature(signature) {
+    if (!signature || typeof signature !== "string") return false;
+    if (
+      signature.startsWith("pending-") ||
+      signature.startsWith("sim-fund-") ||
+      signature.startsWith("local-signed-nobroadcast-") ||
+      signature.startsWith("resumed-") ||
+      signature.startsWith("local-")
+    ) {
+      return false;
+    }
+    return /^[1-9A-HJ-NP-Za-km-z]{32,}$/.test(signature);
+  }
+
+  function explorerTxUrl(network, signature) {
+    if (!isOnChainSignature(signature)) return null;
+    const base = `https://solscan.io/tx/${encodeURIComponent(signature)}`;
+    if (network === "solana:devnet") return `${base}?cluster=devnet`;
+    if (network === "solana:mainnet" || network === "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") {
+      return base;
+    }
+    return null;
+  }
+
+  function chainProofFromRecord(record, row) {
+    const network = record?.intent?.network || row?.network;
+    const events = record?.events || [];
+    const funding = events.find((event) => event.kind === "funding.confirmed");
+    const payment = events.find((event) => event.kind === "payment.settled");
+    const token = events.find((event) => event.kind === "payment.token_issued");
+    const fundingSig = funding?.details?.signature;
+    const paymentSig =
+      payment?.details?.transaction ||
+      payment?.details?.settlementId ||
+      token?.details?.settlementId;
+    return {
+      network,
+      funding: {
+        signature: fundingSig,
+        url: explorerTxUrl(network, fundingSig),
+        label: "DFlow exact-deficit",
+      },
+      payment: {
+        signature: paymentSig,
+        url: explorerTxUrl(network, paymentSig),
+        label: payment ? "x402 pay" : token ? "local payment token" : "x402 pay",
+        local: Boolean(token && !payment),
+      },
+    };
+  }
+
+  function renderChainProof(record, row) {
+    const proof = chainProofFromRecord(record, row);
+    const parts = [];
+    if (proof.funding.url) {
+      parts.push(
+        `<a href="${esc(proof.funding.url)}" target="_blank" rel="noopener">${esc(proof.funding.label)}</a>`,
+      );
+    } else if (proof.funding.signature && !isOnChainSignature(proof.funding.signature)) {
+      parts.push(`${esc(proof.funding.label)} (mock)`);
+    }
+    if (proof.payment.url) {
+      parts.push(
+        `<a href="${esc(proof.payment.url)}" target="_blank" rel="noopener">${esc(proof.payment.label)}</a>`,
+      );
+    } else if (proof.payment.local) {
+      parts.push("local HMAC pay");
+    } else if (proof.payment.signature && !isOnChainSignature(proof.payment.signature)) {
+      parts.push(`${esc(proof.payment.label)} (mock)`);
+    }
+    if (!parts.length) return "";
+    return `<p class="chain-proof"><strong>Proof:</strong> ${parts.join(" → ")}</p>`;
+  }
+
+  function renderModeBadge() {
+    const badge = $("mode-badge");
+    if (!badge) return;
+    const fund = fundingHow();
+    badge.textContent = fund.badge;
+    badge.className = `mode-badge ${fund.badgeClass}`;
+    badge.title = fund.honest;
+  }
+
+  function renderJudgeStats() {
+    const root = $("judge-stats");
+    if (!root) return;
+    const health = state.health || {};
+    const spend = state.spend || {};
+    const used = spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0;
+    const reserved = spend.reservedUsdMicros ?? health.reservedUsdMicros ?? 0;
+    const daily = spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0;
+    const waiting = state.nowItems.filter((row) => row.state === "approval_required").length;
+    root.hidden = false;
+    root.innerHTML = `
+      <div class="stat">
+        <span class="stat-label">Spent today</span>
+        <strong class="stat-value">${esc(money(used))}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Held in flight</span>
+        <strong class="stat-value">${esc(money(reserved))}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Daily cap</span>
+        <strong class="stat-value">${esc(money(daily))}</strong>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Waiting on you</span>
+        <strong class="stat-value">${waiting || "0"}</strong>
+      </div>`;
+  }
+
+  function renderJudgeLanding() {
+    const fund = fundingHow();
+    return `
+      <section class="judge-landing">
+        <p class="judge-kicker">Agent payments · DFlow exact-deficit funding</p>
+        <h2 class="judge-title">When the wallet lacks the exact asset, buy only the deficit — then finish the original request</h2>
+        <p class="judge-thesis">An agent hits a paid HTTP resource. The merchant asks for a specific token via x402. If the wallet is short, AgentTab buys <em>only</em> the missing amount through DFlow, pays the merchant, and retries the same request. No swap screen. No free trading.</p>
+        <p class="judge-why">DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.</p>
+        ${renderStory(idleStoryBeats())}
+        <div class="judge-proof">
+          <h3>Already proven on Solana Mainnet</h3>
+          <p>The live screen below is <strong>${esc(fund.badge)}</strong> — ${esc(fund.honest)}. The same loop already settled on-chain:</p>
+          <p class="judge-links">
+            <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">Exact-deficit DFlow tx</a>
+            <span aria-hidden="true">→</span>
+            <a href="${MAINNET_X402_TX}" target="_blank" rel="noopener">x402 pay tx</a>
+            <span aria-hidden="true">→</span>
+            original request continued
+          </p>
+          <p class="judge-hint">Run <code>pnpm demo:stack</code> to park a blocked request here, then confirm <strong>Buy … and continue</strong>.</p>
+        </div>
+      </section>`;
   }
 
   function railFor(network) {
@@ -662,6 +811,8 @@
     const health = state.health || {};
     const spend = state.spend || {};
     const used = money(spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0);
+    const reservedRaw = spend.reservedUsdMicros ?? health.reservedUsdMicros ?? 0;
+    const reserved = money(reservedRaw);
     const daily = money(spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0);
     const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
     const fund = fundingHow();
@@ -671,7 +822,13 @@
         ? " · signed alerts"
         : " · alerts on"
       : "";
-    $("stance").innerHTML = `${esc(fund.honest)} · ${esc(walletLine())} · <strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong> of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
+    const held =
+      Number(reservedRaw) > 0
+        ? ` · <strong>${esc(reserved)}</strong> held in flight`
+        : "";
+    $("stance").innerHTML = `${esc(fund.honest)} · ${esc(walletLine())} · <strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong>${held} of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
+    renderModeBadge();
+    renderJudgeStats();
     const proofHere =
       health.fundingMode === "devnet-mint"
         ? "This /ui is a Devnet mint stand-in, not DFlow."
@@ -729,12 +886,13 @@
 
   function renderNow() {
     const root = $("decision-list");
-    if (!state.nowItems.length) {
+    const blocked = state.nowItems.filter((row) => row.state !== "fulfilled");
+    if (!blocked.length) {
       root.innerHTML = `
+        ${renderJudgeLanding()}
         <div class="empty">
           <h2>No agent is blocked on a paid resource</h2>
           <p>When an agent hits a paid resource and the wallet is short the asked asset, that request appears here: exact deficit, DFlow buy, x402 pay, original task continues.</p>
-          ${renderStory(idleStoryBeats())}
           <p class="meaning">Until then, agents only spend what Policy already allows.</p>
         </div>`;
       return;
@@ -787,7 +945,7 @@
             <p class="kicker">${esc(loop.kicker)}</p>
             ${
               done
-                ? `<p class="result">${esc(loop.result)}</p>`
+                ? `<p class="result">${esc(loop.result)}</p>${renderChainProof(record, row)}`
                 : `<p class="amount">${esc(loop.hero)}</p>`
             }
             <p class="amount-label">${esc(loop.amountLabel)}</p>
@@ -848,6 +1006,8 @@
           : loop.deficit > 0
             ? `x402 asked ${formatAssetAmount(loop.asked, loop.mint)} · deficit ${formatAssetAmount(loop.deficit, loop.mint)} · ${loop.fund.short}`
             : `x402 asked ${formatAssetAmount(loop.asked, loop.mint)} · ${loop.fund.short}`;
+        const chainProof =
+          row.state === "fulfilled" ? renderChainProof(open || row, row) : "";
         return `
           <article class="entry" data-id="${esc(row.operationId)}">
             <div class="state">${esc(loop.kicker)}</div>
@@ -859,6 +1019,7 @@
                 loop.taskPurpose ? ` · Agent task: ${esc(loop.taskPurpose)}` : ""
               }</div>
               <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
+              ${chainProof}
             </div>
             <div class="amount">${esc(loop.hero)}</div>
             ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>` : ""}

@@ -77,6 +77,10 @@ class ArmedSpendLedger {
     return value;
   }
 
+  getReservedUsdMicros(): string {
+    return this.inner.getReservedUsdMicros();
+  }
+
   getSpentUsdMicrosLast24hByAgent(): Record<string, string> {
     return this.inner.getSpentUsdMicrosLast24hByAgent();
   }

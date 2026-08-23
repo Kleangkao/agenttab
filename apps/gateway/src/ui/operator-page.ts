@@ -42,13 +42,17 @@ export function operatorHtml(input: {
         <strong>AgentTab</strong>
         <span>Buy only the missing payment asset, then finish the original request</span>
       </a>
-      <nav class="nav" aria-label="AgentTab">
-        <button type="button" data-view="now">Now <span class="count" id="parked-count"></span></button>
-        <button type="button" data-view="ledger">Ledger</button>
-        <button type="button" data-view="policy">Policy</button>
-      </nav>
+      <div class="top-meta">
+        <span class="mode-badge" id="mode-badge" aria-live="polite">…</span>
+        <nav class="nav" aria-label="AgentTab">
+          <button type="button" data-view="now">Now <span class="count" id="parked-count"></span></button>
+          <button type="button" data-view="ledger">Ledger</button>
+          <button type="button" data-view="policy">Policy</button>
+        </nav>
+      </div>
     </header>
 
+    <div class="judge-stats" id="judge-stats" hidden></div>
     <p class="stance" id="stance">Loading the live policy…</p>
     <p class="proof" id="proof">This /ui is a local DFlow mock — no chain. The same loop already settled on Solana Mainnet: <a href="https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg">exact-deficit DFlow</a> then <a href="https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR">x402 pay</a>, then the original request continued. No new Mainnet spend from this screen.</p>
     <p class="notice" id="observe-banner"${observeHidden}>Observe is not a dry-run. Matching payments can still fund and pay.</p>

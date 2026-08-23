@@ -1,0 +1,14 @@
+# Railway: connect this repo, set Dockerfile path to Dockerfile.demo-stack.
+# Public URL → https://<service>.up.railway.app/ui
+# Mock only. No admin token required for the private-ish Demo Day link.
+# Auto-reseeds a Now card every 15s when empty.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile.demo-stack"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
