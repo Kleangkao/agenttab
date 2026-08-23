@@ -13,6 +13,7 @@ import { createNeutralMerchant } from "@agenttab/example-neutral-merchant";
 import {
   createGatewayRuntime,
   loadPolicyFile,
+  loadPolicyFromEnv,
   notifyBoundsFromEnv
 } from "@agenttab/gateway";
 import { seedNowIfEmpty, startAutoReseed } from "./stack-seed.js";
@@ -34,8 +35,12 @@ const initialSolAtomic = process.env.AGENTTAB_INITIAL_SOL_ATOMIC ?? "5000000000"
 const seedEnabled = process.env.AGENTTAB_STACK_SEED !== "0";
 const reseedMs = Number(process.env.AGENTTAB_STACK_RESEED_MS ?? "15000");
 
+const policyFromEnv = loadPolicyFromEnv();
+const basePolicy =
+  policyFromEnv?.policy ??
+  loadPolicyFile(resolve(process.cwd(), "../../examples/policies/approve.local.json"));
 const seedPolicy = {
-  ...loadPolicyFile(resolve(process.cwd(), "../../examples/policies/approve.local.json")),
+  ...basePolicy,
   allowedMerchantOrigins: [merchantOrigin]
 };
 const notifyBounds = notifyBoundsFromEnv();

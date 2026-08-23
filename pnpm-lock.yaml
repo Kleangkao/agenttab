@@ -268,9 +268,18 @@ importers:
 
   examples/remote-agent:
     dependencies:
+      '@agenttab/example-neutral-merchant':
+        specifier: workspace:*
+        version: link:../neutral-merchant
       '@agenttab/fetch':
         specifier: workspace:*
         version: link:../../packages/fetch
+      '@agenttab/gateway':
+        specifier: workspace:*
+        version: link:../../apps/gateway
+      '@hono/node-server':
+        specifier: ^1.19.9
+        version: 1.19.17(hono@4.13.1)
       '@scure/base':
         specifier: ^1.2.6
         version: 1.2.6
@@ -293,15 +302,6 @@ importers:
         specifier: 2.21.0
         version: 2.21.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(@solana/sysvars@5.5.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3))
     devDependencies:
-      '@agenttab/example-neutral-merchant':
-        specifier: workspace:*
-        version: link:../neutral-merchant
-      '@agenttab/gateway':
-        specifier: workspace:*
-        version: link:../../apps/gateway
-      '@hono/node-server':
-        specifier: ^1.19.9
-        version: 1.19.17(hono@4.13.1)
       tsx:
         specifier: ^4.21.0
         version: 4.23.12

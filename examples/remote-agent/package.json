@@ -15,6 +15,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "demo": "tsx src/main.ts",
     "stack": "tsx src/stack.ts",
+    "start:stack": "node dist/stack.js",
     "adopt": "tsx src/adopt-demo.ts",
     "devnet": "tsx src/devnet.ts",
     "devnet:e2e": "tsx src/devnet-e2e.ts",
@@ -22,7 +23,10 @@
     "test": "vitest run --exclude 'dist/**'"
   },
   "dependencies": {
+    "@agenttab/example-neutral-merchant": "workspace:*",
     "@agenttab/fetch": "workspace:*",
+    "@agenttab/gateway": "workspace:*",
+    "@hono/node-server": "^1.19.9",
     "@scure/base": "^1.2.6",
     "@solana/kit": "^5.5.1",
     "@solana/spl-token": "^0.4.15",
@@ -32,9 +36,6 @@
     "@x402/svm": "2.21.0"
   },
   "devDependencies": {
-    "@agenttab/example-neutral-merchant": "workspace:*",
-    "@agenttab/gateway": "workspace:*",
-    "@hono/node-server": "^1.19.9",
     "tsx": "^4.21.0"
   }
 }
