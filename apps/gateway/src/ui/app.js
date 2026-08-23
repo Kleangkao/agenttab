@@ -29,6 +29,8 @@
     pending: null,
     spotlightId: null,
     busy: false,
+    openDetails: new Set(),
+    openTrail: new Set(),
   };
 
   const STATES = {
@@ -146,6 +148,15 @@
     return `${row.balanceAtomic} ${row.symbol || ""}`.trim();
   }
 
+  function tokenUi(row) {
+    const atomic = Number(row.balanceAtomic);
+    if (!Number.isFinite(atomic)) return String(row.balanceAtomic ?? "—");
+    const decimals = row.symbol === "SOL" ? 9 : 6;
+    return (atomic / 10 ** decimals).toLocaleString(undefined, {
+      maximumFractionDigits: 4,
+    });
+  }
+
   function originHost(origin) {
     try {
       return new URL(origin).host;
@@ -238,6 +249,23 @@
     };
   }
 
+  function isDemoMode() {
+    return state.health?.fundingMode === "mock";
+  }
+
+  function demoSummary(loop, row) {
+    if (row.state === "fulfilled" || loop.result) {
+      return `Agent received ${loop.access || "the resource"} after buying the exact deficit and paying the merchant.`;
+    }
+    if (row.state === "approval_required" && !loop.alreadyHeld) {
+      return `Wallet is short ${loop.deficitLabel}. Approve once — AgentTab buys only that, pays x402, retries ${loop.access || "the request"}.`;
+    }
+    if (row.state === "approval_required" && loop.alreadyHeld) {
+      return `Wallet already has ${loop.askedLabel}. Approve to pay the merchant and continue.`;
+    }
+    return loop.stepNow;
+  }
+
   function isOnChainSignature(signature) {
     if (!signature || typeof signature !== "string") return false;
     if (
@@ -319,6 +347,8 @@
     badge.textContent = fund.badge;
     badge.className = `mode-badge ${fund.badgeClass}`;
     badge.title = fund.honest;
+    const note = $("mode-note");
+    if (note) note.textContent = fund.honest;
   }
 
   function renderJudgeStats() {
@@ -326,51 +356,110 @@
     if (!root) return;
     const health = state.health || {};
     const spend = state.spend || {};
+    const waiting = state.nowItems.filter((row) => row.state === "approval_required").length;
+    const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
+    const wallet =
+      state.balances
+        .map(
+          (row) =>
+            `<div class="rail-stat"><span>${esc(row.symbol || assetLabel(row.mint))}</span><strong>${esc(tokenUi(row))}</strong></div>`,
+        )
+        .join("") || `<div class="rail-stat"><span>balances</span><strong>—</strong></div>`;
+    root.hidden = false;
+    // Mock spend is not real spend, and a public demo accumulates it across
+    // visitors. Showing a cap there reads as "this demo is running out".
+    if (isDemoMode()) {
+      root.innerHTML = `
+        <div class="rail-block">
+          <h2>Wallet</h2>
+          ${wallet}
+        </div>
+        <div class="rail-block">
+          <h2>Policy</h2>
+          <div class="rail-stat"><span>Mode</span><strong>${esc(mode)}</strong></div>
+          <div class="rail-stat"><span>Waiting on you</span><strong>${waiting || "0"}</strong></div>
+        </div>`;
+      return;
+    }
     const used = spend.spentUsdMicrosLast24h ?? health.spentUsdMicrosLast24h ?? 0;
     const reserved = spend.reservedUsdMicros ?? health.reservedUsdMicros ?? 0;
     const daily = spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0;
-    const waiting = state.nowItems.filter((row) => row.state === "approval_required").length;
-    root.hidden = false;
     root.innerHTML = `
-      <div class="stat">
-        <span class="stat-label">Spent today</span>
-        <strong class="stat-value">${esc(money(used))}</strong>
+      <div class="rail-block">
+        <h2>Wallet</h2>
+        ${wallet}
       </div>
-      <div class="stat">
-        <span class="stat-label">Held in flight</span>
-        <strong class="stat-value">${esc(money(reserved))}</strong>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Daily cap</span>
-        <strong class="stat-value">${esc(money(daily))}</strong>
-      </div>
-      <div class="stat">
-        <span class="stat-label">Waiting on you</span>
-        <strong class="stat-value">${waiting || "0"}</strong>
+      <div class="rail-block">
+        <h2>Spend</h2>
+        <div class="rail-stat"><span>Spent today</span><strong>${esc(money(used))}</strong></div>
+        <div class="rail-stat"><span>Held in flight</span><strong>${esc(money(reserved))}</strong></div>
+        <div class="rail-stat"><span>Daily cap</span><strong>${esc(money(daily))}</strong></div>
+        <div class="rail-stat"><span>Waiting on you</span><strong>${waiting || "0"}</strong></div>
       </div>`;
   }
 
   function renderJudgeLanding() {
     const fund = fundingHow();
     return `
-      <section class="judge-landing">
-        <p class="judge-kicker">Agent payments · DFlow exact-deficit funding</p>
-        <h2 class="judge-title">When the wallet lacks the exact asset, buy only the deficit — then finish the original request</h2>
-        <p class="judge-thesis">An agent hits a paid HTTP resource. The merchant asks for a specific token via x402. If the wallet is short, AgentTab buys <em>only</em> the missing amount through DFlow, pays the merchant, and retries the same request. No swap screen. No free trading.</p>
-        <p class="judge-why">DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.</p>
-        ${renderStory(idleStoryBeats())}
-        <div class="judge-proof">
-          <h3>Already proven on Solana Mainnet</h3>
-          <p>The live screen below is <strong>${esc(fund.badge)}</strong> — ${esc(fund.honest)}. The same loop already settled on-chain:</p>
-          <p class="judge-links">
-            <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">Exact-deficit DFlow tx</a>
-            <span aria-hidden="true">→</span>
-            <a href="${MAINNET_X402_TX}" target="_blank" rel="noopener">x402 pay tx</a>
-            <span aria-hidden="true">→</span>
-            original request continued
-          </p>
-          <p class="judge-hint">Run <code>pnpm demo:stack</code> to park a blocked request here, then confirm <strong>Buy … and continue</strong>.</p>
-        </div>
+      <section class="judge-proof">
+        <h3>Already proven on Solana Mainnet</h3>
+        <p>This screen is <strong>${esc(fund.badge)}</strong> — ${esc(fund.honest)}. The same loop already settled on-chain:</p>
+        <p class="judge-links">
+          <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">Exact-deficit DFlow tx</a>
+          <span aria-hidden="true">→</span>
+          <a href="${MAINNET_X402_TX}" target="_blank" rel="noopener">x402 pay tx</a>
+          <span aria-hidden="true">→</span>
+          original request continued
+        </p>
+        <p class="judge-hint">Local: run <code>pnpm demo:stack</code>.</p>
+      </section>`;
+  }
+
+  function verdictFor(rows) {
+    if (rows.some((row) => row.state === "approval_required")) {
+      return {
+        tone: "",
+        state: "Blocked",
+        line: "An agent hit a paid API. The wallet is short the exact asset the merchant asked for.",
+      };
+    }
+    if (rows.some((row) => row.state === "denied" || row.state === "failed")) {
+      return {
+        tone: "is-halt",
+        state: "Stopped",
+        line: "This payment will not be funded, so the agent does not continue.",
+      };
+    }
+    if (rows.some((row) => row.state !== "fulfilled")) {
+      return {
+        tone: "",
+        state: "Running",
+        line: "Buying only the deficit, then paying the merchant and continuing the same request.",
+      };
+    }
+    if (rows.length) {
+      return {
+        tone: "is-done",
+        state: "Done",
+        line: "The agent got what it asked for. One request, one payment, no swap UI.",
+      };
+    }
+    return {
+      tone: "",
+      state: "Idle",
+      line: "Waiting for an agent to hit a paid resource.",
+    };
+  }
+
+  function renderVerdict(rows) {
+    const root = $("verdict");
+    if (!root) return;
+    const verdict = verdictFor(rows);
+    root.innerHTML = `
+      <section class="verdict ${esc(verdict.tone)}">
+        <span class="verdict-state">${esc(verdict.state)}</span>
+        <p class="verdict-line">${esc(verdict.line)}</p>
+        <p class="verdict-why">DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.</p>
       </section>`;
   }
 
@@ -395,16 +484,6 @@
     const dec = mint === WSOL || symbol === "SOL" ? 9 : 6;
     const ui = n / 10 ** dec;
     return `${ui.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${symbol}`;
-  }
-
-  function walletLine() {
-    if (!state.balances.length) return "wallet unknown";
-    return (
-      state.balances
-        .map((row) => tokenAmount(row))
-        .filter((text) => !/^0(\.0+)?\s/.test(text) || /USDC/i.test(text))
-        .join(" · ") || "empty wallet"
-    );
   }
 
   function pickFundingRow(paymentMint) {
@@ -443,21 +522,46 @@
   function idleStoryBeats() {
     const fund = fundingHow();
     return [
-      { id: "resource", title: "Agent needs a paid resource", detail: "The original HTTP request", status: "todo" },
-      { id: "asked", title: "Merchant asks for a specific asset", detail: "x402 names the exact token and amount", status: "todo" },
-      { id: "missing", title: "Wallet is missing that asset", detail: "Enough value, wrong or short balance", status: "todo" },
-      { id: "buy", title: "Buy only the exact deficit", detail: fund.honest, status: "todo" },
-      { id: "finish", title: "Pay and continue the original request", detail: "Same resource, no second payment", status: "todo" },
+      { id: "resource", label: "Paid request", title: "Agent needs a paid resource", detail: "The original HTTP request", status: "todo" },
+      { id: "asked", label: "Merchant asks", title: "Merchant asks for a specific asset", detail: "x402 names the exact token and amount", status: "todo" },
+      { id: "missing", label: "Wallet short", title: "Wallet is missing that asset", detail: "Enough value, wrong or short balance", status: "todo" },
+      { id: "buy", label: "Buy deficit", title: "Buy only the exact deficit", detail: fund.honest, status: "todo" },
+      { id: "finish", label: "Pay & continue", title: "Pay and continue the original request", detail: "Same resource, no second payment", status: "todo" },
     ];
   }
 
   function renderStory(beats) {
-    return `<ol class="story" aria-label="Paid resource, missing asset, exact deficit, pay, continue">${beats
+    const active =
+      beats.find((beat) => ["now", "wait", "halt"].includes(beat.status)) ||
+      [...beats].reverse().find((beat) => beat.status === "done") ||
+      beats[0];
+    const nodes = beats
       .map(
-        (beat) =>
-          `<li class="${esc(beat.status)}"><span class="title">${esc(beat.title)}</span><span class="detail">${esc(beat.detail)}</span></li>`,
+        (beat, index) =>
+          `<li class="flow-node ${esc(beat.status)}" title="${esc(beat.title)}"><span class="node-dot" aria-hidden="true">${index + 1}</span><span class="node-label">${esc(beat.label || beat.title)}</span></li>`,
       )
-      .join("")}</ol>`;
+      .join("");
+    return `<div class="flow">
+      <ol class="flow-track" aria-label="Paid resource, missing asset, exact deficit, pay, continue">${nodes}</ol>
+      <p class="flow-detail"><strong>${esc(active.title)}</strong> · ${esc(active.detail)}</p>
+    </div>`;
+  }
+
+  /** The hero: held → asked → deficit. One number cannot show "exact deficit". */
+  function renderDeficit(loop) {
+    const held = `<div class="deficit-term"><span class="deficit-value">${esc(loop.heldLabel)}</span><span class="deficit-key">wallet holds</span></div>`;
+    if (loop.alreadyHeld) {
+      return `<div class="deficit">${held}
+        <span class="deficit-op" aria-hidden="true">→</span>
+        <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">x402 ask · no DFlow buy</span></div>
+      </div>`;
+    }
+    return `<div class="deficit">${held}
+      <span class="deficit-op" aria-hidden="true">→</span>
+      <div class="deficit-term"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">x402 ask</span></div>
+      <span class="deficit-op" aria-hidden="true">=</span>
+      <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.deficitLabel)}</span><span class="deficit-key">exact deficit</span></div>
+    </div>`;
   }
 
   function loopModel(row, record) {
@@ -538,18 +642,21 @@
     const beats = [
       {
         id: "resource",
+        label: "Paid request",
         title: "Agent needs a paid resource",
         detail: access || "the original request",
         status: beatStatus("resource"),
       },
       {
         id: "asked",
+        label: "Merchant asks",
         title: "Merchant asked for this asset",
         detail: `${askedLabel} via x402`,
         status: beatStatus("asked"),
       },
       {
         id: "missing",
+        label: alreadyHeld ? "Already held" : "Wallet short",
         title:
           fulfilled || st === "fulfilled" || st === "paid"
             ? alreadyHeld
@@ -570,6 +677,7 @@
       },
       {
         id: "buy",
+        label: alreadyHeld ? "No buy" : "Buy deficit",
         title: alreadyHeld ? "No DFlow buy" : "Buy only the exact deficit",
         detail: alreadyHeld
           ? "Skip — pay from the balance already in the wallet"
@@ -580,6 +688,7 @@
       },
       {
         id: "finish",
+        label: "Pay & continue",
         title:
           fulfilled || st === "fulfilled"
             ? "Original request continued"
@@ -826,7 +935,7 @@
       Number(reservedRaw) > 0
         ? ` · <strong>${esc(reserved)}</strong> held in flight`
         : "";
-    $("stance").innerHTML = `${esc(fund.honest)} · ${esc(walletLine())} · <strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong>${held} of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
+    $("stance").innerHTML = `<strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong>${held} of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
     renderModeBadge();
     renderJudgeStats();
     const proofHere =
@@ -886,90 +995,89 @@
 
   function renderNow() {
     const root = $("decision-list");
-    const blocked = state.nowItems.filter((row) => row.state !== "fulfilled");
-    if (!blocked.length) {
+    renderVerdict(state.nowItems);
+    if (!state.nowItems.length) {
       root.innerHTML = `
-        ${renderJudgeLanding()}
         <div class="empty">
           <h2>No agent is blocked on a paid resource</h2>
           <p>When an agent hits a paid resource and the wallet is short the asked asset, that request appears here: exact deficit, DFlow buy, x402 pay, original task continues.</p>
           <p class="meaning">Until then, agents only spend what Policy already allows.</p>
-        </div>`;
+        </div>
+        ${renderStory(idleStoryBeats())}
+        ${renderJudgeLanding()}`;
       return;
     }
-    root.innerHTML = state.nowItems
-      .map((row) => {
-        const record = state.detail[row.operationId];
-        const loop = loopModel(row, record);
-        const parked = row.state === "approval_required";
-        const done = row.state === "fulfilled";
-        const pending = state.pending?.id === row.operationId;
-        const confirm = pending
-          ? `<div class="confirm-copy">${
-              state.pending.act === "approve"
-                ? loop.alreadyHeld
-                  ? `This pays the merchant ${loop.askedLabel} from the wallet and retries ${loop.access || "the original request"}. No DFlow buy. Observe is not a dry-run.`
-                  : `This buys only ${loop.deficitLabel} via ${loop.fund.honest}; then it pays the merchant ${loop.askedLabel} and retries ${loop.access || "the original request"}. Observe is not a dry-run.`
-                : state.pending.act === "resume"
-                  ? `This continues the same request — buy, pay, or deliver the next unfinished step. It will not start a second payment.`
-                  : "Reject is final. This request will not be funded or paid, and the id cannot be reused."
-            }</div>
-            <div class="actions">
-              <button class="btn ${state.pending.act === "deny" ? "danger" : "primary"}" data-act="confirm" type="button">${
+    root.innerHTML =
+      state.nowItems
+        .map((row) => {
+          const record = state.detail[row.operationId];
+          const loop = loopModel(row, record);
+          const parked = row.state === "approval_required";
+          const done = row.state === "fulfilled";
+          const halted = row.state === "denied" || row.state === "failed";
+          const pending = state.pending?.id === row.operationId;
+          const confirm = pending
+            ? `<div class="confirm-copy">${
                 state.pending.act === "approve"
                   ? loop.alreadyHeld
-                    ? "Confirm — pay and continue"
-                    : "Confirm — buy and continue"
+                    ? `This pays the merchant ${loop.askedLabel} from the wallet and retries ${loop.access || "the original request"}. No DFlow buy. Observe is not a dry-run.`
+                    : `This buys only ${loop.deficitLabel} via ${loop.fund.honest}; then it pays the merchant ${loop.askedLabel} and retries ${loop.access || "the original request"}. Observe is not a dry-run.`
                   : state.pending.act === "resume"
-                    ? "Confirm — continue this request"
-                    : "Confirm reject"
-              }</button>
-              <button class="btn ghost" data-act="cancel" type="button">Back</button>
-            </div>`
-          : done
-            ? ""
-            : parked && row.parkedExpired
-            ? `<div class="actions">
-              <button class="btn danger" data-act="deny" type="button">Reject expired</button>
-            </div>`
-            : parked
-            ? `<div class="actions">
-              <button class="btn primary" data-act="approve" type="button">${esc(primaryLabel(row, loop))}</button>
-              <button class="btn danger" data-act="deny" type="button">Reject</button>
-            </div>`
-            : `<div class="actions">
-              <button class="btn primary" data-act="resume" type="button">${esc(primaryLabel(row, loop))}</button>
-            </div>`;
-        return `
-          <article class="brief" data-id="${esc(row.operationId)}">
-            <p class="kicker">${esc(loop.kicker)}</p>
+                    ? `This continues the same request — buy, pay, or deliver the next unfinished step. It will not start a second payment.`
+                    : "Reject is final. This request will not be funded or paid, and the id cannot be reused."
+              }</div>
+              <div class="actions">
+                <button class="btn ${state.pending.act === "deny" ? "btn-danger" : "btn-primary"}" data-act="confirm" type="button">${
+                  state.pending.act === "approve"
+                    ? loop.alreadyHeld
+                      ? "Confirm — pay and continue"
+                      : "Confirm — buy and continue"
+                    : state.pending.act === "resume"
+                      ? "Confirm — continue this request"
+                      : "Confirm reject"
+                }</button>
+                <button class="btn btn-ghost" data-act="cancel" type="button">Back</button>
+              </div>`
+            : done
+              ? ""
+              : parked && row.parkedExpired
+                ? `<div class="actions">
+                <button class="btn btn-danger" data-act="deny" type="button">Reject expired</button>
+              </div>`
+                : parked
+                  ? `<div class="actions">
+                <button class="btn btn-primary" data-act="approve" type="button">${esc(primaryLabel(row, loop))}</button>
+                <button class="btn btn-danger" data-act="deny" type="button">Reject</button>
+              </div>`
+                  : `<div class="actions">
+                <button class="btn btn-primary" data-act="resume" type="button">${esc(primaryLabel(row, loop))}</button>
+              </div>`;
+          const summary = isDemoMode() ? demoSummary(loop, row) : loop.stepNow;
+          return `
+          <article class="card${done ? " is-success" : halted ? " is-halt" : ""}" data-id="${esc(row.operationId)}">
+            <div class="card-top">
+              <p class="card-kicker">${esc(loop.kicker)}</p>
+              <span class="card-tag">${esc(loop.fund.badge)} · ${esc(originHost(loop.intent.merchantOrigin))}</span>
+            </div>
             ${
               done
-                ? `<p class="result">${esc(loop.result)}</p>${renderChainProof(record, row)}`
-                : `<p class="amount">${esc(loop.hero)}</p>`
+                ? `<p class="card-result">${esc(loop.result)}</p>${renderChainProof(record, row)}`
+                : renderDeficit(loop)
             }
-            <p class="amount-label">${esc(loop.amountLabel)}</p>
             ${renderStory(loop.beats)}
-            <p class="step-now">${esc(loop.stepNow)}</p>
-            ${
-              parked
-                ? `<p class="meaning">${esc(parkedReason(row, record))}</p>`
-                : ""
-            }
+            <p class="card-summary">${esc(summary)}</p>
             ${confirm}
-            <p class="rail-line">${esc(loop.rail)} · ${esc(originHost(loop.intent.merchantOrigin))}${
-              (record && record.agentId) || row.agentId
-                ? ` · ${esc((record && record.agentId) || row.agentId)}`
-                : ""
-            }</p>
-            <details class="ref"><summary>Reference</summary><p class="id">${esc(row.operationId)}</p>${
+            ${done && isDemoMode() ? `<p class="card-summary">Next scenario loading…</p>` : ""}
+            <details class="card-ref"${state.openDetails.has(row.operationId) ? " open" : ""}><summary>Technical details</summary><p class="id">${esc(row.operationId)}</p>${
               (record && record.agentId) || row.agentId
                 ? `<p class="sub">Agent ${esc((record && record.agentId) || row.agentId)}</p>`
                 : ""
+            }<p class="card-meta">${esc(loop.rail)}</p>${
+              parked ? `<p class="sub">${esc(parkedReason(row, record))}</p>` : ""
             }${notifyLine(record)}</details>
           </article>`;
-      })
-      .join("");
+        })
+        .join("") + renderJudgeLanding();
   }
 
   function renderLedger() {
@@ -1008,8 +1116,15 @@
             : `x402 asked ${formatAssetAmount(loop.asked, loop.mint)} · ${loop.fund.short}`;
         const chainProof =
           row.state === "fulfilled" ? renderChainProof(open || row, row) : "";
+        const expanded = state.openTrail.has(row.operationId) && Boolean(open);
+        const tone =
+          row.state === "fulfilled"
+            ? " is-success"
+            : row.state === "denied" || row.state === "failed"
+              ? " is-halt"
+              : " is-open";
         return `
-          <article class="entry" data-id="${esc(row.operationId)}">
+          <article class="entry${tone}" data-id="${esc(row.operationId)}" role="button" tabindex="0" aria-expanded="${expanded ? "true" : "false"}">
             <div class="state">${esc(loop.kicker)}</div>
             <div>
               <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}${
@@ -1022,7 +1137,7 @@
               ${chainProof}
             </div>
             <div class="amount">${esc(loop.hero)}</div>
-            ${open ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>` : ""}
+            ${expanded ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>` : ""}
           </article>`;
       })
       .join("");
@@ -1096,16 +1211,15 @@
       state.policy = policy;
       state.recent = recent.executions || [];
       const open = openLoop.executions || [];
-      const spotlight =
-        (state.spotlightId &&
-          state.recent.find((row) => row.operationId === state.spotlightId)) ||
-        (!open.length
-          ? state.recent.find((row) => row.state === "fulfilled")
-          : undefined);
-      state.nowItems =
-        spotlight && !open.some((row) => row.operationId === spotlight.operationId)
-          ? [...open, spotlight]
-          : open;
+      // The stage shows one thing at a time: a finished loop stays visible only
+      // until the next request is actionable, then it belongs to Ledger.
+      if (open.length) state.spotlightId = null;
+      const spotlight = open.length
+        ? undefined
+        : (state.spotlightId &&
+            state.recent.find((row) => row.operationId === state.spotlightId)) ||
+          state.recent.find((row) => row.state === "fulfilled");
+      state.nowItems = spotlight ? [spotlight] : open;
       state.parked = state.nowItems.filter((row) => row.state === "approval_required");
       state.spend = spend;
       state.balances = balances.balances || [];
@@ -1379,14 +1493,22 @@
     const row = state.nowItems.find((item) => item.operationId === id);
     if (!row) return;
     if (button.dataset.act === "approve") {
-      state.pending = { id, act: "approve" };
-      renderNow();
+      if (isDemoMode()) {
+        approve(id);
+      } else {
+        state.pending = { id, act: "approve" };
+        renderNow();
+      }
     } else if (button.dataset.act === "deny") {
       state.pending = { id, act: "deny" };
       renderNow();
     } else if (button.dataset.act === "resume") {
-      state.pending = { id, act: "resume" };
-      renderNow();
+      if (isDemoMode()) {
+        resume(id);
+      } else {
+        state.pending = { id, act: "resume" };
+        renderNow();
+      }
     } else if (button.dataset.act === "cancel") {
       state.pending = null;
       renderNow();
@@ -1396,24 +1518,47 @@
       if (state.pending?.act === "resume") resume(id);
     }
   });
-  $("ledger-list").addEventListener("click", async (event) => {
-    const card = event.target.closest("[data-id]");
-    if (!card) return;
-    const id = card.dataset.id;
-    if (state.detail[id] && state.view === "ledger") {
-      const alreadyOpen = card.querySelector(".trail");
-      if (alreadyOpen) {
-        delete state.detail[id];
-        renderLedger();
-        return;
-      }
+  $("decision-list").addEventListener(
+    "toggle",
+    (event) => {
+      const details = event.target;
+      if (!details.classList || !details.classList.contains("card-ref")) return;
+      const id = details.closest("[data-id]")?.dataset.id;
+      if (!id) return;
+      if (details.open) state.openDetails.add(id);
+      else state.openDetails.delete(id);
+    },
+    true,
+  );
+
+  async function toggleTrail(id) {
+    if (state.openTrail.has(id)) {
+      state.openTrail.delete(id);
+      renderLedger();
+      return;
     }
+    state.openTrail.add(id);
     try {
-      state.detail[id] = await api(`/v1/executions/${encodeURIComponent(id)}`);
+      if (!state.detail[id]) {
+        state.detail[id] = await api(`/v1/executions/${encodeURIComponent(id)}`);
+      }
       renderLedger();
     } catch (error) {
       setStatus("bad", error.message);
     }
+  }
+
+  $("ledger-list").addEventListener("click", (event) => {
+    if (event.target.closest("a")) return;
+    const card = event.target.closest("[data-id]");
+    if (card) void toggleTrail(card.dataset.id);
+  });
+  $("ledger-list").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const card = event.target.closest("[data-id]");
+    if (!card) return;
+    event.preventDefault();
+    void toggleTrail(card.dataset.id);
   });
   document.querySelectorAll("[data-mode]").forEach((button) => {
     button.addEventListener("click", () => setMode(button.dataset.mode));

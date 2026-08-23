@@ -13,7 +13,12 @@ import {
   type PaymentPolicy,
   type PolicyDecision
 } from "@agenttab/core";
-import { operatorCss, operatorHtml, operatorJs } from "./ui/operator-page.js";
+import {
+  operatorCss,
+  operatorFont,
+  operatorHtml,
+  operatorJs
+} from "./ui/operator-page.js";
 import { gatewayOpenApiDocument } from "./openapi.js";
 import { annotateParkedExpiry } from "./parked-expiry.js";
 import {
@@ -384,6 +389,14 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       "Cache-Control": "no-store"
     })
   );
+  app.get("/ui/fonts/:file", (c) => {
+    const font = operatorFont(c.req.param("file"));
+    if (font === undefined) return c.notFound();
+    return c.body(font, 200, {
+      "Content-Type": "font/woff2",
+      "Cache-Control": "public, max-age=31536000, immutable"
+    });
+  });
   app.get("/openapi.json", (c) => c.json(gatewayOpenApiDocument()));
 
   app.get("/health", async (c) => {

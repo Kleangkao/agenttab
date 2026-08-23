@@ -223,7 +223,7 @@ describe("operator control spine", () => {
     expect(html).toContain("Now");
     expect(html).toContain("Ledger");
     expect(html).toContain("Policy");
-    expect(html).toContain("Allow this merchant");
+    expect(html).toContain("Allow merchant");
     expect(html).toContain("Save limits");
     expect(html).toContain("Observe is not a dry-run");
     expect(html).toContain("/ui/app.js");

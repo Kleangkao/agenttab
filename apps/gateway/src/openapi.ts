@@ -30,6 +30,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   },
   "/ui/app.css": { get: { summary: "Operator console stylesheet" } },
   "/ui/app.js": { get: { summary: "Operator console client" } },
+  "/ui/fonts/{file}": { get: { summary: "Operator console font face (woff2)" } },
   "/health": {
     get: { summary: "Liveness plus policyMode, parkedCount, openLoopCount, 24h spend" }
   },

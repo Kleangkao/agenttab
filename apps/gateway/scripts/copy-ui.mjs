@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, cpSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,4 +8,8 @@ const dest = join(root, "../dist/ui");
 mkdirSync(dest, { recursive: true });
 for (const name of ["app.css", "app.js"]) {
   copyFileSync(join(src, name), join(dest, name));
+}
+const fonts = join(src, "fonts");
+if (existsSync(fonts)) {
+  cpSync(fonts, join(dest, "fonts"), { recursive: true });
 }

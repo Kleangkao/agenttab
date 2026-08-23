@@ -5,6 +5,13 @@ import { MERCHANT_PAY_TO } from "@agenttab/example-neutral-merchant";
 
 export type StackGateway = ReturnType<typeof createGatewayRuntime>;
 
+/**
+ * The demo wallet starts holding part of the ask so the Now card shows a real
+ * deficit (holds $2.60, merchant asks $4.00, DFlow buys $1.40). Starting at 0
+ * makes the deficit equal the ask, which hides the exact-deficit claim.
+ */
+export const DEMO_SEED_USDC_ATOMIC = "2600000";
+
 export type SeedNowResult = {
   operationId: string;
   created: boolean;
@@ -39,7 +46,7 @@ export async function seedNowIfEmpty(
 
   if (input.resetDemoState) {
     resetDemoWallet(input.gateway, {
-      initialUsdcAtomic: input.initialUsdcAtomic ?? "0",
+      initialUsdcAtomic: input.initialUsdcAtomic ?? DEMO_SEED_USDC_ATOMIC,
       initialSolAtomic: input.initialSolAtomic ?? "5000000000"
     });
     if (input.seedPolicy) {

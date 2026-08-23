@@ -31,13 +31,15 @@ pnpm demo:stack
 ```
 
 1. Open [http://127.0.0.1:8787/ui](http://127.0.0.1:8787/ui). The stack parks
-   one local mock request on **Now** ($4.00 USDC, wallet starts at 0 USDC / 5 SOL).
+   one local mock request on **Now**: the merchant asks $4.00 USDC and the
+   wallet holds $2.60 USDC / 5 SOL, so the exact deficit is $1.40 — the buy is
+   visibly smaller than the ask.
 2. Read the blocked card. It should name the resource, the asked asset, the
    live wallet, the exact missing amount, and that this run is a **local DFlow
    mock — no chain, not broadcasting**. The line under the stance points at the
    already-settled Mainnet DFlow + x402 transactions.
-3. Confirm **Buy … and continue**. That buys only the deficit, pays the
-   merchant, and retries the same resource.
+3. Click **Buy $1.40 USDC and continue**. In mock that is one click — it buys
+   only the deficit, pays the merchant, and retries the same resource.
 4. The card should end on **The agent received the resource**. Within ~15s the
    stack auto-reseeds a fresh Now card so the next visitor can repeat the loop.
 

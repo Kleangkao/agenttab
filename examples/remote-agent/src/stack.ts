@@ -16,7 +16,7 @@ import {
   loadPolicyFromEnv,
   notifyBoundsFromEnv
 } from "@agenttab/gateway";
-import { seedNowIfEmpty, startAutoReseed } from "./stack-seed.js";
+import { DEMO_SEED_USDC_ATOMIC, seedNowIfEmpty, startAutoReseed } from "./stack-seed.js";
 
 const gatewayPort = Number(process.env.PORT ?? process.env.GATEWAY_PORT ?? "8787");
 const merchantPort = Number(process.env.MERCHANT_PORT ?? "8791");
@@ -30,7 +30,8 @@ const merchantHost = "127.0.0.1";
 const merchantOrigin =
   process.env.MERCHANT_ORIGIN ?? `http://${merchantHost}:${merchantPort}`;
 
-const initialUsdcAtomic = process.env.AGENTTAB_INITIAL_USDC_ATOMIC ?? "0";
+const initialUsdcAtomic =
+  process.env.AGENTTAB_INITIAL_USDC_ATOMIC ?? DEMO_SEED_USDC_ATOMIC;
 const initialSolAtomic = process.env.AGENTTAB_INITIAL_SOL_ATOMIC ?? "5000000000";
 const seedEnabled = process.env.AGENTTAB_STACK_SEED !== "0";
 const reseedMs = Number(process.env.AGENTTAB_STACK_RESEED_MS ?? "15000");
@@ -41,7 +42,13 @@ const basePolicy =
   loadPolicyFile(resolve(process.cwd(), "../../examples/policies/approve.local.json"));
 const seedPolicy = {
   ...basePolicy,
-  allowedMerchantOrigins: [merchantOrigin]
+  allowedMerchantOrigins: [merchantOrigin],
+  /**
+   * This stack is always fundingMode=mock, but its spend ledger is durable, so
+   * a production-sized daily cap denies public visitors after a few loops.
+   */
+  maxDailyUsdMicros:
+    process.env.AGENTTAB_MAX_DAILY_USD_MICROS ?? "1000000000"
 };
 const notifyBounds = notifyBoundsFromEnv();
 
