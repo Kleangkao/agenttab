@@ -39,7 +39,6 @@ COPY examples/policies/approve.local.json /policy/approve.local.json
 ENV AGENTTAB_POLICY_PATH=/policy/approve.local.json
 
 EXPOSE 8787
-VOLUME ["/data"]
 
 WORKDIR /app/examples/remote-agent
 
