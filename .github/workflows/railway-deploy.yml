@@ -1,0 +1,42 @@
+name: Railway demo deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "Dockerfile.demo-stack"
+      - "railway.toml"
+      - "examples/remote-agent/**"
+      - "examples/neutral-merchant/**"
+      - "apps/gateway/**"
+      - "packages/**"
+      - "examples/policies/**"
+      - ".dockerignore"
+      - ".github/workflows/railway-deploy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Deploy demo stack to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "RAILWAY_TOKEN secret missing — add a project token from Railway → Project → Settings → Tokens"
+            exit 1
+          fi
+          npx --yes @railway/cli@latest up --ci \
+            --project 33763140-39d1-4c1f-abbf-f2ae549f6ea0 \
+            --environment 8403a4df-962d-4026-ae7b-279b118123cb \
+            --service 83a32496-e68d-41b4-8538-f85cd0aa3b3d \
+            -m "CI deploy ${GITHUB_SHA}"

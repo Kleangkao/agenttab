@@ -2,6 +2,7 @@
 # Public URL → https://<service>.up.railway.app/ui
 # Mock only. No admin token required for the private-ish Demo Day link.
 # Auto-reseeds a Now card every 15s when empty.
+# CI fallback: .github/workflows/railway-deploy.yml (needs RAILWAY_TOKEN secret).
 
 [build]
 builder = "DOCKERFILE"
