@@ -55,6 +55,20 @@ docker run --rm -p 8787:8787 -e HOST=0.0.0.0 agenttab-demo-stack
 
 Open `/ui` on the public URL. Funding stays mock. Merchant stays on container
 loopback; only the gateway port is exposed.
+
+If Railway Settings shows **GitHub Repo not found** after a push, reconnect the
+source (requires `railway login` once):
+
+```bash
+railway service source connect \
+  --repo Kleangkao/agenttab --branch main \
+  --project 33763140-39d1-4c1f-abbf-f2ae549f6ea0 \
+  --environment 8403a4df-962d-4026-ae7b-279b118123cb \
+  --service 83a32496-e68d-41b4-8538-f85cd0aa3b3d
+```
+
+Then verify with `railway redeploy --from-source --yes` (same project/env/service
+flags). Autodeploys resume on the next push to `main`.
 Optional one-command audit of the same loop with no browser:
 
 ```bash
