@@ -21,7 +21,11 @@ export interface GatewayOpenApiPath {
 }
 
 export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
-  "/": { get: { summary: "Redirect to /ui" } },
+  "/": { get: { summary: "Product landing page" } },
+  "/landing.css": { get: { summary: "Landing stylesheet" } },
+  "/demo": { get: { summary: "Playable mock demo surface" } },
+  "/demo.css": { get: { summary: "Playable demo stylesheet" } },
+  "/demo.js": { get: { summary: "Playable demo client" } },
   "/ui": {
     get: {
       summary:

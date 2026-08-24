@@ -60,13 +60,19 @@ export function operatorHtml(input: {
 <body>
   <div class="shell">
     <aside class="rail">
-      <a class="brand" href="/ui">
+      <a class="brand" href="/">
         <span class="brand-head">
           <span class="brand-mark" aria-hidden="true">AT</span>
           <span class="brand-name">AgentTab</span>
         </span>
         <span class="brand-copy">Buy only the missing payment asset, then finish the original request</span>
       </a>
+
+      <nav class="rail-nav rail-nav-links" aria-label="Surfaces">
+        <a href="/">Home</a>
+        <a href="/demo">Demo</a>
+        <a href="/ui" aria-current="page">Operator</a>
+      </nav>
 
       <span class="mode-badge" id="mode-badge" aria-live="polite">…</span>
       <p class="mode-note" id="mode-note"></p>

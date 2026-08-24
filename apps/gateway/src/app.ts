@@ -19,6 +19,8 @@ import {
   operatorHtml,
   operatorJs
 } from "./ui/operator-page.js";
+import { landingCss, landingHtml } from "./ui/landing-page.js";
+import { demoCss, demoHtml, demoJs } from "./ui/demo-page.js";
 import { gatewayOpenApiDocument } from "./openapi.js";
 import { annotateParkedExpiry } from "./parked-expiry.js";
 import {
@@ -126,6 +128,11 @@ export interface GatewayRuntimeOptions {
   notifyBudgetMs?: number;
   /** Per-attempt fetch ceiling. Default 200ms. */
   notifyAttemptTimeoutMs?: number;
+  /**
+   * When true, /health reports demoControls so the playable /demo page can
+   * call stack-mounted /v1/demo/* routes. Gateway itself does not mount them.
+   */
+  demoControls?: boolean;
 }
 
 export interface GatewayRuntime {
@@ -366,7 +373,32 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
     return record.agentId === named;
   };
 
-  app.get("/", (c) => c.redirect("/ui", 302));
+  app.get("/", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.html(landingHtml());
+  });
+  app.get("/landing.css", (c) =>
+    c.text(landingCss(), 200, {
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "no-store"
+    })
+  );
+  app.get("/demo", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.html(demoHtml());
+  });
+  app.get("/demo.css", (c) =>
+    c.text(demoCss(), 200, {
+      "Content-Type": "text/css; charset=utf-8",
+      "Cache-Control": "no-store"
+    })
+  );
+  app.get("/demo.js", (c) =>
+    c.text(demoJs(), 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-store"
+    })
+  );
   app.get("/ui", (c) => {
     c.header("Cache-Control", "no-store");
     return c.html(
@@ -418,7 +450,10 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
       policyWriteAuth: adminRequired,
       agentAuth: agentRequired,
       agentIds: agentCredentials.ids,
+      landing: "/",
+      playableDemo: "/demo",
       operatorUi: "/ui",
+      demoControls: options.demoControls === true,
       preview: "/v1/preview",
       openapi: "/openapi.json",
       notifyConfigured: notify !== undefined,

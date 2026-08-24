@@ -293,6 +293,28 @@ summary:focus-visible {
 
 .rail-nav .count:empty { display: none; }
 
+.rail-nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-4);
+  padding: 0;
+  border: 0;
+}
+
+.rail-nav-links a {
+  color: var(--text-3);
+  font: 600 11px/1.3 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.rail-nav-links a:hover,
+.rail-nav-links a[aria-current="page"] {
+  color: var(--signal);
+}
+
 .rail-block {
   margin-bottom: var(--s-5);
 }

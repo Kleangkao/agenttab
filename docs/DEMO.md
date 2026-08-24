@@ -30,18 +30,24 @@ From this repo:
 pnpm demo:stack
 ```
 
-1. Open [http://127.0.0.1:8787/ui](http://127.0.0.1:8787/ui). The stack parks
-   one local mock request on **Now**: the merchant asks $4.00 USDC and the
-   wallet holds $2.60 USDC / 5 SOL, so the exact deficit is $1.40 — the buy is
-   visibly smaller than the ask.
-2. Read the blocked card. It should name the resource, the asked asset, the
-   live wallet, the exact missing amount, and that this run is a **local DFlow
-   mock — no chain, not broadcasting**. The line under the stance points at the
-   already-settled Mainnet DFlow + x402 transactions.
-3. Click **Buy $1.40 USDC and continue**. In mock that is one click — it buys
+**Present path (no slides):**
+
+1. Open [http://127.0.0.1:8787/](http://127.0.0.1:8787/) — brand landing + thesis.
+2. Click **Try the demo** → [http://127.0.0.1:8787/demo](http://127.0.0.1:8787/demo).
+3. See the agent story (wallet valuation needs a paid snapshot). The stack parks
+   one local mock request: merchant asks $4.00 USDC and the wallet holds $2.60
+   USDC / 5 SOL, so the exact deficit is $1.40.
+4. Click **Buy $1.40 USDC and continue**. In mock that is one click — it buys
    only the deficit, pays the merchant, and retries the same resource.
-4. The card should end on **The agent received the resource**. Within ~15s the
-   stack auto-reseeds a fresh Now card so the next visitor can repeat the loop.
+5. Optional toys: switch **Scenario** (partial / empty / already funded) or
+   **Add $1 USDC** — both reset the mock wallet and re-park a real Now card.
+6. Open **Operator** ([/ui](http://127.0.0.1:8787/ui)) for ledger / policy proof.
+7. Within ~15s the stack auto-reseeds a fresh Now card so the next visitor can
+   repeat the loop.
+
+The line under the stance / demo footer points at the already-settled Mainnet
+DFlow + x402 transactions. This run is a **local DFlow mock — no chain, not
+broadcasting**.
 
 ### Public demo host (no laptop)
 
@@ -89,8 +95,8 @@ railway redeploy --from-source --yes \
 **Emergency deploy without waiting for GitHub:** `railway up --ci` from repo root
 (same `--project` / `--environment` / `--service` flags as above).
 
-Open `/ui` on the public URL. Funding stays mock. Merchant stays on container
-loopback; only the gateway port is exposed.
+Open `/` on the public URL (landing → `/demo` → `/ui`). Funding stays mock.
+Merchant stays on container loopback; only the gateway port is exposed.
 
 Optional one-command audit of the same loop with no browser:
 
@@ -109,6 +115,7 @@ pnpm demo:task-agent
 
 | What you are looking at | Funding | Payment | Chain |
 |-------------------------|---------|---------|-------|
+| `/` landing + `/demo` + `/ui` via `pnpm demo:stack` | local DFlow mock | local HMAC / token | none |
 | `/ui` via `pnpm demo:stack` | local DFlow mock | local HMAC / token | none |
 | `pnpm demo:judge` | mock exact-deficit | local HMAC | none |
 | Devnet agent | mint stand-in (not DFlow) | official x402 facilitator | Solana Devnet |

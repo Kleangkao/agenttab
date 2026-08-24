@@ -14,9 +14,18 @@ import {
   createGatewayRuntime,
   loadPolicyFile,
   loadPolicyFromEnv,
-  notifyBoundsFromEnv
+  notifyBoundsFromEnv,
+  USDC_MINT
 } from "@agenttab/gateway";
-import { DEMO_SEED_USDC_ATOMIC, seedNowIfEmpty, startAutoReseed } from "./stack-seed.js";
+import {
+  applyDemoScenario,
+  DEMO_SEED_USDC_ATOMIC,
+  DEMO_SCENARIOS,
+  type DemoScenarioId,
+  seedNowIfEmpty,
+  startAutoReseed,
+  topupDemoUsdc
+} from "./stack-seed.js";
 
 const gatewayPort = Number(process.env.PORT ?? process.env.GATEWAY_PORT ?? "8787");
 const merchantPort = Number(process.env.MERCHANT_PORT ?? "8791");
@@ -62,6 +71,7 @@ const gateway = createGatewayRuntime({
     "local-dev-only-change-me",
   initialUsdcAtomic,
   initialSolAtomic,
+  demoControls: true,
   ...(process.env.AGENTTAB_ADMIN_TOKEN
     ? { adminToken: process.env.AGENTTAB_ADMIN_TOKEN }
     : {}),
@@ -99,6 +109,76 @@ async function seedDemoCard() {
   });
 }
 
+gateway.app.post("/v1/demo/scenario", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { scenario?: string };
+  const scenario = body.scenario as DemoScenarioId | undefined;
+  if (!scenario || !(scenario in DEMO_SCENARIOS)) {
+    return c.json(
+      {
+        error: "invalid_scenario",
+        scenarios: Object.keys(DEMO_SCENARIOS)
+      },
+      400
+    );
+  }
+  try {
+    const seeded = await applyDemoScenario({
+      gateway,
+      merchantOrigin,
+      scenario,
+      seedPolicy,
+      initialSolAtomic
+    });
+    return c.json({
+      ok: true,
+      scenario,
+      operationId: seeded.operationId,
+      created: seeded.created,
+      message: `Scenario ${DEMO_SCENARIOS[scenario].label} parked.`
+    });
+  } catch (error) {
+    return c.json(
+      {
+        error: "scenario_failed",
+        message: error instanceof Error ? error.message : String(error)
+      },
+      500
+    );
+  }
+});
+
+gateway.app.post("/v1/demo/topup", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { usdcAtomic?: string };
+  const usdcAtomic = body.usdcAtomic ?? "1000000";
+  if (!/^\d+$/.test(usdcAtomic) || BigInt(usdcAtomic) <= 0n) {
+    return c.json({ error: "invalid_usdc_atomic" }, 400);
+  }
+  try {
+    const seeded = await topupDemoUsdc({
+      gateway,
+      merchantOrigin,
+      usdcAtomic,
+      seedPolicy,
+      initialSolAtomic
+    });
+    return c.json({
+      ok: true,
+      operationId: seeded.operationId,
+      balanceAtomic: seeded.balanceAtomic,
+      mint: USDC_MINT,
+      message: `Added $${(Number(usdcAtomic) / 1_000_000).toFixed(2)} USDC and re-parked.`
+    });
+  } catch (error) {
+    return c.json(
+      {
+        error: "topup_failed",
+        message: error instanceof Error ? error.message : String(error)
+      },
+      500
+    );
+  }
+});
+
 serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: gatewayHost }, (info) => {
   void seedDemoCard()
     .then((seeded) => {
@@ -107,13 +187,15 @@ serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: gatewayHost }, (i
           {
             phase: "stack-gateway-listen",
             url: `http://${gatewayHost}:${info.port}`,
+            landing: `http://${gatewayHost}:${info.port}/`,
+            playableDemo: `http://${gatewayHost}:${info.port}/demo`,
             operatorUi: `http://${gatewayHost}:${info.port}/ui`,
             openapi: `http://${gatewayHost}:${info.port}/openapi.json`,
             policyMode: gateway.policies.get().mode,
             seededOperationId: seeded?.operationId ?? null,
             reseedMs: seedEnabled ? reseedMs : 0,
             fidelity: "local DFlow mock — no chain",
-            next: `Open /ui and confirm buy-and-continue. Mainnet proof: docs/DEMO.md`
+            next: `Open / then Try the demo. Operator proof: /ui. Mainnet proof: docs/DEMO.md`
           },
           null,
           2

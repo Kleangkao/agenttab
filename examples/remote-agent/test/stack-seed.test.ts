@@ -9,9 +9,11 @@ import {
 } from "@agenttab/gateway";
 import { MERCHANT_PAY_TO } from "@agenttab/example-neutral-merchant";
 import {
+  applyDemoScenario,
   resetDemoWallet,
   seedNowIfEmpty,
-  startAutoReseed
+  startAutoReseed,
+  topupDemoUsdc
 } from "../src/stack-seed.js";
 
 const merchantOrigin = "http://127.0.0.1:8791";
@@ -152,6 +154,56 @@ describe("stack seed / reseed", () => {
       const record = await gateway.store.get(seeded!.operationId);
       expect(record?.intent.destination).toBe(MERCHANT_PAY_TO);
       expect(record?.intent.network).toBe(LOCAL_NETWORK);
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("applyDemoScenario switches wallet amounts and parks a new card", async () => {
+    const gateway = stackGateway();
+    try {
+      await seedNowIfEmpty({ gateway, merchantOrigin, resetDemoState: true });
+      const empty = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "empty",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(empty.created).toBe(true);
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("0");
+
+      const partial = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(partial.created).toBe(true);
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+      expect(partial.operationId).not.toBe(empty.operationId);
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("topupDemoUsdc adds USDC and re-parks", async () => {
+    const gateway = stackGateway();
+    try {
+      await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "empty",
+        seedPolicy: gateway.policies.get()
+      });
+      const topped = await topupDemoUsdc({
+        gateway,
+        merchantOrigin,
+        usdcAtomic: "1000000",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(topped.balanceAtomic).toBe("1000000");
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("1000000");
+      expect(topped.created).toBe(true);
     } finally {
       gateway.close();
     }

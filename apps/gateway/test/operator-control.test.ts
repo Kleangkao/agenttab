@@ -211,8 +211,10 @@ describe("operator control spine", () => {
     });
 
     const home = await gateway.app.request("/");
-    expect(home.status).toBe(302);
-    expect(home.headers.get("location")).toBe("/ui");
+    expect(home.status).toBe(200);
+    const homeHtml = await home.text();
+    expect(homeHtml).toContain("Try the demo");
+    expect(homeHtml).toContain('href="/demo"');
 
     const ui = await gateway.app.request("/ui");
     expect(ui.status).toBe(200);
@@ -228,6 +230,7 @@ describe("operator control spine", () => {
     expect(html).toContain("Observe is not a dry-run");
     expect(html).toContain("/ui/app.js");
     expect(html).toContain("/openapi.json");
+    expect(html).toContain('href="/demo"');
 
     const js = await (await gateway.app.request("/ui/app.js")).text();
     expect(js).toContain("admin token required");

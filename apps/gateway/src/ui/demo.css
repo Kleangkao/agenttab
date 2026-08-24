@@ -1,0 +1,342 @@
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/ui/fonts/ibm-plex-sans-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/ui/fonts/ibm-plex-sans-600.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/ui/fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("/ui/fonts/ibm-plex-mono-600.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: dark;
+  --ink: #080a0e;
+  --plane: #10141b;
+  --plane-2: #161b24;
+  --text: #e8eaee;
+  --text-2: #a2abba;
+  --text-3: #7e8898;
+  --signal: #ffb020;
+  --settle: #3ecf8e;
+  --line: #232935;
+  --sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--sans);
+  color: var(--text);
+  background:
+    radial-gradient(ellipse 80% 50% at 0% 0%, rgba(255, 176, 32, 0.08), transparent 50%),
+    linear-gradient(180deg, #0c1016 0%, var(--ink) 40%);
+  min-height: 100vh;
+}
+
+.demo {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1.25rem 1.25rem 3rem;
+}
+
+.demo-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.demo-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: inherit;
+  text-decoration: none;
+}
+
+.demo-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.45rem;
+  background: var(--signal);
+  color: #12141a;
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.demo-name {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.demo-nav {
+  display: flex;
+  gap: 0.85rem;
+  font-size: 0.9rem;
+}
+
+.demo-nav a {
+  color: var(--text-2);
+  text-decoration: none;
+}
+
+.demo-nav a[aria-current="page"],
+.demo-nav a:hover {
+  color: var(--text);
+}
+
+.demo-badge {
+  display: inline-block;
+  margin: 0 0 1.25rem;
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-family: var(--mono);
+}
+
+.demo-agent {
+  margin-bottom: 1.5rem;
+  animation: demo-in 320ms ease both;
+}
+
+.demo-kicker {
+  margin: 0 0 0.35rem;
+  color: var(--signal);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.demo-agent h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 3vw, 1.85rem);
+  letter-spacing: -0.03em;
+}
+
+.demo-intent {
+  margin: 0.5rem 0 0;
+  color: var(--text-2);
+  line-height: 1.45;
+}
+
+.demo-status {
+  min-height: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: var(--text-3);
+  font-size: 0.85rem;
+}
+
+.demo-panel {
+  background: var(--plane);
+  border: 1px solid var(--line);
+  border-radius: 0.85rem;
+  padding: 1.25rem;
+  animation: demo-in 360ms 40ms ease both;
+}
+
+.demo-loading,
+.demo-empty {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.demo-compare {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 0.75rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+
+.demo-metric span {
+  display: block;
+  color: var(--text-3);
+  font-size: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.demo-metric strong {
+  font-family: var(--mono);
+  font-size: 1.35rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.demo-metric.is-deficit strong { color: var(--signal); }
+.demo-metric.is-ok strong { color: var(--settle); }
+
+.demo-arrow {
+  color: var(--text-3);
+  padding-bottom: 0.35rem;
+}
+
+.demo-story {
+  margin: 0 0 1rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.demo-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1.15rem;
+  padding: 0;
+  list-style: none;
+}
+
+.demo-path li {
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 0.72rem;
+  font-family: var(--mono);
+}
+
+.demo-path li.is-active {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.demo-path li.is-done {
+  border-color: rgba(62, 207, 142, 0.35);
+  color: var(--settle);
+}
+
+.demo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.65rem;
+  padding: 0 1.1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.demo-btn:hover { transform: translateY(-1px); }
+.demo-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.demo-btn-primary {
+  background: var(--signal);
+  color: #12141a;
+  width: 100%;
+}
+
+.demo-btn-ghost {
+  background: var(--plane-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.demo-done {
+  color: var(--settle);
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+.demo-controls {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 1.75rem;
+  animation: demo-in 400ms 80ms ease both;
+}
+
+.demo-control-block h2 {
+  margin: 0 0 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.demo-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  min-height: 2.25rem;
+  padding: 0 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.chip[aria-pressed="true"] {
+  border-color: var(--signal);
+  color: var(--signal);
+  background: rgba(255, 176, 32, 0.08);
+}
+
+.demo-hint {
+  margin: 0.55rem 0 0;
+  color: var(--text-3);
+  font-size: 0.8rem;
+}
+
+.demo-foot {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  color: var(--text-3);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.demo-foot a { color: var(--signal); }
+
+@keyframes demo-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+  .demo-compare { grid-template-columns: 1fr; }
+  .demo-arrow { display: none; }
+}
