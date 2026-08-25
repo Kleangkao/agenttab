@@ -416,11 +416,23 @@
   }
 
   function verdictFor(rows) {
-    if (rows.some((row) => row.state === "approval_required")) {
+    const waiting = rows.find((row) => row.state === "approval_required");
+    if (waiting) {
+      const record = state.detail[waiting.operationId];
+      const alreadyHeld = record ? loopModel(waiting, record).alreadyHeld : false;
+      if (alreadyHeld) {
+        return {
+          tone: "",
+          state: "Ready to pay",
+          line: "The wallet already holds the exact asset the merchant asked for.",
+          why: "DFlow is not invoked here: AgentTab swaps only when the payment asset is missing.",
+        };
+      }
       return {
         tone: "",
         state: "Blocked",
         line: "An agent hit a paid API. The wallet is short the exact asset the merchant asked for.",
+        why: "DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.",
       };
     }
     if (rows.some((row) => row.state === "denied" || row.state === "failed")) {
@@ -428,6 +440,7 @@
         tone: "is-halt",
         state: "Stopped",
         line: "This payment will not be funded, so the agent does not continue.",
+        why: "AgentTab fails closed when the payment falls outside the operator's policy.",
       };
     }
     if (rows.some((row) => row.state !== "fulfilled")) {
@@ -435,6 +448,7 @@
         tone: "",
         state: "Running",
         line: "Buying only the deficit, then paying the merchant and continuing the same request.",
+        why: "The DFlow acquisition remains bound to this payment and its exact deficit.",
       };
     }
     if (rows.length) {
@@ -442,12 +456,14 @@
         tone: "is-done",
         state: "Done",
         line: "The agent got what it asked for. One request, one payment, no swap UI.",
+        why: "One audit trail ties the DFlow action, x402 payment, and fulfilled response together.",
       };
     }
     return {
       tone: "",
       state: "Idle",
       line: "Waiting for an agent to hit a paid resource.",
+      why: "If the requested payment asset is missing, AgentTab will acquire only the exact deficit.",
     };
   }
 
@@ -459,7 +475,7 @@
       <section class="verdict ${esc(verdict.tone)}">
         <span class="verdict-state">${esc(verdict.state)}</span>
         <p class="verdict-line">${esc(verdict.line)}</p>
-        <p class="verdict-why">DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.</p>
+        <p class="verdict-why">${esc(verdict.why)}</p>
       </section>`;
   }
 

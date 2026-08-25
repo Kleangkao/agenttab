@@ -141,3 +141,12 @@ denial, not a permissive default.
   Agent libraries are on npm; `@agenttab/fetch@0.1.2` includes preview and deny.
 - Preview never funds. Observe is not a dry-run — approving still funds.
 
+## Product surfaces
+
+- `/` is the outcome-first showcase: why the user cares, why DFlow is required,
+  and the historical Mainnet proof.
+- `/demo` is the human-request playground. A visitor chooses a paid task and a
+  starting wallet; AgentTab derives the exact deficit, completes the local mock
+  loop, and returns to the original task. Visitors never set the funding amount.
+- `/ui` is the technical operator console: Now, Ledger, Policy, execution state,
+  audit details, and proof. It is not the marketing surface.

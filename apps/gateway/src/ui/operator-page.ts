@@ -54,7 +54,8 @@ export function operatorHtml(input: {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentTab</title>
+  <title>AgentTab operator console</title>
+  <link rel="icon" href="data:," />
   <link rel="stylesheet" href="/ui/app.css" />
 </head>
 <body>
@@ -69,11 +70,12 @@ export function operatorHtml(input: {
       </a>
 
       <nav class="rail-nav rail-nav-links" aria-label="Surfaces">
-        <a href="/">Home</a>
-        <a href="/demo">Demo</a>
-        <a href="/ui" aria-current="page">Operator</a>
+        <a href="/">Product</a>
+        <a href="/demo">Interactive demo</a>
+        <a href="/ui" aria-current="page">Operator console</a>
       </nav>
 
+      <p class="surface-label">Technical proof surface</p>
       <span class="mode-badge" id="mode-badge" aria-live="polite">…</span>
       <p class="mode-note" id="mode-note"></p>
 

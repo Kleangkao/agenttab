@@ -213,7 +213,7 @@ describe("operator control spine", () => {
     const home = await gateway.app.request("/");
     expect(home.status).toBe(200);
     const homeHtml = await home.text();
-    expect(homeHtml).toContain("Try the demo");
+    expect(homeHtml).toContain("Try the interactive demo");
     expect(homeHtml).toContain('href="/demo"');
 
     const ui = await gateway.app.request("/ui");

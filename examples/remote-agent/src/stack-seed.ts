@@ -14,33 +14,59 @@ export const DEMO_SEED_USDC_ATOMIC = "2600000";
 export const DEMO_ASK_USDC_ATOMIC = "4000000";
 
 export type DemoScenarioId = "partial" | "empty" | "funded";
+export type DemoRequestId = "valuation" | "price-check" | "portfolio-refresh";
+
+export const DEMO_REQUESTS: Record<
+  DemoRequestId,
+  {
+    label: string;
+    purpose: string;
+    stepLabel: string;
+    amountAtomic: string;
+    amountUsdMicros: string;
+    partialUsdcAtomic: string;
+  }
+> = {
+  valuation: {
+    label: "Value my wallet",
+    purpose: "Estimate my wallet's USD value",
+    stepLabel: "Paid market snapshot",
+    amountAtomic: DEMO_ASK_USDC_ATOMIC,
+    amountUsdMicros: DEMO_ASK_USDC_ATOMIC,
+    partialUsdcAtomic: DEMO_SEED_USDC_ATOMIC
+  },
+  "price-check": {
+    label: "Check SOL's live mark",
+    purpose: "Check SOL's live market price",
+    stepLabel: "Paid market snapshot",
+    amountAtomic: "1250000",
+    amountUsdMicros: "1250000",
+    partialUsdcAtomic: "750000"
+  },
+  "portfolio-refresh": {
+    label: "Refresh my portfolio",
+    purpose: "Refresh my portfolio with current market data",
+    stepLabel: "Paid market snapshot",
+    amountAtomic: "5000000",
+    amountUsdMicros: "5000000",
+    partialUsdcAtomic: "4000000"
+  }
+};
 
 export const DEMO_SCENARIOS: Record<
   DemoScenarioId,
   {
     label: string;
-    initialUsdcAtomic: string;
-    amountAtomic: string;
-    amountUsdMicros: string;
   }
 > = {
   partial: {
-    label: "Partial USDC",
-    initialUsdcAtomic: DEMO_SEED_USDC_ATOMIC,
-    amountAtomic: DEMO_ASK_USDC_ATOMIC,
-    amountUsdMicros: DEMO_ASK_USDC_ATOMIC
+    label: "Wallet is short"
   },
   empty: {
-    label: "Empty USDC",
-    initialUsdcAtomic: "0",
-    amountAtomic: DEMO_ASK_USDC_ATOMIC,
-    amountUsdMicros: DEMO_ASK_USDC_ATOMIC
+    label: "Wallet has no USDC"
   },
   funded: {
-    label: "Already funded",
-    initialUsdcAtomic: "5000000",
-    amountAtomic: DEMO_ASK_USDC_ATOMIC,
-    amountUsdMicros: DEMO_ASK_USDC_ATOMIC
+    label: "Wallet already covers it"
   }
 };
 
@@ -48,6 +74,7 @@ export type SeedNowResult = {
   operationId: string;
   created: boolean;
   scenario?: DemoScenarioId;
+  request?: DemoRequestId;
 };
 
 export type SeedNowInput = {
@@ -57,6 +84,7 @@ export type SeedNowInput = {
   amountUsdMicros?: string;
   initialUsdcAtomic?: string;
   initialSolAtomic?: string;
+  request?: DemoRequestId;
   /** When true, restore seed policy + demo wallet before parking a new card. */
   resetDemoState?: boolean;
   seedPolicy?: ReturnType<StackGateway["policies"]["get"]>;
@@ -91,12 +119,14 @@ export async function seedNowIfEmpty(
 }
 
 async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
+  const requestId = input.request ?? "valuation";
+  const request = DEMO_REQUESTS[requestId];
   const operationId = `demo-now-${randomUUID()}`;
-  const taskId = `wallet-valuation-${randomUUID()}`;
+  const taskId = `${requestId}-${randomUUID()}`;
   const requestHash = `sha256:${createHash("sha256").update(operationId).digest("hex")}`;
   const resource = `${input.merchantOrigin}/v1/market-snapshot`;
-  const amountAtomic = input.amountAtomic ?? DEMO_ASK_USDC_ATOMIC;
-  const amountUsdMicros = input.amountUsdMicros ?? amountAtomic;
+  const amountAtomic = input.amountAtomic ?? request.amountAtomic;
+  const amountUsdMicros = input.amountUsdMicros ?? request.amountUsdMicros;
   const result = await input.gateway.coordinator.ensurePaymentAsset({
     intent: {
       operationId,
@@ -112,8 +142,8 @@ async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
       resource,
       taskId,
       taskContext: {
-        purpose: "Estimate my wallet's USD value",
-        stepLabel: "Paid market snapshot step"
+        purpose: request.purpose,
+        stepLabel: request.stepLabel
       },
       resourceMethod: "GET"
     }
@@ -121,7 +151,7 @@ async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
   if (result.status !== "approval_required") {
     throw new Error(`stack seed expected approval_required, got ${result.status}`);
   }
-  return { operationId, created: true };
+  return { operationId, created: true, request: requestId };
 }
 
 /** Clear live parked cards so a new scenario can take the Now slot. */
@@ -149,16 +179,28 @@ export async function applyDemoScenario(input: {
   gateway: StackGateway;
   merchantOrigin: string;
   scenario: DemoScenarioId;
+  request?: DemoRequestId;
   seedPolicy?: ReturnType<StackGateway["policies"]["get"]>;
   initialSolAtomic?: string;
 }): Promise<SeedNowResult> {
-  const spec = DEMO_SCENARIOS[input.scenario];
-  if (!spec) {
+  const scenario = DEMO_SCENARIOS[input.scenario];
+  const requestId = input.request ?? "valuation";
+  const request = DEMO_REQUESTS[requestId];
+  if (!scenario) {
     throw new Error(`unknown_scenario:${input.scenario}`);
   }
+  if (!request) {
+    throw new Error(`unknown_request:${requestId}`);
+  }
+  const initialUsdcAtomic =
+    input.scenario === "empty"
+      ? "0"
+      : input.scenario === "funded"
+        ? request.amountAtomic
+        : request.partialUsdcAtomic;
   await clearParkedApprovals(input.gateway);
   resetDemoWallet(input.gateway, {
-    initialUsdcAtomic: spec.initialUsdcAtomic,
+    initialUsdcAtomic,
     initialSolAtomic: input.initialSolAtomic ?? "5000000000"
   });
   if (input.seedPolicy) {
@@ -167,12 +209,13 @@ export async function applyDemoScenario(input: {
   const seeded = await parkDemoCard({
     gateway: input.gateway,
     merchantOrigin: input.merchantOrigin,
-    amountAtomic: spec.amountAtomic,
-    amountUsdMicros: spec.amountUsdMicros,
-    initialUsdcAtomic: spec.initialUsdcAtomic,
+    request: requestId,
+    amountAtomic: request.amountAtomic,
+    amountUsdMicros: request.amountUsdMicros,
+    initialUsdcAtomic,
     initialSolAtomic: input.initialSolAtomic ?? "5000000000"
   });
-  return { ...seeded, scenario: input.scenario };
+  return { ...seeded, scenario: input.scenario, request: requestId };
 }
 
 /** Add USDC to the mock wallet and re-park a Now card with the same ask. */

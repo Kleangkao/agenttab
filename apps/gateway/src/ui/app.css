@@ -315,6 +315,16 @@ summary:focus-visible {
   color: var(--signal);
 }
 
+.surface-label {
+  margin: var(--s-5) 0 0;
+  color: var(--text-3);
+  font: 600 10px/1.3 var(--mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.surface-label + .mode-badge { margin-top: var(--s-2); }
+
 .rail-block {
   margin-bottom: var(--s-5);
 }

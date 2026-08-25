@@ -10,16 +10,22 @@ describe("product surfaces", () => {
       const home = await gateway.app.request("/");
       expect(home.status).toBe(200);
       const homeHtml = await home.text();
-      expect(homeHtml).toContain("Try the demo");
+      expect(homeHtml).toContain("Ask for the outcome");
+      expect(homeHtml).toContain("Try the interactive demo");
       expect(homeHtml).toContain('href="/demo"');
 
       const demo = await gateway.app.request("/demo");
       expect(demo.status).toBe(200);
-      expect(await demo.text()).toContain("Wallet valuation agent");
+      const demoHtml = await demo.text();
+      expect(demoHtml).toContain("You ask for the result");
+      expect(demoHtml).toContain('id="run-request"');
+      expect(demoHtml).not.toContain("Add $1 USDC");
 
       const ui = await gateway.app.request("/ui");
       expect(ui.status).toBe(200);
-      expect(await ui.text()).toContain('id="panel-now"');
+      const uiHtml = await ui.text();
+      expect(uiHtml).toContain('id="panel-now"');
+      expect(uiHtml).toContain("Technical proof surface");
 
       const health = (await (await gateway.app.request("/health")).json()) as {
         landing: string;
@@ -40,6 +46,8 @@ describe("product surfaces", () => {
     expect(landingHtml()).toContain('href="/demo"');
     expect(landingHtml()).toContain('href="/ui"');
     expect(demoHtml()).toContain('href="/ui"');
+    expect(demoHtml()).toContain('data-request="valuation"');
+    expect(demoHtml()).toContain('data-request="price-check"');
     expect(demoHtml()).toContain('data-scenario="partial"');
   });
 });

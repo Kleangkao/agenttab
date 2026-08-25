@@ -186,6 +186,63 @@ describe("stack seed / reseed", () => {
     }
   });
 
+  it("derives the DFlow deficit from the selected request and wallet preset", async () => {
+    const gateway = stackGateway();
+    try {
+      const seeded = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        request: "price-check",
+        seedPolicy: gateway.policies.get()
+      });
+      const before = await gateway.store.get(seeded.operationId);
+      expect(before?.intent.amountAtomic).toBe("1250000");
+      expect(before?.intent.taskId).toMatch(/^price-check-/);
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("750000");
+
+      await gateway.app.request(`/v1/approvals/${seeded.operationId}`, {
+        method: "POST",
+        body: "{}"
+      });
+      const funded = await gateway.store.get(seeded.operationId);
+      expect(
+        funded?.events.find((event) => event.kind === "funding.submitted")?.details
+          ?.deficitAtomic
+      ).toBe("500000");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("skips DFlow when the selected wallet already covers the request", async () => {
+    const gateway = stackGateway();
+    try {
+      const seeded = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "funded",
+        request: "portfolio-refresh",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("5000000");
+
+      await gateway.app.request(`/v1/approvals/${seeded.operationId}`, {
+        method: "POST",
+        body: "{}"
+      });
+      const funded = await gateway.store.get(seeded.operationId);
+      expect(funded?.events.some((event) => event.kind === "funding.not_required")).toBe(
+        true
+      );
+      expect(funded?.events.some((event) => event.kind === "funding.submitted")).toBe(
+        false
+      );
+    } finally {
+      gateway.close();
+    }
+  });
+
   it("topupDemoUsdc adds USDC and re-parks", async () => {
     const gateway = stackGateway();
     try {

@@ -19,8 +19,10 @@ import {
 } from "@agenttab/gateway";
 import {
   applyDemoScenario,
+  DEMO_REQUESTS,
   DEMO_SEED_USDC_ATOMIC,
   DEMO_SCENARIOS,
+  type DemoRequestId,
   type DemoScenarioId,
   seedNowIfEmpty,
   startAutoReseed,
@@ -110,8 +112,12 @@ async function seedDemoCard() {
 }
 
 gateway.app.post("/v1/demo/scenario", async (c) => {
-  const body = (await c.req.json().catch(() => ({}))) as { scenario?: string };
+  const body = (await c.req.json().catch(() => ({}))) as {
+    scenario?: string;
+    request?: string;
+  };
   const scenario = body.scenario as DemoScenarioId | undefined;
+  const request = (body.request ?? "valuation") as DemoRequestId;
   if (!scenario || !(scenario in DEMO_SCENARIOS)) {
     return c.json(
       {
@@ -121,20 +127,31 @@ gateway.app.post("/v1/demo/scenario", async (c) => {
       400
     );
   }
+  if (!(request in DEMO_REQUESTS)) {
+    return c.json(
+      {
+        error: "invalid_request",
+        requests: Object.keys(DEMO_REQUESTS)
+      },
+      400
+    );
+  }
   try {
     const seeded = await applyDemoScenario({
       gateway,
       merchantOrigin,
       scenario,
+      request,
       seedPolicy,
       initialSolAtomic
     });
     return c.json({
       ok: true,
       scenario,
+      request,
       operationId: seeded.operationId,
       created: seeded.created,
-      message: `Scenario ${DEMO_SCENARIOS[scenario].label} parked.`
+      message: `${DEMO_REQUESTS[request].label} is ready. Starting state: ${DEMO_SCENARIOS[scenario].label}.`
     });
   } catch (error) {
     return c.json(
@@ -195,7 +212,7 @@ serve({ fetch: gateway.app.fetch, port: gatewayPort, hostname: gatewayHost }, (i
             seededOperationId: seeded?.operationId ?? null,
             reseedMs: seedEnabled ? reseedMs : 0,
             fidelity: "local DFlow mock — no chain",
-            next: `Open / then Try the demo. Operator proof: /ui. Mainnet proof: docs/DEMO.md`
+            next: `Open / then Interactive demo. Operator console: /ui. Mainnet proof: docs/DEMO.md`
           },
           null,
           2
