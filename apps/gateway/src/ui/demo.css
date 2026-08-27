@@ -108,10 +108,26 @@ summary:focus-visible {
 
 .demo-name { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
 
-.demo-nav { display: flex; gap: 26px; font-size: 14px; }
+.demo-nav { display: flex; align-items: center; gap: 26px; font-size: 14px; }
 .demo-nav a { color: var(--text-3); text-decoration: none; }
 .demo-nav a:hover,
 .demo-nav a[aria-current="page"] { color: var(--text); }
+
+.lang-toggle {
+  appearance: none;
+  cursor: pointer;
+  padding: 5px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font: 400 13px/1 var(--sans);
+}
+
+.lang-toggle:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
 
 .demo-intro {
   display: grid;

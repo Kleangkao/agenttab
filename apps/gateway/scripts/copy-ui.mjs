@@ -6,7 +6,7 @@ const root = dirname(fileURLToPath(import.meta.url));
 const src = join(root, "../src/ui");
 const dest = join(root, "../dist/ui");
 mkdirSync(dest, { recursive: true });
-for (const name of ["app.css", "app.js", "landing.css", "demo.css", "demo.js"]) {
+for (const name of ["app.css", "app.js", "landing.css", "demo.css", "demo.js", "i18n.js"]) {
   copyFileSync(join(src, name), join(dest, name));
 }
 const fonts = join(src, "fonts");

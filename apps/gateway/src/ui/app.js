@@ -37,6 +37,9 @@
 
   const DEMO_LEDGER_CAP = 4;
 
+  const t = (key, english, vars) =>
+    window.ATI18N ? window.ATI18N.t(key, english, vars) : english;
+
   const STATES = {
     discovered: "Seen",
     approval_required: "Waiting for you",
@@ -92,6 +95,11 @@
     allowed: "The live policy would allow this.",
   };
 
+  function stateLabel(state, fallback) {
+    if (!state) return fallback || t("o.state.updated", "updated");
+    return t(`o.state.${state}`, STATES[state] || state);
+  }
+
   function bearerHeaders() {
     const token = tokenInput.value.trim();
     return token ? { authorization: `Bearer ${token}` } : {};
@@ -137,7 +145,7 @@
 
   function toMicros(raw) {
     const n = Number(String(raw).replace(/[$,\s]/g, ""));
-    if (!Number.isFinite(n) || n < 0) throw new Error("Enter an amount in dollars.");
+    if (!Number.isFinite(n) || n < 0) throw new Error(t("o.msg.amount", "Enter an amount in dollars."));
     return String(Math.round(n * 1_000_000));
   }
 
@@ -165,7 +173,7 @@
   function merchantName(origin) {
     const host = originHost(origin);
     return host === "127.0.0.1:8791" || host === "localhost:8791"
-      ? "Local demo merchant"
+      ? t("o.merchant.local", "Local demo merchant")
       : host;
   }
 
@@ -173,7 +181,7 @@
     try {
       return new URL(origin).host;
     } catch {
-      return origin || "unknown merchant";
+      return origin || t("o.merchant.unknown", "unknown merchant");
     }
   }
 
@@ -192,10 +200,10 @@
   }
 
   function networkLabel(network) {
-    if (network === "solana:local") return "Local (no chain)";
+    if (network === "solana:local") return t("o.net.local.full", "Local (no chain)");
     if (network === "solana:devnet") return "Solana Devnet";
     if (network === "solana:mainnet") return "Solana Mainnet";
-    return network || "Unknown network";
+    return network || t("o.net.unknown", "Unknown network");
   }
 
   const USDC = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
@@ -272,15 +280,27 @@
 
   function demoSummary(loop, row) {
     // The endpoint belongs in Technical details; here, name the agent's task.
-    const task = loop.taskPurpose || "the request";
+    const task = loop.taskPurpose || t("o.demo.request", "the request");
     if (row.state === "fulfilled" || loop.result) {
-      return `${task} completed after AgentTab covered the missing amount and paid the merchant.`;
+      return t(
+        "o.demo.done",
+        `${task} completed after AgentTab covered the missing amount and paid the merchant.`,
+        { task },
+      );
     }
     if (row.state === "approval_required" && !loop.alreadyHeld) {
-      return `Wallet is short ${loop.deficitLabel}. Approve once. AgentTab covers only that, pays the merchant, and the request continues.`;
+      return t(
+        "o.demo.short",
+        `Wallet is short ${loop.deficitLabel}. Approve once. AgentTab covers only that, pays the merchant, and the request continues.`,
+        { gap: loop.deficitLabel },
+      );
     }
     if (row.state === "approval_required" && loop.alreadyHeld) {
-      return `Wallet already has ${loop.askedLabel}. Approve to pay the merchant and continue.`;
+      return t(
+        "o.demo.held",
+        `Wallet already has ${loop.askedLabel}. Approve to pay the merchant and continue.`,
+        { asked: loop.askedLabel },
+      );
     }
     return loop.stepNow;
   }
@@ -351,12 +371,12 @@
         `<a href="${esc(proof.payment.url)}" target="_blank" rel="noopener">${esc(proof.payment.label)}</a>`,
       );
     } else if (proof.payment.local) {
-      parts.push("local HMAC pay");
+      parts.push(t("o.proof.hmac", "local HMAC pay"));
     } else if (proof.payment.signature && !isOnChainSignature(proof.payment.signature)) {
       parts.push(`${esc(proof.payment.label)} (mock)`);
     }
     if (!parts.length) return "";
-    return `<p class="chain-proof"><strong>Proof:</strong> ${parts.join(" → ")}</p>`;
+    return `<p class="chain-proof"><strong>${esc(t("o.proof.label", "Proof:"))}</strong> ${parts.join(" → ")}</p>`;
   }
 
   function renderModeBadge() {
@@ -390,13 +410,13 @@
     if (isDemoMode()) {
       root.innerHTML = `
         <div class="rail-block">
-          <h2>Wallet</h2>
+          <h2>${esc(t("o.rail.wallet", "Wallet"))}</h2>
           ${wallet}
         </div>
         <div class="rail-block">
-          <h2>Policy</h2>
-          <div class="rail-stat"><span>Mode</span><strong>${esc(mode)}</strong></div>
-          <div class="rail-stat"><span>Waiting on you</span><strong>${waiting || "0"}</strong></div>
+          <h2>${esc(t("o.rail.policy", "Policy"))}</h2>
+          <div class="rail-stat"><span>${esc(t("o.rail.mode", "Mode"))}</span><strong>${esc(mode)}</strong></div>
+          <div class="rail-stat"><span>${esc(t("o.rail.waiting", "Waiting on you"))}</span><strong>${waiting || "0"}</strong></div>
         </div>`;
       return;
     }
@@ -405,15 +425,15 @@
     const daily = spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0;
     root.innerHTML = `
       <div class="rail-block">
-        <h2>Wallet</h2>
+        <h2>${esc(t("o.rail.wallet", "Wallet"))}</h2>
         ${wallet}
       </div>
       <div class="rail-block">
-        <h2>Spend</h2>
-        <div class="rail-stat"><span>Spent today</span><strong>${esc(money(used))}</strong></div>
-        <div class="rail-stat"><span>Held in flight</span><strong>${esc(money(reserved))}</strong></div>
-        <div class="rail-stat"><span>Daily cap</span><strong>${esc(money(daily))}</strong></div>
-        <div class="rail-stat"><span>Waiting on you</span><strong>${waiting || "0"}</strong></div>
+        <h2>${esc(t("o.rail.spend", "Spend"))}</h2>
+        <div class="rail-stat"><span>${esc(t("o.rail.spenttoday", "Spent today"))}</span><strong>${esc(money(used))}</strong></div>
+        <div class="rail-stat"><span>${esc(t("o.rail.inflight", "Held in flight"))}</span><strong>${esc(money(reserved))}</strong></div>
+        <div class="rail-stat"><span>${esc(t("o.rail.dailycap", "Daily cap"))}</span><strong>${esc(money(daily))}</strong></div>
+        <div class="rail-stat"><span>${esc(t("o.rail.waiting", "Waiting on you"))}</span><strong>${waiting || "0"}</strong></div>
       </div>`;
   }
 
@@ -421,16 +441,16 @@
     const fund = fundingHow();
     return `
       <section class="judge-proof" id="mainnet-proof">
-        <h3>Already proven on Solana Mainnet</h3>
-        <p>This screen does not spend on Mainnet. The same loop already settled on-chain:</p>
+        <h3>${esc(t("o.proof.title", "Already proven on Solana Mainnet"))}</h3>
+        <p>${esc(t("o.proof.sub", "This screen does not spend on Mainnet. The same loop already settled on-chain:"))}</p>
         <p class="judge-links">
-          <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">Exact-deficit DFlow tx</a>
+          <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">${esc(t("o.proof.dflow", "Exact-deficit DFlow tx"))}</a>
           <span aria-hidden="true">→</span>
-          <a href="${MAINNET_X402_TX}" target="_blank" rel="noopener">x402 pay tx</a>
+          <a href="${MAINNET_X402_TX}" target="_blank" rel="noopener">${esc(t("o.proof.x402", "x402 pay tx"))}</a>
           <span aria-hidden="true">→</span>
-          original request continued
+          ${esc(t("o.proof.continued", "original request continued"))}
         </p>
-        <p class="judge-hint">Local: run <code>pnpm demo:stack</code>.</p>
+        <p class="judge-hint">${esc(t("o.proof.local", "Local: run"))} <code>pnpm demo:stack</code>.</p>
       </section>`;
   }
 
@@ -444,6 +464,7 @@
         return {
           tone: "",
           state: "Ready to pay",
+          key: "ready-to-pay",
           line: "The wallet already holds the exact asset the merchant asked for.",
           why: "DFlow is not invoked here: AgentTab swaps only when the payment asset is missing.",
         };
@@ -451,6 +472,7 @@
       return {
         tone: "",
         state: "Action required",
+        key: "action-required",
         line: "An agent hit a paid API. The wallet is short the exact asset the merchant asked for.",
         why: "DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.",
       };
@@ -462,6 +484,7 @@
       return {
         tone: "is-halt",
         state: "Expired",
+        key: "expired",
         line: "This approval sat past its time limit, so it can no longer be funded.",
         why: "AgentTab expires parked approvals rather than paying on stale intent. Reject it, or start a new request.",
       };
@@ -470,6 +493,7 @@
       return {
         tone: "is-halt",
         state: "Stopped",
+        key: "stopped",
         line: "This payment will not be funded, so the agent does not continue.",
         why: "AgentTab fails closed when the payment falls outside the operator's policy.",
       };
@@ -478,6 +502,7 @@
       return {
         tone: "",
         state: "Running",
+        key: "running",
         line: "Buying only the deficit, then paying the merchant and continuing the same request.",
         why: "The DFlow acquisition remains bound to this payment and its exact deficit.",
       };
@@ -486,6 +511,7 @@
       return {
         tone: "is-done",
         state: "Done",
+        key: "done",
         line: "The agent got what it asked for. One request, one payment, no swap UI.",
         why: "One audit trail ties the DFlow action, x402 payment, and fulfilled response together.",
       };
@@ -493,6 +519,7 @@
     return {
       tone: "",
       state: "Idle",
+      key: "idle",
       line: "Waiting for an agent to hit a paid resource.",
       why: "If the requested payment asset is missing, AgentTab will acquire only the exact deficit.",
     };
@@ -504,9 +531,9 @@
     const verdict = verdictFor(rows);
     root.innerHTML = `
       <section class="verdict ${esc(verdict.tone)}">
-        <span class="verdict-state">${esc(verdict.state)}</span>
-        <p class="verdict-line">${esc(verdict.line)}</p>
-        <p class="verdict-why">${esc(verdict.why)}</p>
+        <span class="verdict-state">${esc(t(`o.verdict.${verdict.key}.state`, verdict.state))}</span>
+        <p class="verdict-line">${esc(t(`o.verdict.${verdict.key}.line`, verdict.line))}</p>
+        <p class="verdict-why">${esc(t(`o.verdict.${verdict.key}.why`, verdict.why))}</p>
       </section>`;
   }
 
@@ -569,11 +596,11 @@
   function idleStoryBeats() {
     const fund = fundingHow();
     return [
-      { id: "resource", label: "Paid request", title: "Agent needs a paid resource", detail: "The original HTTP request", status: "todo" },
-      { id: "asked", label: "Merchant asks", title: "Merchant asks for a specific asset", detail: "x402 names the exact token and amount", status: "todo" },
-      { id: "missing", label: "Wallet short", title: "Wallet is missing that asset", detail: "Enough value, wrong or short balance", status: "todo" },
-      { id: "buy", label: "Buy deficit", title: "Buy only the exact deficit", detail: fund.honest, status: "todo" },
-      { id: "finish", label: "Pay & continue", title: "Pay and continue the original request", detail: "Same resource, no second payment", status: "todo" },
+      { id: "resource", label: t("o.beat.resource", "Paid request"), title: t("o.beat.resource.t", "Agent needs a paid resource"), detail: t("o.beat.resource.d", "The original HTTP request"), status: "todo" },
+      { id: "asked", label: t("o.beat.asked", "Merchant asks"), title: t("o.beat.asked.t", "Merchant asks for a specific asset"), detail: t("o.beat.asked.d", "x402 names the exact token and amount"), status: "todo" },
+      { id: "missing", label: t("o.beat.missing", "Wallet short"), title: t("o.beat.missing.t", "Wallet is missing that asset"), detail: t("o.beat.missing.d", "Enough value, wrong or short balance"), status: "todo" },
+      { id: "buy", label: t("o.beat.buy", "Buy deficit"), title: t("o.beat.buy.t", "Buy only the exact deficit"), detail: fund.honest, status: "todo" },
+      { id: "finish", label: t("o.beat.finish", "Pay & continue"), title: t("o.beat.finish.t", "Pay and continue the original request"), detail: t("o.beat.finish.d", "Same resource, no second payment"), status: "todo" },
     ];
   }
 
@@ -596,24 +623,32 @@
 
   /** The hero: held → asked → deficit. One number cannot show "exact deficit". */
   function renderDeficit(loop) {
-    const held = `<div class="deficit-term"><span class="deficit-value">${esc(loop.heldLabel)}</span><span class="deficit-key">wallet holds</span></div>`;
+    const held = `<div class="deficit-term"><span class="deficit-value">${esc(loop.heldLabel)}</span><span class="deficit-key">${esc(t("o.deficit.holds", "wallet holds"))}</span></div>`;
     if (loop.alreadyHeld) {
       return `<div class="deficit">${held}
         <span class="deficit-op" aria-hidden="true">→</span>
-        <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">x402 ask · no DFlow buy</span></div>
+        <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">${esc(t("o.deficit.asknobuy", "x402 ask · no DFlow buy"))}</span></div>
       </div>`;
     }
     return `<div class="deficit">${held}
       <span class="deficit-op" aria-hidden="true">→</span>
-      <div class="deficit-term"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">x402 ask</span></div>
+      <div class="deficit-term"><span class="deficit-value">${esc(loop.askedLabel)}</span><span class="deficit-key">${esc(t("o.deficit.ask", "x402 ask"))}</span></div>
       <span class="deficit-op" aria-hidden="true">=</span>
-      <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.deficitLabel)}</span><span class="deficit-key">exact deficit</span></div>
+      <div class="deficit-term is-buy"><span class="deficit-value">${esc(loop.deficitLabel)}</span><span class="deficit-key">${esc(t("o.deficit.exact", "exact deficit"))}</span></div>
     </div>`;
   }
 
   function loopModel(row, record) {
     const intent = record?.intent || row;
-    const taskPurpose = intent?.taskContext?.purpose;
+    // The purpose is server copy, so key the translation off the demo task id.
+    const rawPurpose = intent?.taskContext?.purpose;
+    const taskId = intent?.taskContext?.taskId || intent?.taskId || "";
+    const taskKey = ["subscription", "agentic-ai"].find((id) => taskId.startsWith(`${id}-`));
+    const taskPurpose = rawPurpose
+      ? taskKey
+        ? t(`d.purpose.${taskKey}`, rawPurpose)
+        : rawPurpose
+      : rawPurpose;
     const taskStepLabel = intent?.taskContext?.stepLabel;
     const mint = intent.assetMint;
     const asked = Number(intent.amountAtomic || row.amountAtomic || 0);
@@ -689,29 +724,29 @@
     const beats = [
       {
         id: "resource",
-        label: "Paid request",
-        title: "Agent needs a paid resource",
+        label: t("o.beat.resource", "Paid request"),
+        title: t("o.beat.resource.t", "Agent needs a paid resource"),
         detail: access || "the original request",
         status: beatStatus("resource"),
       },
       {
         id: "asked",
-        label: "Merchant asks",
-        title: "Merchant asked for this asset",
+        label: t("o.beat.asked", "Merchant asks"),
+        title: t("o.beat.asked.t2", "Merchant asked for this asset"),
         detail: `${askedLabel} via x402`,
         status: beatStatus("asked"),
       },
       {
         id: "missing",
-        label: alreadyHeld ? "Already held" : "Wallet short",
+        label: alreadyHeld ? t("o.beat.held", "Already held") : t("o.beat.missing", "Wallet short"),
         title:
           fulfilled || st === "fulfilled" || st === "paid"
             ? alreadyHeld
-              ? "Wallet already held that asset"
-              : "Wallet was missing that asset"
+              ? t("o.beat.held.past", "Wallet already held that asset")
+              : t("o.beat.missing.past", "Wallet was missing that asset")
             : alreadyHeld
-              ? "Wallet already holds that asset"
-              : "Wallet is missing that asset",
+              ? t("o.beat.held.t", "Wallet already holds that asset")
+              : t("o.beat.missing.t", "Wallet is missing that asset"),
         detail:
           fulfilled || st === "fulfilled"
             ? alreadyHeld
@@ -719,15 +754,20 @@
               : `Was short ${deficitLabel}; AgentTab bought only that`
             : alreadyHeld
               ? `${heldLabel}, no buy needed`
-              : `${heldLabel} held · ${deficitLabel} missing`,
+              : t("o.beat.heldmissing", `${heldLabel} held · ${deficitLabel} missing`, {
+                  hold: heldLabel,
+                  gap: deficitLabel,
+                }),
         status: beatStatus("missing"),
       },
       {
         id: "buy",
-        label: alreadyHeld ? "No buy" : "Buy deficit",
-        title: alreadyHeld ? "No DFlow buy" : "Buy only the exact deficit",
+        label: alreadyHeld ? t("o.beat.nobuy", "No buy") : t("o.beat.buy", "Buy deficit"),
+        title: alreadyHeld
+          ? t("o.beat.nobuy.t", "No DFlow buy")
+          : t("o.beat.buy.t", "Buy only the exact deficit"),
         detail: alreadyHeld
-          ? "Skip: pay from the balance already in the wallet"
+          ? t("o.beat.nobuy.d", "Skip: pay from the balance already in the wallet")
           : confirmed
             ? `Acquired ${deficitLabel} via ${fund.acquire}`
             : `${deficitLabel} via ${fund.honest}`,
@@ -735,14 +775,16 @@
       },
       {
         id: "finish",
-        label: "Pay & continue",
+        label: t("o.beat.finish", "Pay & continue"),
         title:
           fulfilled || st === "fulfilled"
-            ? "Original request continued"
-            : "Pay the merchant and continue the original request",
+            ? t("o.beat.finish.done", "Original request continued")
+            : t("o.beat.finish.t2", "Pay the merchant and continue the original request"),
         detail:
           fulfilled || st === "fulfilled"
-            ? `Agent received ${access || "the resource"}`
+            ? t("o.beat.received", `Agent received ${access || "the resource"}`, {
+                access: access || t("o.res.the", "the resource"),
+              })
             : `Pay ${askedLabel}, then retry ${access || "the same request"}`,
         status: beatStatus("finish"),
       },
@@ -752,86 +794,104 @@
       : deficit;
     const hero =
       mint === USDC ? money(String(Math.round(heroAtomic || 0))) : formatAssetAmount(heroAtomic, mint);
-    const result = fulfilled || st === "fulfilled" ? access || "resource delivered" : "";
-    let kicker = STATES[st] || st;
+    const result =
+      fulfilled || st === "fulfilled"
+        ? access || t("o.result.delivered", "resource delivered")
+        : "";
+    let kicker = t(`o.state.${st}`, STATES[st] || st);
     let amountLabel = `${assetLabel(mint)} asked by the merchant`;
     if (st === "denied") {
       const last = record?.events?.at(-1);
       const policyAfterApprove =
         last?.kind === "policy.denied" && last.details?.afterApproval === true;
       kicker = policyAfterApprove
-        ? "Policy denied this after approval"
+        ? t("o.kicker.deniedafter", "Policy denied this after approval")
         : last?.kind === "policy.denied"
-          ? "Rejected by policy"
-          : "Rejected";
+          ? t("o.kicker.deniedpolicy", "Rejected by policy")
+          : t("o.kicker.rejected", "Rejected");
       amountLabel = policyAfterApprove
         ? "approval does not override a hard policy denial"
         : "this request will not be paid";
     } else if (st === "failed") {
-      kicker = "Funding failed";
+      kicker = t("o.kicker.fundingfailed", "Funding failed");
       amountLabel = "policy allowed this; funding did not finish";
     } else if (fulfilled || st === "fulfilled") {
-      kicker = "Completed";
+      kicker = t("o.kicker.completed", "Completed");
       amountLabel = alreadyHeld
         ? `paid ${askedLabel} · original request continued`
         : `bought ${deficitLabel} · paid ${askedLabel} · original request continued`;
     } else if (st === "fulfillment_failed") {
-      kicker = "Paid, resource not delivered";
+      kicker = t("o.kicker.undelivered", "Paid, resource not delivered");
       amountLabel = "continue the same request, do not pay again";
     } else if (st === "paid") {
-      kicker = "Merchant was paid";
+      kicker = t("o.kicker.merchantpaid", "Merchant was paid");
       amountLabel = "continue the original request";
     } else if (st === "payment_submitted") {
-      kicker = "Paying the merchant";
+      kicker = t("o.kicker.paying", "Paying the merchant");
       amountLabel = "same payment, no second pay";
     } else if (st === "funded") {
-      kicker = "Missing asset is in the wallet";
+      kicker = t("o.kicker.held", "Missing asset is in the wallet");
       amountLabel = "ready to pay the merchant and continue";
     } else if (st === "funding_submitted") {
-      kicker = "Buying only the missing amount";
+      kicker = t("o.kicker.buying", "Buying only the missing amount");
       amountLabel = `${deficitLabel} via ${fund.acquire}`;
     } else if (alreadyHeld) {
-      kicker = st === "approval_required" ? "Wallet can pay, waiting for you" : kicker;
+      kicker =
+        st === "approval_required"
+          ? t("o.kicker.canpay", "Wallet can pay, waiting for you")
+          : kicker;
       amountLabel = "no DFlow buy, pay and continue";
     } else if (st === "approval_required") {
-      kicker = row.parkedExpired ? "Parked approval expired" : "Action required";
+      kicker = row.parkedExpired
+        ? t("o.kicker.expired", "Parked approval expired")
+        : t("o.kicker.action", "Action required");
       amountLabel = row.parkedExpired
-        ? "this request can no longer be funded"
-        : `${deficitLabel} missing: buy only this, then continue`;
+        ? t("o.amount.unfundable", "this request can no longer be funded")
+        : t("o.amount.missing", `${deficitLabel} missing: buy only this, then continue`, {
+            gap: deficitLabel,
+          });
     }
     let stepNow = openLoopCopy(row, record);
     if (st === "approval_required" && row.parkedExpired) {
-      stepNow = `This parked approval expired after the policy TTL. It cannot be funded. Reject it, or wait for a new request.`;
+      stepNow = t("o.step.expired", `This parked approval expired after the policy TTL. It cannot be funded. Reject it, or wait for a new request.`);
     } else if (st === "approval_required" && !alreadyHeld) {
-      stepNow = `The agent cannot fetch ${access || "this resource"} until the wallet holds ${askedLabel}. AgentTab will buy only ${deficitLabel} from ${fromLabel} via ${fund.honest}, pay the merchant, and retry the same request.`;
+      stepNow = t("o.step.needbuy", `The agent cannot fetch ${access || "this resource"} until the wallet holds ${askedLabel}. AgentTab will buy only ${deficitLabel} from ${fromLabel} via ${fund.honest}, pay the merchant, and retry the same request.`, { access: access || t("o.res.this", "this resource"), asked: askedLabel, gap: deficitLabel, from: fromLabel, how: fund.honest });
     } else if (st === "approval_required" && alreadyHeld) {
-      stepNow = `Wallet already holds ${askedLabel}. Confirming pays the merchant and retries ${access || "the original request"}. No DFlow buy.`;
+      stepNow = t("o.step.held", `Wallet already holds ${askedLabel}. Confirming pays the merchant and retries ${access || "the original request"}. No DFlow buy.`, { asked: askedLabel, access: access || t("o.res.orig", "the original request") });
     } else if (st === "funding_submitted") {
-      stepNow = `Buying ${deficitLabel} paused on this same request. Continue acquires only the remaining deficit via ${fund.acquire}.`;
+      stepNow = t("o.step.fundingpaused", `Buying ${deficitLabel} paused on this same request. Continue acquires only the remaining deficit via ${fund.acquire}.`, { gap: deficitLabel, how: fund.acquire });
     } else if (st === "funded") {
-      stepNow = `${deficitLabel} is in the wallet. Continue pays ${askedLabel} and retries ${access || "the original request"}. It will not buy or pay twice.`;
+      stepNow = t("o.step.funded", `${deficitLabel} is in the wallet. Continue pays ${askedLabel} and retries ${access || "the original request"}. It will not buy or pay twice.`, { gap: deficitLabel, asked: askedLabel, access: access || t("o.res.orig", "the original request") });
     } else if (st === "payment_submitted") {
-      stepNow = `Payment was submitted. Continue confirms the same pay and retries ${access || "the original request"}.`;
+      stepNow = t("o.step.submitted", `Payment was submitted. Continue confirms the same pay and retries ${access || "the original request"}.`, { access: access || t("o.res.orig", "the original request") });
     } else if (st === "paid") {
-      stepNow = `Merchant was paid ${askedLabel}. Continue marks ${access || "the resource"} delivered so the agent can proceed.`;
+      stepNow = t("o.step.paid", `Merchant was paid ${askedLabel}. Continue marks ${access || "the resource"} delivered so the agent can proceed.`, { asked: askedLabel, access: access || t("o.res.the", "the resource") });
     } else if (st === "fulfillment_failed") {
-      stepNow = `Paid, but ${access || "the resource"} was not marked delivered. Continue retries delivery only.`;
+      stepNow = t("o.step.undelivered", `Paid, but ${access || "the resource"} was not marked delivered. Continue retries delivery only.`, { access: access || t("o.res.the", "the resource") });
     } else if (st === "denied") {
       const last = record?.events?.at(-1);
       stepNow =
         last?.kind === "policy.denied" && last.details?.afterApproval === true
-          ? `Live policy denied this after you approved (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}). This id will not fund.`
+          ? t(
+              "o.step.deniedafter",
+              `Live policy denied this after you approved (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}). This id will not fund.`,
+              { why: reasonText(last.details?.reason, last.details?.reason || "hard denial") },
+            )
           : last?.kind === "policy.denied"
-            ? `Live policy denied this payment (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}).`
-            : "You rejected this payment. It will not be funded or paid.";
+            ? t(
+                "o.step.denied",
+                `Live policy denied this payment (${reasonText(last.details?.reason, last.details?.reason || "hard denial")}).`,
+                { why: reasonText(last.details?.reason, last.details?.reason || "hard denial") },
+              )
+            : t("o.step.youdenied", "You rejected this payment. It will not be funded or paid.");
     } else if (st === "failed") {
-      stepNow = `Funding failed before the original request continued. Policy had allowed this payment; the buy did not finish.`;
+      stepNow = t("o.step.failed", `Funding failed before the original request continued. Policy had allowed this payment; the buy did not finish.`);
     } else if (fulfilled || st === "fulfilled") {
-      stepNow = `The agent got ${access || "the resource"} after AgentTab ${alreadyHeld ? "paid" : `bought ${deficitLabel} and paid`} ${askedLabel}.`;
+      stepNow = t("o.step.done", `The agent got ${access || "the resource"} after AgentTab ${alreadyHeld ? "paid" : `bought ${deficitLabel} and paid`} ${askedLabel}.`, { access: access || t("o.res.the", "the resource"), what: alreadyHeld ? t("o.did.paid", "paid") : t("o.did.bought", `bought ${deficitLabel} and paid`, { gap: deficitLabel }), asked: askedLabel });
     }
 
     if (taskPurpose) {
-      stepNow = `Agent task: ${taskPurpose}${taskStepLabel ? ` · ${taskStepLabel}` : ""}. ${stepNow}`;
+      stepNow = `${t("o.step.task", "Agent task")}: ${taskPurpose}${taskStepLabel ? ` · ${taskStepLabel}` : ""}. ${stepNow}`;
     }
     return {
       intent,
@@ -859,17 +919,20 @@
   }
 
   function modeLabel(mode) {
-    if (mode === "autopay") return "Auto-pay within limits";
-    if (mode === "approve") return "Ask me every time";
-    return "Monitor & allow";
+    if (mode === "autopay") return t("o.mode.autopay", "Auto-pay within limits");
+    if (mode === "approve") return t("o.mode.approve", "Ask me every time");
+    return t("o.mode.observe", "Monitor & allow");
   }
 
   function reasonText(code, fallback) {
-    return REASONS[code] || fallback || "AgentTab stopped this payment for review.";
+    return t(
+      `o.reason.${code}`,
+      REASONS[code] || fallback || "AgentTab stopped this payment for review.",
+    );
   }
 
   function eventText(kind) {
-    return EVENTS[kind] || kind;
+    return t(`o.event.${kind}`, EVENTS[kind] || kind);
   }
 
   function notifyLine(record) {
@@ -974,14 +1037,14 @@
     const notifySigned = health.notifySigned;
     const alerts = health.notifyConfigured
       ? notifySigned
-        ? " · signed alerts"
-        : " · alerts on"
+        ? t("o.stance.signed", " · signed alerts")
+        : t("o.stance.alerts", " · alerts on")
       : "";
     const held =
       Number(reservedRaw) > 0
-        ? ` · <strong>${esc(reserved)}</strong> held in flight`
+        ? ` · <strong>${esc(reserved)}</strong> ${esc(t("o.stance.held", "held in flight"))}`
         : "";
-    $("stance").innerHTML = `<strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong>${held} of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
+    $("stance").innerHTML = `<strong>${esc(mode)}</strong> · ${esc(t("o.stance.spent", "spent"))} <strong>${esc(used)}</strong>${held} ${esc(t("o.stance.of", "of"))} <strong>${esc(daily)}</strong> ${esc(t("o.stance.today", "today"))}${esc(alerts)}`;
     renderModeBadge();
     renderJudgeStats();
     $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
@@ -992,22 +1055,22 @@
 
   function openLoopCopy(row, record) {
     if (row.state === "funding_submitted") {
-      return "Funding paused after a plan or sign interrupt. Resume uses the same payment id and does not open a second swap.";
+      return t("o.resume.plan", "Funding paused after a plan or sign interrupt. Resume uses the same payment id and does not open a second swap.");
     }
     if (row.state === "funded") {
-      return "The wallet holds the payment asset. Resume records pay for this same id.";
+      return t("o.resume.held", "The wallet holds the payment asset. Resume records pay for this same id.");
     }
     if (row.state === "payment_submitted") {
-      return "Payment was submitted but not settled. Resume confirms the same payment; it will not mint a new one.";
+      return t("o.resume.submitted", "Payment was submitted but not settled. Resume confirms the same payment; it will not mint a new one.");
     }
     if (row.state === "paid") {
-      return "The merchant was paid. Resume marks the original resource as delivered.";
+      return t("o.resume.paid", "The merchant was paid. Resume marks the original resource as delivered.");
     }
     if (row.state === "fulfillment_failed") {
-      return "Paid, but the resource was not marked delivered. Resume retries fulfill only.";
+      return t("o.resume.undelivered", "Paid, but the resource was not marked delivered. Resume retries fulfill only.");
     }
     if (row.state === "approved") {
-      return "Approved, but funding has not finished. Resume continues this same payment.";
+      return t("o.resume.approved", "Approved, but funding has not finished. Resume continues this same payment.");
     }
     return parkedReason(row, record);
   }
@@ -1015,19 +1078,19 @@
   function primaryLabel(row, loop) {
     if (row.state === "approval_required") {
       return loop.alreadyHeld
-        ? `Pay ${loop.askedLabel} and continue`
-        : `Buy ${loop.deficitLabel} and continue`;
+        ? t("o.btn.pay", `Pay ${loop.askedLabel} and continue`, { asked: loop.askedLabel })
+        : t("o.btn.buy", `Buy ${loop.deficitLabel} and continue`, { gap: loop.deficitLabel });
     }
     if (row.state === "funded" || row.state === "payment_submitted") {
-      return "Pay and continue the original request";
+      return t("o.btn.paycontinue", "Pay and continue the original request");
     }
     if (row.state === "paid" || row.state === "fulfillment_failed") {
-      return "Continue the original request";
+      return t("o.btn.continueorig", "Continue the original request");
     }
     if (row.state === "funding_submitted" || row.state === "approved") {
-      return "Finish buying the missing amount";
+      return t("o.btn.finishbuy", "Finish buying the missing amount");
     }
-    return "Continue this request";
+    return t("o.btn.continue", "Continue this request");
   }
 
   function renderNow() {
@@ -1061,31 +1124,31 @@
                     : `This buys only ${loop.deficitLabel} via ${loop.fund.honest}; then it pays the merchant ${loop.askedLabel} and retries ${loop.access || "the original request"}. Observe is not a dry-run.`
                   : state.pending.act === "resume"
                     ? `This continues the same request: buy, pay, or deliver the next unfinished step. It will not start a second payment.`
-                    : "Reject is final. This request will not be funded or paid, and the id cannot be reused."
+                    : t("o.confirm.rejectnote", "Reject is final. This request will not be funded or paid, and the id cannot be reused.")
               }</div>
               <div class="actions">
                 <button class="btn ${state.pending.act === "deny" ? "btn-danger" : "btn-primary"}" data-act="confirm" type="button">${
                   state.pending.act === "approve"
                     ? loop.alreadyHeld
-                      ? "Confirm pay and continue"
-                      : "Confirm buy and continue"
+                      ? t("o.confirm.pay", "Confirm pay and continue")
+                      : t("o.confirm.buy", "Confirm buy and continue")
                     : state.pending.act === "resume"
-                      ? "Confirm and continue"
-                      : "Confirm reject"
+                      ? t("o.confirm.continue", "Confirm and continue")
+                      : t("o.confirm.reject", "Confirm reject")
                 }</button>
-                <button class="btn btn-ghost" data-act="cancel" type="button">Back</button>
+                <button class="btn btn-ghost" data-act="cancel" type="button">${esc(t("o.btn.back", "Back"))}</button>
               </div>`
             : done
               ? ""
               : parked && row.parkedExpired
                 ? `<div class="actions">
-                <button class="btn btn-danger" data-act="deny" type="button">Reject expired</button>
-                <a class="btn btn-ghost" href="/demo">Run a new request</a>
+                <button class="btn btn-danger" data-act="deny" type="button">${esc(t("o.btn.rejectexpired", "Reject expired"))}</button>
+                <a class="btn btn-ghost" href="/demo">${esc(t("o.btn.newrequest", "Run a new request"))}</a>
               </div>`
                 : parked
                   ? `<div class="actions">
                 <button class="btn btn-primary" data-act="approve" type="button">${esc(primaryLabel(row, loop))}</button>
-                <button class="btn btn-danger" data-act="deny" type="button">Reject</button>
+                <button class="btn btn-danger" data-act="deny" type="button">${esc(t("o.btn.reject", "Reject"))}</button>
               </div>`
                   : `<div class="actions">
                 <button class="btn btn-primary" data-act="resume" type="button">${esc(primaryLabel(row, loop))}</button>
@@ -1105,12 +1168,12 @@
             ${renderStory(loop.beats)}
             <p class="card-summary">${esc(summary)}</p>
             ${confirm}
-            ${done && isDemoMode() ? `<p class="card-summary">Next scenario loading…</p>` : ""}
-            <details class="card-ref"${state.openDetails.has(row.operationId) ? " open" : ""}><summary>Technical details</summary>${
-              loop.access ? `<p class="sub">Endpoint <code>${esc(loop.access)}</code></p>` : ""
+            ${done && isDemoMode() ? `<p class="card-summary">${esc(t("o.card.nextscenario", "Next scenario loading…"))}</p>` : ""}
+            <details class="card-ref"${state.openDetails.has(row.operationId) ? " open" : ""}><summary>${esc(t("o.card.tech", "Technical details"))}</summary>${
+              loop.access ? `<p class="sub">${esc(t("o.card.endpoint", "Endpoint"))} <code>${esc(loop.access)}</code></p>` : ""
             }<p class="id">${esc(row.operationId)}</p>${
               (record && record.agentId) || row.agentId
-                ? `<p class="sub">Agent ${esc((record && record.agentId) || row.agentId)}</p>`
+                ? `<p class="sub">${esc(t("o.card.agent", "Agent"))} ${esc((record && record.agentId) || row.agentId)}</p>`
                 : ""
             }<p class="card-meta">${esc(loop.rail)}</p>${
               parked ? `<p class="sub">${esc(parkedReason(row, record))}</p>` : ""
@@ -1122,9 +1185,9 @@
 
   const LEDGER_FILTERS = [
     { id: "all", label: "All" },
-    { id: "completed", label: "Completed" },
-    { id: "needs-approval", label: "Needs approval" },
-    { id: "rejected", label: "Rejected" },
+    { id: "completed", label: "Completed", key: "completed" },
+    { id: "needs-approval", label: "Needs approval", key: "needsapproval" },
+    { id: "rejected", label: "Rejected", key: "rejected" },
   ];
 
   function ledgerGroup(row) {
@@ -1135,17 +1198,17 @@
   }
 
   function renderLedgerFilters(counts) {
-    return `<div class="ledger-filters" role="group" aria-label="Filter requests">${LEDGER_FILTERS.map(
+    return `<div class="ledger-filters" role="group" aria-label="${esc(t('o.filter.aria', 'Filter requests'))}">${LEDGER_FILTERS.map(
       (filter) =>
         `<button type="button" class="ledger-filter" data-filter="${filter.id}" aria-pressed="${
           state.ledgerFilter === filter.id ? "true" : "false"
-        }">${esc(filter.label)}<span>${filter.id === "all" ? counts.all : counts[filter.id] || 0}</span></button>`,
+        }">${esc(t(`o.filter.${filter.key || filter.id}`, filter.label))}<span>${filter.id === "all" ? counts.all : counts[filter.id] || 0}</span></button>`,
     ).join("")}</div>`;
   }
 
   /** One line per request: what was asked for, then how it ended. */
   function ledgerTitle(row, loop) {
-    return loop.taskPurpose || pathOf(row.resource) || "Paid request";
+    return loop.taskPurpose || pathOf(row.resource) || t("o.beat.resource", "Paid request");
   }
 
   /** Demo Ledger defaults to Completed so Rejected noise does not dominate. */
@@ -1280,7 +1343,7 @@
     above.disabled = askAlways;
     above.placeholder = askAlways ? "" : "5.00";
     $("approve-above-note").textContent = askAlways
-      ? "Every payment requires approval"
+      ? t("o.note.everypayment", "Every payment requires approval")
       : "";
     $("approve-above").closest(".field").classList.toggle("is-disabled", askAlways);
     $("policy-json").value = JSON.stringify(policy, null, 2);
@@ -1385,11 +1448,17 @@
     if (!state.policy) return;
     if (mode === "observe") {
       const ok = window.confirm(
-        "Monitor & allow is not a dry-run. Matching payments can still fund and pay on Mainnet.",
+        t(
+          "o.msg.observemainnet",
+          "Monitor & allow is not a dry-run. Matching payments can still fund and pay on Mainnet.",
+        ),
       );
       if (!ok) return;
     }
-    await savePolicy({ ...state.policy, mode }, `Policy saved: ${modeLabel(mode)}`);
+    await savePolicy(
+      { ...state.policy, mode },
+      `${t("o.msg.policysaved", "Policy saved")}: ${modeLabel(mode)}`,
+    );
   }
 
   async function addOrigin(event) {
@@ -1401,7 +1470,7 @@
     try {
       origin = new URL(raw.includes("://") ? raw : `http://${raw}`).origin;
     } catch {
-      setStatus("bad", "That is not a usable origin.");
+      setStatus("bad", t("o.msg.badorigin", "That is not a usable origin."));
       return;
     }
     const next = new Set(state.policy.allowedMerchantOrigins || []);
@@ -1417,7 +1486,7 @@
     if (!state.policy) return;
     const next = (state.policy.allowedMerchantOrigins || []).filter((item) => item !== origin);
     if (next.length === 0) {
-      setStatus("bad", "Keep at least one merchant. The live policy will not save an empty list.");
+      setStatus("bad", t("o.msg.keepmerchant", "Keep at least one merchant. The live policy will not save an empty list."));
       return;
     }
     await savePolicy({ ...state.policy, allowedMerchantOrigins: next }, `${origin} removed.`);
@@ -1435,7 +1504,7 @@
       const above = $("approve-above").value.trim();
       if (above) next.requireApprovalAboveUsdMicros = toMicros(above);
       else delete next.requireApprovalAboveUsdMicros;
-      await savePolicy(next, "Policy saved: spend limits updated");
+      await savePolicy(next, t("o.msg.limitssaved", "Policy saved: spend limits updated"));
     } catch (error) {
       setStatus("bad", error.message);
     }
@@ -1444,7 +1513,10 @@
   async function saveJson(event) {
     event.preventDefault();
     try {
-      await savePolicy(JSON.parse($("policy-json").value), "Policy saved: JSON updated");
+      await savePolicy(
+        JSON.parse($("policy-json").value),
+        t("o.msg.jsonsaved", "Policy saved: JSON updated"),
+      );
     } catch (error) {
       setStatus("bad", error.message);
     }
@@ -1453,7 +1525,7 @@
   async function approve(id) {
     state.busy = true;
     try {
-      setStatus("", "Buying only the missing payment asset…");
+      setStatus("", t("o.msg.buying", "Buying only the missing payment asset…"));
       const body = await api(`/v1/approvals/${encodeURIComponent(id)}`, {
         method: "POST",
         body: "{}",
@@ -1472,15 +1544,21 @@
       if (body.outcome?.status === "policy_denied" || body.record?.state === "denied") {
         setStatus(
           "bad",
-          `Policy denied this after approval · ${reasonText(body.outcome?.policyReason, body.outcome?.reason)}`,
+          `${t("o.msg.deniedafter", "Policy denied this after approval")} · ${reasonText(body.outcome?.policyReason, body.outcome?.reason)}`,
         );
         return;
       }
       if (body.record?.state === "failed") {
-        setStatus("bad", `Funding failed · ${body.outcome?.reason || "the buy did not finish"}`);
+        setStatus(
+          "bad",
+          `${t("o.msg.fundingfailed", "Funding failed")} · ${body.outcome?.reason || t("o.msg.buyunfinished", "the buy did not finish")}`,
+        );
         return;
       }
-      setStatus("ok", `Approved · ${STATES[body.record?.state] || body.record?.state || "updated"}`);
+      setStatus(
+        "ok",
+        `${t("o.status.approved", "Approved")} · ${stateLabel(body.record?.state)}`,
+      );
     } catch (error) {
       state.pending = null;
       await refresh();
@@ -1498,7 +1576,7 @@
     state.pending = null;
     delete state.detail[id];
     await refresh();
-    setStatus("ok", "Rejected. That payment cannot be reused.");
+    setStatus("ok", t("o.msg.rejected", "Rejected. That payment cannot be reused."));
   }
 
   async function resumeOnce(id) {
@@ -1509,13 +1587,13 @@
   }
 
   async function finishRequest(id) {
-    setStatus("", "Paying the merchant…");
+    setStatus("", t("o.msg.paying", "Paying the merchant…"));
     const paid = await resumeOnce(id);
     delete state.detail[id];
     await refresh();
     const afterPay = paid.record?.state || (await api(`/v1/executions/${encodeURIComponent(id)}`)).state;
     if (afterPay === "paid" || afterPay === "fulfillment_failed") {
-      setStatus("", "Continuing the original request…");
+      setStatus("", t("o.msg.continuingorig", "Continuing the original request…"));
       await resumeOnce(id);
       delete state.detail[id];
       await refresh();
@@ -1527,8 +1605,8 @@
     setStatus(
       "ok",
       done.state === "fulfilled"
-        ? "Original request continued"
-        : `Continued · ${STATES[done.state] || done.state || "updated"}`,
+        ? t("o.msg.origcontinued", "Original request continued")
+        : `${t("o.status.continued", "Continued")} · ${stateLabel(done.state)}`,
     );
   }
 
@@ -1547,7 +1625,7 @@
         await finishRequest(id);
         return;
       }
-      setStatus("", "Continuing this request…");
+      setStatus("", t("o.msg.continuing", "Continuing this request…"));
       const body = await resumeOnce(id);
       delete state.detail[id];
       await refresh();
@@ -1557,7 +1635,10 @@
         return;
       }
       if (next === "fulfilled") state.spotlightId = id;
-      setStatus("ok", `Continued · ${STATES[next] || body.step || "updated"}`);
+      setStatus(
+        "ok",
+        `${t("o.status.continued", "Continued")} · ${stateLabel(next, body.step)}`,
+      );
     } finally {
       state.busy = false;
     }
@@ -1592,10 +1673,10 @@
       const kind = body.decision?.kind;
       const title =
         kind === "allow"
-          ? "AgentTab would allow this"
+          ? t("o.check.allow", "AgentTab would allow this")
           : kind === "approval_required"
-            ? "This would wait on Now"
-            : "AgentTab would deny this";
+            ? t("o.check.wait", "This would wait on Now")
+            : t("o.check.deny", "AgentTab would deny this");
       const detail = reasonText(body.decision?.reason, body.decision?.message);
       const extra =
         kind === "allow"
@@ -1721,6 +1802,10 @@
   const hash = aliases[location.hash.replace("#", "")] || location.hash.replace("#", "");
   setView(panels[hash] ? hash : "now");
   showUnlock(needsToken() && !tokenInput.value);
+  // The console builds its panels in JS, so the language switch has to redraw
+  // them; swapping the static [data-i18n] nodes alone leaves stale copy.
+  window.ATI18N?.onChange(() => render());
+
   refresh();
   setInterval(() => {
     if (!state.busy && !state.pending) refresh();
