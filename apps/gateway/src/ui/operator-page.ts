@@ -123,7 +123,7 @@ ${pageHead({
           <section class="policy-panel" id="panel-policy" hidden>
             <header class="panel-head">
               <h2>Payment policy</h2>
-              <p>Live rules for the next agent payment — not a copy of the file on disk.</p>
+              <p>Live rules for the next agent payment, not a copy of the file on disk.</p>
             </header>
 
             <div class="policy-section">

@@ -24,7 +24,7 @@ describe("product surfaces", () => {
       const demo = await gateway.app.request("/demo");
       expect(demo.status).toBe(200);
       const demoHtml = await demo.text();
-      expect(demoHtml).toContain("You ask for the result");
+      expect(demoHtml).toContain("Ask for the result, not the transaction");
       expect(demoHtml).toContain('id="run-request"');
       expect(demoHtml).not.toContain("Add $1 USDC");
       // The demo intro must not lead with the payment protocol.

@@ -337,7 +337,7 @@
       state.detail = detail;
       state.row = { ...state.row, state: detail.state, intent: detail.intent };
       if (detail.state === "fulfilled") state.holdResult = true;
-      setStatus(detail.state === "fulfilled" ? "Done — your request completed." : `State: ${detail.state}`);
+      setStatus(detail.state === "fulfilled" ? "Your request completed" : `State: ${detail.state}`);
       await refreshBalances();
     } catch (err) {
       setStatus(err.message || String(err));
@@ -372,7 +372,7 @@
       if (badge && state.health?.fundingMode) {
         badge.textContent =
           state.health.fundingMode === "mock"
-            ? "Safe demo — no real funds"
+            ? "Safe demo, no real funds"
             : `Funding mode: ${state.health.fundingMode}`;
       }
       await refreshBalances();
@@ -458,7 +458,7 @@
     const button = event.target.closest("[data-request]");
     if (!button || state.busy) return;
     state.request = button.dataset.request;
-    setStatus("Ready — run the request to apply your choices.");
+    setStatus("Run the request to apply your choices");
     renderControls();
   });
 
@@ -466,7 +466,7 @@
     const button = event.target.closest("[data-scenario]");
     if (!button || state.busy) return;
     state.scenario = button.dataset.scenario;
-    setStatus("Ready — run the request to apply your choices.");
+    setStatus("Run the request to apply your choices");
     renderControls();
   });
 

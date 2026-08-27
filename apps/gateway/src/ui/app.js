@@ -65,7 +65,7 @@
     "funding.signer_failed": "Funding paused; same payment can retry",
     "funding.confirm_interrupted": "Funding needs confirmation; same payment can retry",
     "funding.balances_applied": "Wallet balances updated",
-    "funding.confirmed": "Deficit acquired — wallet can pay the 402",
+    "funding.confirmed": "Deficit acquired, wallet can pay the 402",
     "funding.not_required": "Wallet already held the payment asset",
     "payment.submitted": "Paying the 402",
     "payment.settled": "Merchant was paid",
@@ -217,7 +217,7 @@
       return {
         short: "local mock",
         acquire: "local DFlow mock",
-        honest: "local DFlow mock — no chain, not broadcasting",
+        honest: "local DFlow mock: no chain, not broadcasting",
         badge: "LOCAL MOCK",
         badgeClass: "mock",
       };
@@ -228,8 +228,8 @@
         short: "DFlow sim",
         acquire: "DFlow simulated send",
         honest: live
-          ? "DFlow live sim — broadcasting enabled"
-          : "DFlow live quote, simulated send — not broadcasting unless enabled",
+          ? "DFlow live sim: broadcasting enabled"
+          : "DFlow live quote, simulated send: not broadcasting unless enabled",
         badge: live ? "MAINNET LIVE" : "DFLOW SIM",
         badgeClass: live ? "live" : "sim",
       };
@@ -238,7 +238,7 @@
       return {
         short: "DFlow quote",
         acquire: "DFlow live quote",
-        honest: "DFlow live quote — plan only, not broadcasting",
+        honest: "DFlow live quote: plan only, not broadcasting",
         badge: "DFLOW QUOTE",
         badgeClass: "sim",
       };
@@ -247,7 +247,7 @@
       return {
         short: "Devnet mint",
         acquire: "Devnet mint stand-in",
-        honest: "Devnet mint stand-in — not DFlow",
+        honest: "Devnet mint stand-in, not DFlow",
         badge: "DEVNET",
         badgeClass: "devnet",
       };
@@ -277,7 +277,7 @@
       return `${task} completed after AgentTab covered the missing amount and paid the merchant.`;
     }
     if (row.state === "approval_required" && !loop.alreadyHeld) {
-      return `Wallet is short ${loop.deficitLabel}. Approve once — AgentTab covers only that, pays the merchant, and the request continues.`;
+      return `Wallet is short ${loop.deficitLabel}. Approve once. AgentTab covers only that, pays the merchant, and the request continues.`;
     }
     if (row.state === "approval_required" && loop.alreadyHeld) {
       return `Wallet already has ${loop.askedLabel}. Approve to pay the merchant and continue.`;
@@ -718,7 +718,7 @@
               ? `${askedLabel} was already in the wallet`
               : `Was short ${deficitLabel}; AgentTab bought only that`
             : alreadyHeld
-              ? `${heldLabel} — no buy needed`
+              ? `${heldLabel}, no buy needed`
               : `${heldLabel} held · ${deficitLabel} missing`,
         status: beatStatus("missing"),
       },
@@ -727,7 +727,7 @@
         label: alreadyHeld ? "No buy" : "Buy deficit",
         title: alreadyHeld ? "No DFlow buy" : "Buy only the exact deficit",
         detail: alreadyHeld
-          ? "Skip — pay from the balance already in the wallet"
+          ? "Skip: pay from the balance already in the wallet"
           : confirmed
             ? `Acquired ${deficitLabel} via ${fund.acquire}`
             : `${deficitLabel} via ${fund.honest}`,
@@ -776,14 +776,14 @@
         ? `paid ${askedLabel} · original request continued`
         : `bought ${deficitLabel} · paid ${askedLabel} · original request continued`;
     } else if (st === "fulfillment_failed") {
-      kicker = "Paid — resource not delivered";
-      amountLabel = "continue the same request — do not pay again";
+      kicker = "Paid, resource not delivered";
+      amountLabel = "continue the same request, do not pay again";
     } else if (st === "paid") {
       kicker = "Merchant was paid";
       amountLabel = "continue the original request";
     } else if (st === "payment_submitted") {
       kicker = "Paying the merchant";
-      amountLabel = "same payment — no second pay";
+      amountLabel = "same payment, no second pay";
     } else if (st === "funded") {
       kicker = "Missing asset is in the wallet";
       amountLabel = "ready to pay the merchant and continue";
@@ -791,13 +791,13 @@
       kicker = "Buying only the missing amount";
       amountLabel = `${deficitLabel} via ${fund.acquire}`;
     } else if (alreadyHeld) {
-      kicker = st === "approval_required" ? "Wallet can pay — waiting for you" : kicker;
-      amountLabel = "no DFlow buy — pay and continue";
+      kicker = st === "approval_required" ? "Wallet can pay, waiting for you" : kicker;
+      amountLabel = "no DFlow buy, pay and continue";
     } else if (st === "approval_required") {
       kicker = row.parkedExpired ? "Parked approval expired" : "Action required";
       amountLabel = row.parkedExpired
         ? "this request can no longer be funded"
-        : `${deficitLabel} missing — buy only this, then continue`;
+        : `${deficitLabel} missing: buy only this, then continue`;
     }
     let stepNow = openLoopCopy(row, record);
     if (st === "approval_required" && row.parkedExpired) {
@@ -805,11 +805,11 @@
     } else if (st === "approval_required" && !alreadyHeld) {
       stepNow = `The agent cannot fetch ${access || "this resource"} until the wallet holds ${askedLabel}. AgentTab will buy only ${deficitLabel} from ${fromLabel} via ${fund.honest}, pay the merchant, and retry the same request.`;
     } else if (st === "approval_required" && alreadyHeld) {
-      stepNow = `Wallet already holds ${askedLabel}. Confirming pays the merchant and retries ${access || "the original request"} — no DFlow buy.`;
+      stepNow = `Wallet already holds ${askedLabel}. Confirming pays the merchant and retries ${access || "the original request"}. No DFlow buy.`;
     } else if (st === "funding_submitted") {
       stepNow = `Buying ${deficitLabel} paused on this same request. Continue acquires only the remaining deficit via ${fund.acquire}.`;
     } else if (st === "funded") {
-      stepNow = `${deficitLabel} is in the wallet. Continue pays ${askedLabel} and retries ${access || "the original request"} — it will not buy or pay twice.`;
+      stepNow = `${deficitLabel} is in the wallet. Continue pays ${askedLabel} and retries ${access || "the original request"}. It will not buy or pay twice.`;
     } else if (st === "payment_submitted") {
       stepNow = `Payment was submitted. Continue confirms the same pay and retries ${access || "the original request"}.`;
     } else if (st === "paid") {
@@ -1060,17 +1060,17 @@
                     ? `This pays the merchant ${loop.askedLabel} from the wallet and retries ${loop.access || "the original request"}. No DFlow buy. Observe is not a dry-run.`
                     : `This buys only ${loop.deficitLabel} via ${loop.fund.honest}; then it pays the merchant ${loop.askedLabel} and retries ${loop.access || "the original request"}. Observe is not a dry-run.`
                   : state.pending.act === "resume"
-                    ? `This continues the same request — buy, pay, or deliver the next unfinished step. It will not start a second payment.`
+                    ? `This continues the same request: buy, pay, or deliver the next unfinished step. It will not start a second payment.`
                     : "Reject is final. This request will not be funded or paid, and the id cannot be reused."
               }</div>
               <div class="actions">
                 <button class="btn ${state.pending.act === "deny" ? "btn-danger" : "btn-primary"}" data-act="confirm" type="button">${
                   state.pending.act === "approve"
                     ? loop.alreadyHeld
-                      ? "Confirm — pay and continue"
-                      : "Confirm — buy and continue"
+                      ? "Confirm pay and continue"
+                      : "Confirm buy and continue"
                     : state.pending.act === "resume"
-                      ? "Confirm — continue this request"
+                      ? "Confirm and continue"
                       : "Confirm reject"
                 }</button>
                 <button class="btn btn-ghost" data-act="cancel" type="button">Back</button>
@@ -1206,7 +1206,7 @@
           .map(
             (event) =>
               `<li><time>${esc(when(event.at))}</time><span>${esc(eventText(event.kind))}${
-                event.details?.reason ? ` — ${esc(reasonText(event.details.reason, event.details.reason))}` : ""
+                event.details?.reason ? `: ${esc(reasonText(event.details.reason, event.details.reason))}` : ""
               }</span></li>`,
           )
           .join("");
@@ -1389,7 +1389,7 @@
       );
       if (!ok) return;
     }
-    await savePolicy({ ...state.policy, mode }, `Policy saved — ${modeLabel(mode)}.`);
+    await savePolicy({ ...state.policy, mode }, `Policy saved: ${modeLabel(mode)}`);
   }
 
   async function addOrigin(event) {
@@ -1435,7 +1435,7 @@
       const above = $("approve-above").value.trim();
       if (above) next.requireApprovalAboveUsdMicros = toMicros(above);
       else delete next.requireApprovalAboveUsdMicros;
-      await savePolicy(next, "Policy saved — spend limits updated.");
+      await savePolicy(next, "Policy saved: spend limits updated");
     } catch (error) {
       setStatus("bad", error.message);
     }
@@ -1444,7 +1444,7 @@
   async function saveJson(event) {
     event.preventDefault();
     try {
-      await savePolicy(JSON.parse($("policy-json").value), "Policy saved — JSON updated.");
+      await savePolicy(JSON.parse($("policy-json").value), "Policy saved: JSON updated");
     } catch (error) {
       setStatus("bad", error.message);
     }

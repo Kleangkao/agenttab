@@ -45,11 +45,11 @@ ${pageHead({
       <section class="land-hero" aria-labelledby="product-title">
         <div class="land-hero-copy">
           <p class="land-eyebrow">Powered by DFlow on Solana</p>
-          <h1 class="land-title" id="product-title">Keep agents moving when payments fall short.</h1>
+          <h1 class="land-title" id="product-title">Keep agents moving when payments fall short</h1>
           <p class="land-lede">AgentTab covers only the missing amount and continues the request. Your agent never stops to ask for money, and you never see a trading screen.</p>
           <div class="land-cta">
             <a class="land-btn land-btn-primary" href="/demo">Try the interactive demo <span aria-hidden="true">→</span></a>
-            <span class="land-badge">Safe demo — no real funds</span>
+            <span class="land-badge">Safe demo, no real funds</span>
           </div>
         </div>
 
@@ -82,12 +82,12 @@ ${pageHead({
       <section class="land-loop" aria-labelledby="loop-title">
         <div class="land-section-head">
           <p class="land-eyebrow">One bounded product loop</p>
-          <h2 id="loop-title">Your agent keeps working.</h2>
-          <p>You ask for a result, not a transaction. When a paid step costs more than the wallet holds, AgentTab closes the gap and the same request carries on — without handing your agent open-ended spending power.</p>
+          <h2 id="loop-title">Your agent keeps working</h2>
+          <p>You ask for a result, not a transaction. When a paid step costs more than the wallet holds, AgentTab closes the gap and the same request carries on, without handing your agent open-ended spending power.</p>
         </div>
         <ol class="land-steps">
           <li><span>01</span><strong>Your agent needs a paid service</strong><p>It is working on your task and reaches a step that costs money.</p></li>
-          <li><span>02</span><strong>AgentTab covers the shortfall</strong><p>Your rules decide what is allowed, and only the missing amount is covered — never more.</p></li>
+          <li><span>02</span><strong>AgentTab covers the shortfall</strong><p>Your rules decide what is allowed, and only the missing amount is covered, never more.</p></li>
           <li><span>03</span><strong>The task finishes</strong><p>The service is paid, the result comes back, and one record shows exactly what happened.</p></li>
         </ol>
       </section>
@@ -106,7 +106,7 @@ ${pageHead({
 
     <footer class="land-foot">
       <span>AgentTab</span>
-      <span>Powered by DFlow on Solana.</span>
+      <span>Powered by DFlow on Solana</span>
       <a href="${REPO_URL}" target="_blank" rel="noopener">Source on GitHub →</a>
     </footer>
   </div>

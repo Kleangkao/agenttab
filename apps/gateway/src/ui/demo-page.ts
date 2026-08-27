@@ -21,7 +21,7 @@ export function demoHtml(): string {
 ${pageHead({
   title: "AgentTab interactive demo",
   description:
-    "Pick a task and watch AgentTab cover the payment gap and finish the request. Safe demo — no real funds.",
+    "Pick a task and watch AgentTab cover the payment gap and finish the request. Safe demo, no real funds.",
   path: "/demo",
   stylesheet: "/demo.css"
 })}
@@ -43,7 +43,7 @@ ${pageHead({
     <section class="demo-intro" aria-labelledby="demo-title">
       <div>
         <p class="demo-kicker">Interactive product demo</p>
-        <h1 id="demo-title">You ask for the result. AgentTab handles the payment gap.</h1>
+        <h1 id="demo-title">Ask for the result, not the transaction</h1>
       </div>
       <p>Choose a task and see AgentTab keep it moving when payment is short.</p>
     </section>
@@ -83,7 +83,7 @@ ${pageHead({
         </div>
 
         <button type="button" class="demo-btn demo-btn-primary" id="run-request">Run this request <span aria-hidden="true">→</span></button>
-        <p class="demo-hint">Safe demo — no real funds. AgentTab only ever covers the amount this task is short.</p>
+        <p class="demo-hint">Safe demo, no real funds. AgentTab only ever covers the amount this task is short.</p>
       </section>
 
       <section class="demo-stage" aria-live="polite" aria-labelledby="execution-heading">
@@ -95,7 +95,7 @@ ${pageHead({
               <h2 id="execution-heading">From payment gap to result</h2>
             </div>
           </div>
-          <p class="demo-badge" id="mode-badge">Safe demo — no real funds</p>
+          <p class="demo-badge" id="mode-badge">Safe demo, no real funds</p>
         </header>
         <div id="status" class="demo-status" role="status"></div>
         <div id="panel" class="demo-panel">
