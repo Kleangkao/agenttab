@@ -8,7 +8,11 @@ export function landingCss(): string {
   return readFileSync(join(here, "landing.css"), "utf8");
 }
 
-/** Product-first landing for judges who open the site with no slides. */
+/**
+ * Product-first landing for judges who open the site with no slides.
+ * Sells the outcome. The only technical claims here are "Powered by DFlow"
+ * and the Mainnet proof strip; everything else lives on /ui.
+ */
 export function landingHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -36,14 +40,13 @@ export function landingHtml(): string {
     <main>
       <section class="land-hero" aria-labelledby="product-title">
         <div class="land-hero-copy">
-          <p class="land-eyebrow">Agent-native payments on Solana</p>
-          <h1 class="land-title" id="product-title">Ask for the outcome. AgentTab handles the missing payment asset.</h1>
-          <p class="land-lede">When a paid agent task hits x402 without enough USDC, AgentTab uses DFlow to acquire only the exact deficit, pays the merchant, and continues the same request.</p>
+          <p class="land-eyebrow">Powered by DFlow on Solana</p>
+          <h1 class="land-title" id="product-title">Keep agents moving when payments fall short.</h1>
+          <p class="land-lede">AgentTab covers only the missing amount and continues the request. Your agent never stops to ask for money, and you never see a trading screen.</p>
           <div class="land-cta">
             <a class="land-btn land-btn-primary" href="/demo">Try the interactive demo <span aria-hidden="true">→</span></a>
-            <a class="land-btn land-btn-ghost" href="/ui">See technical proof</a>
+            <span class="land-badge">Safe demo — no real funds</span>
           </div>
-          <p class="land-honesty">The public experience is a safe local mock. The same loop has already settled on Solana Mainnet.</p>
         </div>
 
         <div class="land-product-card" aria-label="Example AgentTab request">
@@ -52,56 +55,48 @@ export function landingHtml(): string {
               <span>Your request</span>
               <strong>Value my wallet</strong>
             </div>
-            <span class="land-card-state">Waiting on payment</span>
+            <span class="land-card-state">Payment needed</span>
           </div>
-          <div class="land-equation" aria-label="Wallet holds 2 dollars 60 cents, request needs 4 dollars, DFlow buys 1 dollar 40 cents">
-            <div><span>Wallet holds</span><strong>$2.60</strong><small>USDC</small></div>
+          <div class="land-equation" aria-label="You have 2 dollars 60 cents, the service costs 4 dollars, AgentTab covers 1 dollar 40 cents">
+            <div><span>You have</span><strong>$2.60</strong><small>in your wallet</small></div>
             <b aria-hidden="true">→</b>
-            <div><span>Request needs</span><strong>$4.00</strong><small>x402 ask</small></div>
+            <div><span>Service costs</span><strong>$4.00</strong><small>to run this task</small></div>
             <b aria-hidden="true">=</b>
-            <div class="is-deficit"><span>DFlow buys</span><strong>$1.40</strong><small>exact deficit</small></div>
+            <div class="is-deficit"><span>AgentTab covers</span><strong>$1.40</strong><small>only what is missing</small></div>
           </div>
           <ol class="land-card-flow">
             <li class="is-done">Request</li>
-            <li class="is-done">x402</li>
-            <li class="is-active">DFlow</li>
-            <li>Pay</li>
+            <li class="is-done">Payment needed</li>
+            <li class="is-active">Covered</li>
+            <li>Paid</li>
             <li>Result</li>
           </ol>
-          <p class="land-card-note">No swap screen. The trade exists only so the original task can finish.</p>
+          <p class="land-card-note">You get the answer you asked for. AgentTab handles the shortfall in the background.</p>
         </div>
       </section>
 
       <section class="land-loop" aria-labelledby="loop-title">
         <div class="land-section-head">
           <p class="land-eyebrow">One bounded product loop</p>
-          <h2 id="loop-title">The swap is a step, not the destination.</h2>
-          <p>The user asks for a result. AgentTab turns an insufficient payment asset into a completed request without giving the agent open-ended trading permission.</p>
+          <h2 id="loop-title">Your agent keeps working.</h2>
+          <p>You ask for a result, not a transaction. When a paid step costs more than the wallet holds, AgentTab closes the gap and the same request carries on — without handing your agent open-ended spending power.</p>
         </div>
         <ol class="land-steps">
-          <li><span>01</span><strong>Request a paid resource</strong><p>The agent encounters a standard x402 payment requirement while working for the user.</p></li>
-          <li><span>02</span><strong>Buy only what is missing</strong><p>Policy approves the task and DFlow acquires the exact payment-asset deficit.</p></li>
-          <li><span>03</span><strong>Continue the same request</strong><p>x402 settles, the paid resource is delivered, and one audit trail binds the whole loop.</p></li>
+          <li><span>01</span><strong>Your agent needs a paid service</strong><p>It is working on your task and reaches a step that costs money.</p></li>
+          <li><span>02</span><strong>AgentTab covers the shortfall</strong><p>Your rules decide what is allowed, and only the missing amount is covered — never more.</p></li>
+          <li><span>03</span><strong>The task finishes</strong><p>The service is paid, the result comes back, and one record shows exactly what happened.</p></li>
         </ol>
       </section>
 
-      <section class="land-proof" aria-labelledby="proof-title">
-        <div>
-          <p class="land-eyebrow">Historical Mainnet proof</p>
-          <h2 id="proof-title">Already settled end to end.</h2>
-          <p>DFlow acquired the missing USDC, x402 paid the merchant, and the original request reached <code>fulfilled</code>.</p>
-        </div>
-        <div class="land-proof-links">
-          <a href="https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg"><span>1</span> Exact-deficit DFlow <b aria-hidden="true">↗</b></a>
-          <a href="https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR"><span>2</span> x402 payment <b aria-hidden="true">↗</b></a>
-          <a href="/ui"><span>3</span> Operator audit trail <b aria-hidden="true">→</b></a>
-        </div>
+      <section class="land-trust" aria-labelledby="trust-title">
+        <p id="trust-title"><strong>Proven end-to-end on Solana Mainnet.</strong> This site runs a safe demo; the same loop has already settled for real.</p>
+        <a href="/ui">View proof <span aria-hidden="true">→</span></a>
       </section>
     </main>
 
     <footer class="land-foot">
       <span>AgentTab</span>
-      <span>Built around DFlow trading + standard x402 payments.</span>
+      <span>Powered by DFlow on Solana.</span>
     </footer>
   </div>
 </body>

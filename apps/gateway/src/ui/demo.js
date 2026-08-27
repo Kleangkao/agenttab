@@ -6,18 +6,24 @@
 
   const REQUESTS = {
     valuation: {
-      result: "Wallet valuation can continue",
+      result: "Your wallet valuation is ready",
+      delivered: "The market data your agent needed came back, so the valuation can finish.",
     },
     "price-check": {
-      result: "SOL price check can continue",
+      result: "The SOL price check is ready",
+      delivered: "The live mark your agent asked for came back, so the check can finish.",
     },
     "portfolio-refresh": {
-      result: "Portfolio refresh can continue",
+      result: "Your portfolio refresh is ready",
+      delivered: "The market data your agent needed came back, so the refresh can finish.",
     },
   };
 
   const state = {
     busy: false,
+    // The public stack auto-parks a fresh card seconds after a loop finishes.
+    // Without this, the visitor's own result is swapped out before they read it.
+    holdResult: false,
     scenario: "partial",
     request: "valuation",
     row: null,
@@ -124,9 +130,9 @@
     const st = loop.state;
     const items = [
       { id: "request", label: "Request" },
-      { id: "challenge", label: "x402 asks" },
-      { id: "dflow", label: loop.alreadyHeld ? "No swap" : "DFlow" },
-      { id: "pay", label: "x402 pay" },
+      { id: "challenge", label: "Payment needed" },
+      { id: "dflow", label: loop.alreadyHeld ? "Nothing to cover" : "Covered" },
+      { id: "pay", label: "Paid" },
       { id: "result", label: "Result" },
     ];
     let active = "request";
@@ -146,7 +152,7 @@
     if (loop.state === "approval_required") {
       return loop.alreadyHeld
         ? `Pay ${moneyFromAtomic(loop.asked)} and continue`
-        : `Buy ${moneyFromAtomic(loop.deficit)} and continue`;
+        : `Cover the ${moneyFromAtomic(loop.deficit)} gap and continue`;
     }
     if (["funded", "payment_submitted", "paid", "fulfillment_failed"].includes(loop.state)) {
       return "Continue the original request";
@@ -156,9 +162,9 @@
 
   function stateLabel(st) {
     if (st === "approval_required") return "Waiting for you";
-    if (["approved", "funding_submitted"].includes(st)) return "Acquiring USDC";
+    if (["approved", "funding_submitted"].includes(st)) return "Covering the gap";
     if (["funded", "payment_submitted", "paid", "fulfillment_failed"].includes(st)) return "Paying & continuing";
-    if (st === "fulfilled") return "Request complete";
+    if (st === "fulfilled") return "Request completed";
     return st.replaceAll("_", " ");
   }
 
@@ -184,7 +190,12 @@
     renderControls();
 
     if (!state.row) {
-      panel.innerHTML = `<p class="demo-empty">No request is active. Choose a paid task and run it.</p>`;
+      panel.innerHTML = `<p class="demo-empty">No request is active. Choose a task and run it.</p>`;
+      return;
+    }
+
+    if (state.row.state === "approval_required" && state.row.parkedExpired === true) {
+      panel.innerHTML = `<p class="demo-empty">This request waited too long to be approved, so it can no longer be paid. Run a new one above.</p>`;
       return;
     }
 
@@ -194,14 +205,16 @@
       .join("");
     const label = primaryLabel(loop);
     const done = loop.state === "fulfilled";
-    const result = REQUESTS[loop.requestId]?.result || "Original task can continue";
+    const request = REQUESTS[loop.requestId] || {};
+    const result = request.result || "Your request is ready";
+    const delivered = request.delivered || "The paid service responded, so your task can finish.";
     const story = done
       ? loop.alreadyHeld
-        ? `The wallet already covered the ${moneyFromAtomic(loop.asked)} x402 ask. AgentTab paid it and continued the same request without a DFlow swap.`
-        : `AgentTab acquired only ${moneyFromAtomic(loop.deficit)} through DFlow, paid the ${moneyFromAtomic(loop.asked)} x402 ask, and continued the same request.`
+        ? `The wallet already had the ${moneyFromAtomic(loop.asked)} this task costs, so AgentTab paid and kept going.`
+        : `AgentTab covered only the missing ${moneyFromAtomic(loop.deficit)}, paid the ${moneyFromAtomic(loop.asked)} this task costs, and your request carried on.`
       : loop.alreadyHeld
-        ? `The wallet already holds enough USDC. AgentTab will pay the merchant and continue; no DFlow swap is needed.`
-        : `The wallet has ${moneyFromAtomic(loop.hold)} of the ${moneyFromAtomic(loop.asked)} x402 ask. AgentTab will acquire only the missing ${moneyFromAtomic(loop.deficit)}.`;
+        ? `The wallet already has enough to pay for this task. AgentTab will pay and continue - there is no gap to cover.`
+        : `The wallet has ${moneyFromAtomic(loop.hold)} of the ${moneyFromAtomic(loop.asked)} this task costs. AgentTab will cover only the missing ${moneyFromAtomic(loop.deficit)}.`;
 
     panel.innerHTML = `
       <div class="demo-execution-head">
@@ -209,28 +222,29 @@
         <span class="demo-state ${done ? "is-done" : ""}">${esc(stateLabel(loop.state))}</span>
       </div>
       <div class="demo-equation">
-        <div class="demo-metric"><span>Wallet holds</span><strong>${esc(moneyFromAtomic(loop.hold))}</strong><small>USDC before the request</small></div>
+        <div class="demo-metric"><span>Wallet has</span><strong>${esc(moneyFromAtomic(loop.hold))}</strong><small>before this task</small></div>
         <span aria-hidden="true">→</span>
-        <div class="demo-metric"><span>Request needs</span><strong>${esc(moneyFromAtomic(loop.asked))}</strong><small>x402 ask</small></div>
+        <div class="demo-metric"><span>Service requires</span><strong>${esc(moneyFromAtomic(loop.asked))}</strong><small>to run this task</small></div>
         <span aria-hidden="true">=</span>
-        <div class="demo-metric ${loop.alreadyHeld ? "is-ok" : "is-deficit"}"><span>${loop.alreadyHeld ? "DFlow swap" : "DFlow buys"}</span><strong>${esc(moneyFromAtomic(loop.deficit))}</strong><small>${loop.alreadyHeld ? "not required" : "exact deficit"}</small></div>
+        <div class="demo-metric ${loop.alreadyHeld ? "is-ok" : "is-deficit"}"><span>AgentTab covers</span><strong>${esc(moneyFromAtomic(loop.deficit))}</strong><small>${loop.alreadyHeld ? "nothing to cover" : "only what is missing"}</small></div>
       </div>
-      <ol class="demo-path" aria-label="Request, x402 challenge, DFlow, payment, result">${path}</ol>
+      <ol class="demo-path" aria-label="Request, payment needed, covered, paid, result">${path}</ol>
       <p class="demo-story">${esc(story)}</p>
       ${
         label
-          ? `<button type="button" class="demo-btn demo-btn-primary" id="primary" ${state.busy ? "disabled" : ""}>${esc(label)} <span aria-hidden="true">→</span></button>`
+          ? `<button type="button" class="demo-btn demo-btn-primary" id="primary" ${state.busy ? "disabled" : ""}>${esc(label)} <span aria-hidden="true">→</span></button>
+             <p class="demo-btn-note">Powered by DFlow</p>`
           : done
-            ? `<div class="demo-result"><span>Result delivered</span><strong>${esc(result)}</strong><p>The payment barrier is complete and the original agent task is unblocked.</p></div>`
+            ? `<div class="demo-result"><span>Request completed</span><strong>${esc(result)}</strong><p>${esc(delivered)}</p></div>`
             : ""
       }
       <details class="demo-details">
-        <summary>See what happened technically</summary>
+        <summary>Behind the scenes</summary>
         <div class="demo-tech-grid">
+          <div><span>DFlow quote &amp; order</span><code>${loop.alreadyHeld ? "Not required" : `${esc(moneyFromAtomic(loop.deficit))} exact-deficit swap (local mock)`}</code></div>
+          <div><span>x402 payment</span><code>${esc(moneyFromAtomic(loop.asked))} USDC to the merchant</code></div>
           <div><span>Paid resource</span><code>${esc(resourcePath(loop.resource))}</code></div>
-          <div><span>Payment</span><code>${esc(moneyFromAtomic(loop.asked))} USDC via x402</code></div>
-          <div><span>DFlow</span><code>${loop.alreadyHeld ? "Not required" : `${esc(moneyFromAtomic(loop.deficit))} exact-deficit mock`}</code></div>
-          <div><span>Response proof</span><code>${esc(loop.responseHash || (done ? "fulfilled" : "pending"))}</code></div>
+          <div><span>Transaction proof</span><code>${esc(loop.responseHash || (done ? "fulfilled" : "pending"))}</code></div>
         </div>
       </details>
     `;
@@ -242,7 +256,7 @@
   async function actPrimary(loop) {
     if (state.busy || !state.row) return;
     state.busy = true;
-    setStatus("AgentTab is completing the local mock loop…");
+    setStatus("AgentTab is covering the gap…");
     render();
     try {
       const id = state.row.operationId;
@@ -277,7 +291,8 @@
       }
       state.detail = detail;
       state.row = { ...state.row, state: detail.state, intent: detail.intent };
-      setStatus(detail.state === "fulfilled" ? "Done — the original request continued." : `State: ${detail.state}`);
+      if (detail.state === "fulfilled") state.holdResult = true;
+      setStatus(detail.state === "fulfilled" ? "Done — your request completed." : `State: ${detail.state}`);
       await refreshBalances();
     } catch (err) {
       setStatus(err.message || String(err));
@@ -300,14 +315,21 @@
       if (badge && state.health?.fundingMode) {
         badge.textContent =
           state.health.fundingMode === "mock"
-            ? "Local DFlow mock — no chain"
+            ? "Safe demo — no real funds"
             : `Funding mode: ${state.health.fundingMode}`;
       }
       await refreshBalances();
+      // Their result stays up until they choose to run another request.
+      if (state.holdResult && state.row?.state === "fulfilled") {
+        render();
+        return;
+      }
       const open = await api("/v1/executions?reusable=1&limit=5");
       const rows = open.executions || open.items || [];
       const active =
-        rows.find((row) => row.state === "approval_required") ||
+        rows.find(
+          (row) => row.state === "approval_required" && row.parkedExpired !== true,
+        ) ||
         rows.find((row) => ["funded", "payment_submitted", "paid", "fulfillment_failed"].includes(row.state)) ||
         rows[0] ||
         null;
@@ -330,6 +352,7 @@
       return;
     }
     state.busy = true;
+    state.holdResult = false;
     setStatus("Starting your request…");
     renderControls();
     try {

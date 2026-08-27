@@ -42,7 +42,7 @@ export function demoHtml(): string {
         <p class="demo-kicker">Interactive product demo</p>
         <h1 id="demo-title">You ask for the result. AgentTab handles the payment gap.</h1>
       </div>
-      <p>Choose a paid task and a starting wallet. The agent will hit x402, AgentTab will calculate the exact deficit, and the original request will continue.</p>
+      <p>Choose a task and see AgentTab keep it moving when payment is short.</p>
     </section>
 
     <main class="demo-workspace">
@@ -50,7 +50,7 @@ export function demoHtml(): string {
         <div class="demo-builder-head">
           <span>01</span>
           <div>
-            <p class="demo-kicker">Your request</p>
+            <p class="demo-kicker">Choose a task</p>
             <h2 id="request-heading">What should the agent get for you?</h2>
           </div>
         </div>
@@ -59,13 +59,13 @@ export function demoHtml(): string {
           <h3>Paid task</h3>
           <div class="demo-request-options" id="requests">
             <button type="button" class="request-option" data-request="valuation" aria-pressed="true">
-              <span>Wallet valuation</span><strong>Value my wallet</strong><small>Paid market data · $4.00</small>
+              <span>Wallet valuation</span><strong>Value my wallet</strong><small>Costs $4.00 to run</small>
             </button>
             <button type="button" class="request-option" data-request="price-check" aria-pressed="false">
-              <span>Price check</span><strong>Check SOL's live mark</strong><small>Paid market data · $1.25</small>
+              <span>Price check</span><strong>Check SOL's live mark</strong><small>Costs $1.25 to run</small>
             </button>
             <button type="button" class="request-option" data-request="portfolio-refresh" aria-pressed="false">
-              <span>Portfolio refresh</span><strong>Refresh my portfolio</strong><small>Paid market data · $5.00</small>
+              <span>Portfolio refresh</span><strong>Refresh my portfolio</strong><small>Costs $5.00 to run</small>
             </button>
           </div>
         </div>
@@ -80,7 +80,7 @@ export function demoHtml(): string {
         </div>
 
         <button type="button" class="demo-btn demo-btn-primary" id="run-request">Run this request <span aria-hidden="true">→</span></button>
-        <p class="demo-hint">This playground uses a local mock and never broadcasts. The amount AgentTab buys is always derived from the request deficit.</p>
+        <p class="demo-hint">Safe demo — no real funds. AgentTab only ever covers the amount this task is short.</p>
       </section>
 
       <section class="demo-stage" aria-live="polite" aria-labelledby="execution-heading">
@@ -88,11 +88,11 @@ export function demoHtml(): string {
           <div>
             <span>02</span>
             <div>
-              <p class="demo-kicker">AgentTab execution</p>
-              <h2 id="execution-heading">Request → payment gap → result</h2>
+              <p class="demo-kicker">Your request</p>
+              <h2 id="execution-heading">From payment gap to result</h2>
             </div>
           </div>
-          <p class="demo-badge" id="mode-badge">Local DFlow mock — no chain</p>
+          <p class="demo-badge" id="mode-badge">Safe demo — no real funds</p>
         </header>
         <div id="status" class="demo-status" role="status"></div>
         <div id="panel" class="demo-panel">
@@ -102,11 +102,9 @@ export function demoHtml(): string {
     </main>
 
     <footer class="demo-foot">
-      <div><strong>Already proven on Solana Mainnet</strong><span>The same loop settled end to end; this screen does not create new Mainnet spend.</span></div>
+      <div><strong>Verified on Solana Mainnet</strong><span>This screen is a safe demo and does not create new Mainnet spend.</span></div>
       <div class="demo-foot-links">
-        <a href="https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg">DFlow transaction ↗</a>
-        <a href="https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR">x402 payment ↗</a>
-        <a href="/ui">Open operator proof →</a>
+        <a href="/ui">View technical proof →</a>
       </div>
     </footer>
   </div>

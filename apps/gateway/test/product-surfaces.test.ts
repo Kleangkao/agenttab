@@ -10,8 +10,11 @@ describe("product surfaces", () => {
       const home = await gateway.app.request("/");
       expect(home.status).toBe(200);
       const homeHtml = await home.text();
-      expect(homeHtml).toContain("Ask for the outcome");
+      expect(homeHtml).toContain("Keep agents moving when payments fall short");
       expect(homeHtml).toContain("Try the interactive demo");
+      // The product page sells the outcome; jargon belongs on /ui.
+      expect(homeHtml).not.toContain("x402");
+      expect(homeHtml).not.toContain("exact deficit");
       expect(homeHtml).toContain('href="/demo"');
 
       const demo = await gateway.app.request("/demo");
@@ -20,6 +23,8 @@ describe("product surfaces", () => {
       expect(demoHtml).toContain("You ask for the result");
       expect(demoHtml).toContain('id="run-request"');
       expect(demoHtml).not.toContain("Add $1 USDC");
+      // The demo intro must not lead with the payment protocol.
+      expect(demoHtml).not.toContain("x402");
 
       const ui = await gateway.app.request("/ui");
       expect(ui.status).toBe(200);

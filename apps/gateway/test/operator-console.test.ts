@@ -32,8 +32,10 @@ describe("operator console", () => {
       expect(html).toContain("Ledger");
       expect(html).toContain("Policy");
       expect(html).toContain("Buy only the missing payment asset, then finish the original request");
-      expect(html).toContain("local DFlow mock");
-      expect(html).toContain("solscan.io/tx/");
+      // Funding mode and Mainnet proof are rendered by app.js (asserted below),
+      // so the static shell only has to carry their mount points.
+      expect(html).toContain('id="mode-badge"');
+      expect(html).toContain('id="mode-note"');
       expect(html).toContain("/ui/app.css");
       expect(html).toContain("/ui/app.js");
       expect(html).toContain('"adminRequired":true');
@@ -61,7 +63,13 @@ describe("operator console", () => {
       expect(js).toContain("Reject");
       expect(js).toContain("Resume");
       expect(js).toContain("Waiting for you");
-      expect(js).toContain("The agent is blocked");
+      expect(js).toContain("Action required");
+      // An expired approval is not "waiting on you" and must offer a way out.
+      expect(js).toContain("isWaitingOnYou");
+      expect(js).toContain("Run a new request");
+      // Demo Ledger defaults to Completed and caps the list so Rejected noise does not dominate.
+      expect(js).toContain("activeLedgerFilter");
+      expect(js).toContain("DEMO_LEDGER_CAP");
       expect(js).toContain("Buy only the exact deficit");
       expect(js).toContain("original request");
       expect(js).toContain("No agent is blocked");

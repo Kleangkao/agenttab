@@ -227,7 +227,7 @@ describe("operator control spine", () => {
     expect(html).toContain("Policy");
     expect(html).toContain("Allow merchant");
     expect(html).toContain("Save limits");
-    expect(html).toContain("Observe is not a dry-run");
+    expect(html).toContain("Monitor &amp; allow is not a dry-run");
     expect(html).toContain("/ui/app.js");
     expect(html).toContain("/openapi.json");
     expect(html).toContain('href="/demo"');
@@ -389,7 +389,7 @@ describe("operator control spine", () => {
     expect(await client.findReusableOperationId(intent.requestHash)).toBeUndefined();
 
     const ui = await gateway.app.request("/ui");
-    expect(await ui.text()).toContain("Ask you first");
+    expect(await ui.text()).toContain("Ask me every time");
     const js = await (await gateway.app.request("/ui/app.js")).text();
     expect(js).toContain("/v1/denials/");
     expect(js).toContain("Reject");

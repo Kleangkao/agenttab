@@ -29,9 +29,13 @@
     pending: null,
     spotlightId: null,
     busy: false,
+    ledgerFilter: "all",
+    ledgerFilterTouched: false,
     openDetails: new Set(),
     openTrail: new Set(),
   };
+
+  const DEMO_LEDGER_CAP = 4;
 
   const STATES = {
     discovered: "Seen",
@@ -157,6 +161,14 @@
     });
   }
 
+  /** A local demo merchant reads as an address; give it a name instead. */
+  function merchantName(origin) {
+    const host = originHost(origin);
+    return host === "127.0.0.1:8791" || host === "localhost:8791"
+      ? "Local demo merchant"
+      : host;
+  }
+
   function originHost(origin) {
     try {
       return new URL(origin).host;
@@ -253,12 +265,19 @@
     return state.health?.fundingMode === "mock";
   }
 
+  /** Expired parked approvals cannot be funded, so they are not "waiting on you". */
+  function isWaitingOnYou(row) {
+    return row.state === "approval_required" && row.parkedExpired !== true;
+  }
+
   function demoSummary(loop, row) {
+    // The endpoint belongs in Technical details; here, name the agent's task.
+    const task = loop.taskPurpose || "the request";
     if (row.state === "fulfilled" || loop.result) {
-      return `Agent received ${loop.access || "the resource"} after buying the exact deficit and paying the merchant.`;
+      return `${task} completed after AgentTab covered the missing amount and paid the merchant.`;
     }
     if (row.state === "approval_required" && !loop.alreadyHeld) {
-      return `Wallet is short ${loop.deficitLabel}. Approve once — AgentTab buys only that, pays x402, retries ${loop.access || "the request"}.`;
+      return `Wallet is short ${loop.deficitLabel}. Approve once — AgentTab covers only that, pays the merchant, and the request continues.`;
     }
     if (row.state === "approval_required" && loop.alreadyHeld) {
       return `Wallet already has ${loop.askedLabel}. Approve to pay the merchant and continue.`;
@@ -356,7 +375,7 @@
     if (!root) return;
     const health = state.health || {};
     const spend = state.spend || {};
-    const waiting = state.nowItems.filter((row) => row.state === "approval_required").length;
+    const waiting = state.nowItems.filter(isWaitingOnYou).length;
     const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
     const wallet =
       state.balances
@@ -403,7 +422,7 @@
     return `
       <section class="judge-proof">
         <h3>Already proven on Solana Mainnet</h3>
-        <p>This screen is <strong>${esc(fund.badge)}</strong> — ${esc(fund.honest)}. The same loop already settled on-chain:</p>
+        <p>This screen does not spend on Mainnet. The same loop already settled on-chain:</p>
         <p class="judge-links">
           <a href="${MAINNET_DFLOW_TX}" target="_blank" rel="noopener">Exact-deficit DFlow tx</a>
           <span aria-hidden="true">→</span>
@@ -416,7 +435,8 @@
   }
 
   function verdictFor(rows) {
-    const waiting = rows.find((row) => row.state === "approval_required");
+    // Live waiting wins over expired so the banner matches "Waiting on you".
+    const waiting = rows.find(isWaitingOnYou);
     if (waiting) {
       const record = state.detail[waiting.operationId];
       const alreadyHeld = record ? loopModel(waiting, record).alreadyHeld : false;
@@ -430,9 +450,20 @@
       }
       return {
         tone: "",
-        state: "Blocked",
+        state: "Action required",
         line: "An agent hit a paid API. The wallet is short the exact asset the merchant asked for.",
         why: "DFlow is required here: without the exact-deficit swap, the agent stops at insufficient funds.",
+      };
+    }
+    const expired = rows.find(
+      (row) => row.state === "approval_required" && row.parkedExpired === true,
+    );
+    if (expired) {
+      return {
+        tone: "is-halt",
+        state: "Expired",
+        line: "This approval sat past its time limit, so it can no longer be funded.",
+        why: "AgentTab expires parked approvals rather than paying on stale intent. Reject it, or start a new request.",
       };
     }
     if (rows.some((row) => row.state === "denied" || row.state === "failed")) {
@@ -740,7 +771,7 @@
       kicker = "Funding failed";
       amountLabel = "policy allowed this; funding did not finish";
     } else if (fulfilled || st === "fulfilled") {
-      kicker = "The agent received the resource";
+      kicker = "Completed";
       amountLabel = alreadyHeld
         ? `paid ${askedLabel} · original request continued`
         : `bought ${deficitLabel} · paid ${askedLabel} · original request continued`;
@@ -763,7 +794,7 @@
       kicker = st === "approval_required" ? "Wallet can pay — waiting for you" : kicker;
       amountLabel = "no DFlow buy — pay and continue";
     } else if (st === "approval_required") {
-      kicker = row.parkedExpired ? "Parked approval expired" : "The agent is blocked";
+      kicker = row.parkedExpired ? "Parked approval expired" : "Action required";
       amountLabel = row.parkedExpired
         ? "this request can no longer be funded"
         : `${deficitLabel} missing — buy only this, then continue`;
@@ -828,9 +859,9 @@
   }
 
   function modeLabel(mode) {
-    if (mode === "autopay") return "Pay within limits";
-    if (mode === "approve") return "Ask you first";
-    return "Watch";
+    if (mode === "autopay") return "Auto-pay within limits";
+    if (mode === "approve") return "Ask me every time";
+    return "Monitor & allow";
   }
 
   function reasonText(code, fallback) {
@@ -940,7 +971,6 @@
     const reserved = money(reservedRaw);
     const daily = money(spend.maxDailyUsdMicros ?? health.maxDailyUsdMicros ?? 0);
     const mode = modeLabel(state.policy?.mode || health.policyMode || boot.policyMode);
-    const fund = fundingHow();
     const notifySigned = health.notifySigned;
     const alerts = health.notifyConfigured
       ? notifySigned
@@ -954,18 +984,9 @@
     $("stance").innerHTML = `<strong>${esc(mode)}</strong> · spent <strong>${esc(used)}</strong>${held} of <strong>${esc(daily)}</strong> today${esc(alerts)}`;
     renderModeBadge();
     renderJudgeStats();
-    const proofHere =
-      health.fundingMode === "devnet-mint"
-        ? "This /ui is a Devnet mint stand-in, not DFlow."
-        : health.fundingMode === "live-quote" || health.fundingMode === "live-sim"
-          ? `This /ui is ${fund.honest}.`
-          : health.fundingMode && health.fundingMode !== "mock"
-            ? `This /ui is ${fund.honest}.`
-            : "This /ui is a local DFlow mock — no chain.";
-    $("proof").innerHTML = `${esc(proofHere)} The same loop already settled on Solana Mainnet: <a href="${MAINNET_DFLOW_TX}">exact-deficit DFlow</a> then <a href="${MAINNET_X402_TX}">x402 pay</a>, then the original request continued. No new Mainnet spend from this screen.`;
     $("observe-banner").hidden = (state.policy?.mode || health.policyMode) !== "observe";
     const waiting =
-      state.nowItems.length || health.openLoopCount || health.parkedCount || 0;
+      state.nowItems.filter(isWaitingOnYou).length || health.parkedCount || 0;
     parkedCountEl.textContent = waiting ? String(waiting) : "";
   }
 
@@ -1059,6 +1080,7 @@
               : parked && row.parkedExpired
                 ? `<div class="actions">
                 <button class="btn btn-danger" data-act="deny" type="button">Reject expired</button>
+                <a class="btn btn-ghost" href="/demo">Run a new request</a>
               </div>`
                 : parked
                   ? `<div class="actions">
@@ -1073,7 +1095,7 @@
           <article class="card${done ? " is-success" : halted ? " is-halt" : ""}" data-id="${esc(row.operationId)}">
             <div class="card-top">
               <p class="card-kicker">${esc(loop.kicker)}</p>
-              <span class="card-tag">${esc(loop.fund.badge)} · ${esc(originHost(loop.intent.merchantOrigin))}</span>
+              <span class="card-tag">${esc(loop.fund.badge)} · ${esc(merchantName(loop.intent.merchantOrigin))}</span>
             </div>
             ${
               done
@@ -1084,7 +1106,9 @@
             <p class="card-summary">${esc(summary)}</p>
             ${confirm}
             ${done && isDemoMode() ? `<p class="card-summary">Next scenario loading…</p>` : ""}
-            <details class="card-ref"${state.openDetails.has(row.operationId) ? " open" : ""}><summary>Technical details</summary><p class="id">${esc(row.operationId)}</p>${
+            <details class="card-ref"${state.openDetails.has(row.operationId) ? " open" : ""}><summary>Technical details</summary>${
+              loop.access ? `<p class="sub">Endpoint <code>${esc(loop.access)}</code></p>` : ""
+            }<p class="id">${esc(row.operationId)}</p>${
               (record && record.agentId) || row.agentId
                 ? `<p class="sub">Agent ${esc((record && record.agentId) || row.agentId)}</p>`
                 : ""
@@ -1096,17 +1120,79 @@
         .join("") + renderJudgeLanding();
   }
 
+  const LEDGER_FILTERS = [
+    { id: "all", label: "All" },
+    { id: "completed", label: "Completed" },
+    { id: "needs-approval", label: "Needs approval" },
+    { id: "rejected", label: "Rejected" },
+  ];
+
+  function ledgerGroup(row) {
+    if (row.state === "fulfilled") return "completed";
+    if (row.state === "approval_required") return "needs-approval";
+    if (row.state === "denied" || row.state === "failed") return "rejected";
+    return "in-progress";
+  }
+
+  function renderLedgerFilters(counts) {
+    return `<div class="ledger-filters" role="group" aria-label="Filter requests">${LEDGER_FILTERS.map(
+      (filter) =>
+        `<button type="button" class="ledger-filter" data-filter="${filter.id}" aria-pressed="${
+          state.ledgerFilter === filter.id ? "true" : "false"
+        }">${esc(filter.label)}<span>${filter.id === "all" ? counts.all : counts[filter.id] || 0}</span></button>`,
+    ).join("")}</div>`;
+  }
+
+  /** One line per request: what was asked for, then how it ended. */
+  function ledgerTitle(row, loop) {
+    return loop.taskPurpose || pathOf(row.resource) || "Paid request";
+  }
+
+  /** Demo Ledger defaults to Completed so Rejected noise does not dominate. */
+  function activeLedgerFilter(counts) {
+    if (state.ledgerFilterTouched) return state.ledgerFilter;
+    if (isDemoMode() && (counts.completed || 0) > 0) return "completed";
+    return state.ledgerFilter;
+  }
+
   function renderLedger() {
     const root = $("ledger-list");
     if (!state.recent.length) {
       root.innerHTML = `
         <div class="empty">
-          <h2>No 402s yet</h2>
-          <p>Each row is one original request: the asset the merchant asked for, the exact deficit AgentTab bought, whether the 402 paid, and whether the agent continued.</p>
+          <h2>No requests yet</h2>
+          <p>Each row is one request: what the agent asked for, how much AgentTab covered, and whether the task finished.</p>
         </div>`;
       return;
     }
-    root.innerHTML = state.recent
+    const counts = state.recent.reduce(
+      (acc, row) => {
+        const group = ledgerGroup(row);
+        acc[group] = (acc[group] || 0) + 1;
+        acc.all += 1;
+        return acc;
+      },
+      { all: 0 },
+    );
+    const filter = activeLedgerFilter(counts);
+    // Keep the pressed button in sync with the effective default.
+    if (!state.ledgerFilterTouched && filter !== state.ledgerFilter) {
+      state.ledgerFilter = filter;
+    }
+    let rows =
+      filter === "all"
+        ? state.recent
+        : state.recent.filter((row) => ledgerGroup(row) === filter);
+    if (isDemoMode()) rows = rows.slice(0, DEMO_LEDGER_CAP);
+    if (!rows.length) {
+      root.innerHTML = `${renderLedgerFilters(counts)}
+        <div class="empty">
+          <h2>Nothing in this view</h2>
+          <p>No request matches that filter yet.</p>
+        </div>`;
+      return;
+    }
+    root.innerHTML = renderLedgerFilters(counts) + rows
       .map((row) => {
         const open = state.detail[row.operationId];
         const skip = new Set([
@@ -1141,19 +1227,26 @@
               : " is-open";
         return `
           <article class="entry${tone}" data-id="${esc(row.operationId)}" role="button" tabindex="0" aria-expanded="${expanded ? "true" : "false"}">
-            <div class="state">${esc(loop.kicker)}</div>
             <div>
-              <div>${esc(originHost(row.merchantOrigin))} · ${esc(pathOf(row.resource))}${
-                row.agentId ? ` · ${esc(row.agentId)}` : ""
-              }</div>
-              <div class="sub">${esc(loopLine)}${
-                loop.taskPurpose ? ` · Agent task: ${esc(loop.taskPurpose)}` : ""
-              }</div>
-              <div class="sub">${esc(when(row.updatedAt))} · ${esc(loop.rail)}</div>
+              <div class="entry-title">${esc(ledgerTitle(row, loop))}</div>
+              <div class="sub">${esc(merchantName(row.merchantOrigin))}</div>
               ${chainProof}
             </div>
+            <div class="entry-status"><span class="state">${esc(loop.kicker)}</span></div>
             <div class="amount">${esc(loop.hero)}</div>
-            ${expanded ? `<ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>` : ""}
+            ${
+              expanded
+                ? `<div class="entry-detail">
+                    <p class="sub">${esc(pathOf(row.resource))}${
+                      row.agentId ? ` · ${esc(row.agentId)}` : ""
+                    }</p>
+                    <p class="sub">${esc(when(row.updatedAt))}</p>
+                    <p class="sub">${esc(loopLine)}</p>
+                    <p class="sub">${esc(loop.rail)}</p>
+                  </div>
+                  <ol class="trail">${events || "<li>No events on this payment.</li>"}${notifyTrail(open)}</ol>`
+                : ""
+            }
           </article>`;
       })
       .join("");
@@ -1170,13 +1263,26 @@
       ? origins
           .map(
             (origin) =>
-              `<span class="merchant">${esc(origin)}<button type="button" data-remove-origin="${esc(origin)}" aria-label="Remove ${esc(origin)}">×</button></span>`,
+              `<span class="merchant"><span class="merchant-id"><strong>${esc(
+                merchantName(origin),
+              )}</strong><small>${esc(origin)}</small></span><button type="button" data-remove-origin="${esc(
+                origin,
+              )}" aria-label="Remove ${esc(origin)}">×</button></span>`,
           )
           .join("")
       : `<span class="help">Add a merchant origin agents are allowed to pay.</span>`;
     $("max-payment").value = dollarsInput(policy.maxPaymentUsdMicros);
     $("max-daily").value = dollarsInput(policy.maxDailyUsdMicros);
     $("approve-above").value = dollarsInput(policy.requireApprovalAboveUsdMicros);
+    // In "Ask me every time" the threshold has no meaning: everything stops.
+    const askAlways = policy.mode === "approve";
+    const above = $("approve-above");
+    above.disabled = askAlways;
+    above.placeholder = askAlways ? "" : "5.00";
+    $("approve-above-note").textContent = askAlways
+      ? "Every payment requires approval"
+      : "";
+    $("approve-above").closest(".field").classList.toggle("is-disabled", askAlways);
     $("policy-json").value = JSON.stringify(policy, null, 2);
   }
 
@@ -1264,11 +1370,11 @@
     if (!state.policy) return;
     if (mode === "observe") {
       const ok = window.confirm(
-        "Observe is not a dry-run. Matching payments can still fund and pay on Mainnet.",
+        "Monitor & allow is not a dry-run. Matching payments can still fund and pay on Mainnet.",
       );
       if (!ok) return;
     }
-    await savePolicy({ ...state.policy, mode }, `Policy is now ${modeLabel(mode)}.`);
+    await savePolicy({ ...state.policy, mode }, `Policy saved — ${modeLabel(mode)}.`);
   }
 
   async function addOrigin(event) {
@@ -1314,7 +1420,7 @@
       const above = $("approve-above").value.trim();
       if (above) next.requireApprovalAboveUsdMicros = toMicros(above);
       else delete next.requireApprovalAboveUsdMicros;
-      await savePolicy(next, "Limits saved.");
+      await savePolicy(next, "Policy saved — spend limits updated.");
     } catch (error) {
       setStatus("bad", error.message);
     }
@@ -1323,7 +1429,7 @@
   async function saveJson(event) {
     event.preventDefault();
     try {
-      await savePolicy(JSON.parse($("policy-json").value), "Policy JSON saved.");
+      await savePolicy(JSON.parse($("policy-json").value), "Policy saved — JSON updated.");
     } catch (error) {
       setStatus("bad", error.message);
     }
@@ -1566,6 +1672,13 @@
 
   $("ledger-list").addEventListener("click", (event) => {
     if (event.target.closest("a")) return;
+    const filter = event.target.closest("[data-filter]");
+    if (filter) {
+      state.ledgerFilter = filter.dataset.filter;
+      state.ledgerFilterTouched = true;
+      renderLedger();
+      return;
+    }
     const card = event.target.closest("[data-id]");
     if (card) void toggleTrail(card.dataset.id);
   });

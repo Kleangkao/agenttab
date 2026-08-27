@@ -88,15 +88,11 @@ export function operatorHtml(input: {
       <div class="rail-blocks" id="judge-stats" hidden></div>
 
       <p class="stance" id="stance">Loading the live policy…</p>
-      <details class="proof-details">
-        <summary>Mainnet proof &amp; mode</summary>
-        <p class="proof" id="proof">This /ui is a local DFlow mock — no chain. The same loop already settled on Solana Mainnet: <a href="https://solscan.io/tx/3dCCXbhyEpYP2bDwstVLR1r9zUbrNyompLRM1jZUWhEvEMguRuim5XVNXNTrPoFjRdZLbxZtcJwSst9RD5gM1reg">exact-deficit DFlow</a> then <a href="https://solscan.io/tx/27yBXf4RLuVNTG3hDE5mDYdYZHjYGHLZM6dy4TeGyqQtjrBR8L4eAeBs9MVXBkxKY1nUgSQiEQohhxeF4DvMh9yR">x402 pay</a>, then the original request continued. No new Mainnet spend from this screen.</p>
-      </details>
     </aside>
 
     <main class="stage">
       <div class="stage-inner">
-        <p class="notice" id="observe-banner"${observeHidden}>Observe is not a dry-run. Matching payments can still fund and pay.</p>
+        <p class="notice" id="observe-banner"${observeHidden}>Monitor &amp; allow is not a dry-run. Matching payments can still fund and pay.</p>
         <p class="status" id="status" role="status"></p>
 
         <section class="unlock" id="unlock" hidden>
@@ -130,16 +126,16 @@ export function operatorHtml(input: {
               <h3>When should AgentTab pay?</h3>
               <div class="modes">
                 <button type="button" class="mode-card" data-mode="observe" aria-pressed="false">
-                  <strong>Watch</strong>
-                  <span>Observe is not a dry-run. Policy is looser; matching payments can still spend.</span>
+                  <strong>Monitor &amp; allow</strong>
+                  <span>This is not a dry-run. Rules are looser and matching payments can still spend.</span>
                 </button>
                 <button type="button" class="mode-card" data-mode="approve" aria-pressed="false">
-                  <strong>Ask you first</strong>
-                  <span>Agents wait on Now until you approve or reject.</span>
+                  <strong>Ask me every time</strong>
+                  <span>Every payment waits on Now until you approve or reject it.</span>
                 </button>
                 <button type="button" class="mode-card" data-mode="autopay" aria-pressed="false">
-                  <strong>Pay within limits</strong>
-                  <span>Matching merchants and caps pay without stopping the agent.</span>
+                  <strong>Auto-pay within limits</strong>
+                  <span>Allowed merchants pay up to your caps without stopping the agent.</span>
                 </button>
               </div>
             </div>
@@ -157,23 +153,23 @@ export function operatorHtml(input: {
 
             <div class="policy-section">
               <h3>Spend limits</h3>
-              <p class="hint">Stored as millionths of a dollar; edit as dollars.</p>
               <form class="form-row" id="caps-form">
                 <label class="field">Max payment
-                  <input id="max-payment" inputmode="decimal" placeholder="5.00" />
+                  <span class="money-input"><input id="max-payment" inputmode="decimal" placeholder="5.00" /></span>
                 </label>
                 <label class="field">Max per day
-                  <input id="max-daily" inputmode="decimal" placeholder="20.00" />
+                  <span class="money-input"><input id="max-daily" inputmode="decimal" placeholder="20.00" /></span>
                 </label>
-                <label class="field">Ask you above
-                  <input id="approve-above" inputmode="decimal" placeholder="always ask in Ask you first" />
+                <label class="field">Ask me above
+                  <span class="money-input"><input id="approve-above" inputmode="decimal" placeholder="5.00" /></span>
+                  <small class="field-note" id="approve-above-note"></small>
                 </label>
                 <button class="btn btn-primary" type="submit">Save limits</button>
               </form>
             </div>
 
             <section class="policy-section check">
-              <h3>Would this be allowed?</h3>
+              <h3>Test a payment against this policy</h3>
               <p class="hint">Checks the live policy only. It never creates an execution, funds, pays, or fulfills.</p>
               <form id="ask-form">
                 <div class="form-row">
@@ -199,7 +195,7 @@ export function operatorHtml(input: {
 
             <details class="policy-advanced">
               <summary>Advanced policy JSON</summary>
-              <p class="hint">Same document the CLIs and SDK write. Networks and mints live here.</p>
+              <p class="hint">Same document the CLIs and SDK write. Networks and mints live here, and amounts are stored as millionths of a dollar.</p>
               <form id="json-form">
                 <textarea class="policy-json" id="policy-json" spellcheck="false"></textarea>
                 <div class="form-row">
@@ -210,7 +206,7 @@ export function operatorHtml(input: {
           </section>
         </div>
 
-        <footer class="foot">Reject is final. Preview never moves money. Local mock, Devnet, and Mainnet are labeled on the request. <a href="/openapi.json">Machine contract</a></footer>
+        <footer class="foot">Reject is final. Preview never moves money. <a href="/openapi.json">Machine contract</a></footer>
       </div>
     </main>
   </div>
