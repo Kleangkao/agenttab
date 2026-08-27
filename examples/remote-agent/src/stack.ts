@@ -19,6 +19,7 @@ import {
 } from "@agenttab/gateway";
 import {
   applyDemoScenario,
+  claimDemoCard,
   DEMO_REQUESTS,
   DEMO_SEED_USDC_ATOMIC,
   DEMO_SCENARIOS,
@@ -115,9 +116,15 @@ gateway.app.post("/v1/demo/scenario", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     scenario?: string;
     request?: string;
+    sessionId?: string;
   };
   const scenario = body.scenario as DemoScenarioId | undefined;
   const request = (body.request ?? "valuation") as DemoRequestId;
+  /** Opaque per-browser id from /demo; anything unexpected is ignored. */
+  const sessionId =
+    typeof body.sessionId === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(body.sessionId)
+      ? body.sessionId
+      : undefined;
   if (!scenario || !(scenario in DEMO_SCENARIOS)) {
     return c.json(
       {
@@ -142,6 +149,7 @@ gateway.app.post("/v1/demo/scenario", async (c) => {
       merchantOrigin,
       scenario,
       request,
+      ...(sessionId ? { sessionId } : {}),
       seedPolicy,
       initialSolAtomic
     });
@@ -162,6 +170,29 @@ gateway.app.post("/v1/demo/scenario", async (c) => {
       500
     );
   }
+});
+
+/**
+ * Re-apply a card's own starting wallet just before its owner approves it, so
+ * concurrent visitors on the public host do not rewrite each other's numbers.
+ * The real approval still goes through /v1/approvals/:id.
+ */
+gateway.app.post("/v1/demo/claim", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    operationId?: string;
+    sessionId?: string;
+  };
+  const operationId = body.operationId;
+  const sessionId = body.sessionId;
+  if (typeof operationId !== "string" || typeof sessionId !== "string") {
+    return c.json({ error: "invalid_claim" }, 400);
+  }
+  const claimed = claimDemoCard(gateway, {
+    operationId,
+    sessionId,
+    initialSolAtomic
+  });
+  return c.json({ ok: true, claimed });
 });
 
 gateway.app.post("/v1/demo/topup", async (c) => {

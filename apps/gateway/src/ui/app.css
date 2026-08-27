@@ -1090,6 +1090,15 @@ summary:focus-visible {
 
 .stance strong { color: var(--text-2); font-weight: 600; }
 
+/* Judges land here from a pasted link; the code has to be one click away. */
+.rail-repo {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.rail-repo:hover { color: var(--signal); text-decoration: underline; }
+
 .foot {
   margin-top: var(--s-8);
   padding-top: var(--s-4);

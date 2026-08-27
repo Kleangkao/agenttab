@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createGatewayRuntime } from "../src/index.js";
 import { landingHtml } from "../src/ui/landing-page.js";
 import { demoHtml } from "../src/ui/demo-page.js";
+import { operatorHtml } from "../src/ui/operator-page.js";
+import { REPO_URL } from "../src/ui/head.js";
+import { MAINNET_DFLOW_TX, MAINNET_X402_TX } from "../src/ui/proof.js";
 
 describe("product surfaces", () => {
   it("serves landing at / and keeps /ui as operator", async () => {
@@ -45,6 +49,44 @@ describe("product surfaces", () => {
     } finally {
       gateway.close();
     }
+  });
+
+  it("every surface ships link-preview metadata and a real favicon", () => {
+    const pages = [
+      landingHtml(),
+      demoHtml(),
+      operatorHtml({ adminRequired: false, policyMode: "approve" })
+    ];
+    for (const html of pages) {
+      expect(html).toContain('<meta name="description"');
+      expect(html).toContain('<meta property="og:title"');
+      expect(html).toContain('<meta property="og:description"');
+      expect(html).toContain('<meta property="og:url"');
+      expect(html).toContain('<meta name="twitter:card"');
+      expect(html).toContain('<link rel="canonical"');
+      // An empty data: icon renders as a broken tab mark.
+      expect(html).not.toContain('rel="icon" href="data:,"');
+      expect(html).toContain('rel="icon" href="data:image/svg+xml,');
+      expect(html).toContain(REPO_URL);
+    }
+  });
+
+  it("puts the settled Mainnet pair on the product page itself", () => {
+    const html = landingHtml();
+    expect(html).toContain(`https://solscan.io/tx/${MAINNET_DFLOW_TX}`);
+    expect(html).toContain(`https://solscan.io/tx/${MAINNET_X402_TX}`);
+    expect(html).toContain('href="/ui#mainnet-proof"');
+  });
+
+  it("keeps the operator console proof signatures identical to proof.ts", () => {
+    // app.js is served as a static asset, so it cannot import proof.ts.
+    const appJs = readFileSync(
+      new URL("../src/ui/app.js", import.meta.url),
+      "utf8"
+    );
+    expect(appJs).toContain(MAINNET_DFLOW_TX);
+    expect(appJs).toContain(MAINNET_X402_TX);
+    expect(appJs).toContain('id="mainnet-proof"');
   });
 
   it("landing and demo HTML include the present path links", () => {

@@ -10,6 +10,8 @@ import {
 import { MERCHANT_PAY_TO } from "@agenttab/example-neutral-merchant";
 import {
   applyDemoScenario,
+  claimDemoCard,
+  clearParkedApprovals,
   resetDemoWallet,
   seedNowIfEmpty,
   startAutoReseed,
@@ -238,6 +240,129 @@ describe("stack seed / reseed", () => {
       expect(funded?.events.some((event) => event.kind === "funding.submitted")).toBe(
         false
       );
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("one visitor's scenario reset leaves another visitor's card alone", async () => {
+    const gateway = stackGateway();
+    try {
+      const first = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        sessionId: "session-aaaaaaaa",
+        seedPolicy: gateway.policies.get()
+      });
+      const second = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "empty",
+        sessionId: "session-bbbbbbbb",
+        seedPolicy: gateway.policies.get()
+      });
+
+      expect(second.operationId).not.toBe(first.operationId);
+      expect((await gateway.store.get(first.operationId))?.state).toBe(
+        "approval_required"
+      );
+      expect((await gateway.store.get(second.operationId))?.state).toBe(
+        "approval_required"
+      );
+
+      // The first visitor can still finish their own loop.
+      await gateway.app.request(`/v1/approvals/${first.operationId}`, {
+        method: "POST",
+        body: "{}"
+      });
+      expect((await gateway.store.get(first.operationId))?.state).toBe("funded");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("claiming a card restores the wallet its own scenario asked for", async () => {
+    const gateway = stackGateway();
+    try {
+      const mine = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        sessionId: "session-aaaaaaaa",
+        seedPolicy: gateway.policies.get()
+      });
+      // Another visitor rewrites the shared mock wallet.
+      await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "funded",
+        sessionId: "session-bbbbbbbb",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("4000000");
+
+      expect(
+        claimDemoCard(gateway, {
+          operationId: mine.operationId,
+          sessionId: "session-bbbbbbbb"
+        })
+      ).toBe(false);
+      expect(
+        claimDemoCard(gateway, {
+          operationId: mine.operationId,
+          sessionId: "session-aaaaaaaa"
+        })
+      ).toBe(true);
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+
+      await gateway.app.request(`/v1/approvals/${mine.operationId}`, {
+        method: "POST",
+        body: "{}"
+      });
+      const funded = await gateway.store.get(mine.operationId);
+      expect(
+        funded?.events.find((event) => event.kind === "funding.submitted")?.details
+          ?.deficitAtomic
+      ).toBe("1400000");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("clears an abandoned card once it is past the grace window", async () => {
+    const gateway = stackGateway();
+    try {
+      const stale = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        sessionId: "session-aaaaaaaa",
+        seedPolicy: gateway.policies.get()
+      });
+      const cleared = await clearParkedApprovals(gateway, {
+        sessionId: "session-bbbbbbbb",
+        graceMs: 0
+      });
+      expect(cleared).toBe(1);
+      expect((await gateway.store.get(stale.operationId))?.state).toBe("denied");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("clears every parked card when no session is given", async () => {
+    const gateway = stackGateway();
+    try {
+      const held = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "partial",
+        sessionId: "session-aaaaaaaa",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(await clearParkedApprovals(gateway)).toBe(1);
+      expect((await gateway.store.get(held.operationId))?.state).toBe("denied");
     } finally {
       gateway.close();
     }

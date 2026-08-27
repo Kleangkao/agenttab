@@ -96,6 +96,8 @@ railway redeploy --from-source --yes \
    GitHub repo → Settings → Secrets → **`RAILWAY_TOKEN`**.  
    Then `.github/workflows/railway-deploy.yml` deploys on every push to `main`
    that touches the demo stack paths (same as `Dockerfile.demo-stack`).
+   Without the secret the job logs a notice and passes: the GitHub App remains
+   the live deploy path, so an unarmed fallback must not redden every commit.
 
 **Emergency deploy without waiting for GitHub:** `railway up --ci` from repo root
 (same `--project` / `--environment` / `--service` flags as above).

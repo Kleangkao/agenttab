@@ -70,6 +70,42 @@ export const DEMO_SCENARIOS: Record<
   }
 };
 
+/**
+ * How long one visitor's parked card is protected from another visitor's
+ * scenario reset. Long enough to read the card and click through, short enough
+ * that an abandoned card does not block the next person.
+ */
+export const DEMO_SESSION_GRACE_MS = 90_000;
+
+/**
+ * operationId -> the browser session that seeded it. In-process only: a restart
+ * reseeds anyway, and nothing downstream depends on it.
+ */
+const demoCardOwners = new Map<
+  string,
+  { sessionId: string; at: number; usdcAtomic: string }
+>();
+
+function rememberOwner(
+  operationId: string,
+  sessionId: string | undefined,
+  usdcAtomic: string | undefined
+): void {
+  if (!sessionId) return;
+  demoCardOwners.set(operationId, {
+    sessionId,
+    at: Date.now(),
+    usdcAtomic: usdcAtomic ?? DEMO_SEED_USDC_ATOMIC
+  });
+}
+
+/** Drop owners well past the grace window so the map cannot grow forever. */
+function pruneOwners(now: number): void {
+  for (const [operationId, owner] of demoCardOwners) {
+    if (now - owner.at > DEMO_SESSION_GRACE_MS * 10) demoCardOwners.delete(operationId);
+  }
+}
+
 export type SeedNowResult = {
   operationId: string;
   created: boolean;
@@ -85,6 +121,8 @@ export type SeedNowInput = {
   initialUsdcAtomic?: string;
   initialSolAtomic?: string;
   request?: DemoRequestId;
+  /** Browser session that asked for this card, when it came from /demo. */
+  sessionId?: string;
   /** When true, restore seed policy + demo wallet before parking a new card. */
   resetDemoState?: boolean;
   seedPolicy?: ReturnType<StackGateway["policies"]["get"]>;
@@ -151,17 +189,39 @@ async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
   if (result.status !== "approval_required") {
     throw new Error(`stack seed expected approval_required, got ${result.status}`);
   }
+  rememberOwner(operationId, input.sessionId, input.initialUsdcAtomic);
   return { operationId, created: true, request: requestId };
 }
 
-/** Clear live parked cards so a new scenario can take the Now slot. */
-export async function clearParkedApprovals(gateway: StackGateway): Promise<number> {
+/**
+ * Clear live parked cards so a new scenario can take the Now slot.
+ *
+ * Without `sessionId` this clears every parked card (operator controls, local
+ * single-user runs). With one, it spares cards another visitor is still working
+ * through: on the public host two people clicking at once used to deny each
+ * other mid-loop. Cards with no known owner, and cards past the grace window,
+ * are still cleared so an abandoned card never wedges the demo.
+ */
+export async function clearParkedApprovals(
+  gateway: StackGateway,
+  options?: { sessionId?: string; graceMs?: number }
+): Promise<number> {
   const parked = await gateway.store.listRecent({
     state: "approval_required",
     limit: 50
   });
+  const now = Date.now();
+  const graceMs = options?.graceMs ?? DEMO_SESSION_GRACE_MS;
   let cleared = 0;
   for (const row of parked) {
+    if (options?.sessionId) {
+      const owner = demoCardOwners.get(row.operationId);
+      const heldByOther =
+        owner !== undefined &&
+        owner.sessionId !== options.sessionId &&
+        now - owner.at < graceMs;
+      if (heldByOther) continue;
+    }
     const res = await gateway.app.request(
       `/v1/denials/${encodeURIComponent(row.operationId)}`,
       {
@@ -170,9 +230,34 @@ export async function clearParkedApprovals(gateway: StackGateway): Promise<numbe
         body: JSON.stringify({ reason: "demo_scenario_reset" })
       }
     );
-    if (res.ok) cleared += 1;
+    if (res.ok) {
+      cleared += 1;
+      demoCardOwners.delete(row.operationId);
+    }
   }
+  pruneOwners(now);
   return cleared;
+}
+
+/**
+ * Restore the wallet this card was seeded with, immediately before its owner
+ * approves it. The mock wallet is one shared balance, so without this a second
+ * visitor picking a different scenario rewrites the first visitor's numbers and
+ * their "covers only the missing $1.40" story collapses to "nothing to cover".
+ *
+ * Returns false when the card is not this session's to claim.
+ */
+export function claimDemoCard(
+  gateway: StackGateway,
+  input: { operationId: string; sessionId: string; initialSolAtomic?: string }
+): boolean {
+  const owner = demoCardOwners.get(input.operationId);
+  if (!owner || owner.sessionId !== input.sessionId) return false;
+  resetDemoWallet(gateway, {
+    initialUsdcAtomic: owner.usdcAtomic,
+    initialSolAtomic: input.initialSolAtomic ?? "5000000000"
+  });
+  return true;
 }
 
 export async function applyDemoScenario(input: {
@@ -180,6 +265,7 @@ export async function applyDemoScenario(input: {
   merchantOrigin: string;
   scenario: DemoScenarioId;
   request?: DemoRequestId;
+  sessionId?: string;
   seedPolicy?: ReturnType<StackGateway["policies"]["get"]>;
   initialSolAtomic?: string;
 }): Promise<SeedNowResult> {
@@ -198,7 +284,15 @@ export async function applyDemoScenario(input: {
       : input.scenario === "funded"
         ? request.amountAtomic
         : request.partialUsdcAtomic;
-  await clearParkedApprovals(input.gateway);
+  await clearParkedApprovals(
+    input.gateway,
+    input.sessionId ? { sessionId: input.sessionId } : undefined
+  );
+  /**
+   * The mock wallet is still one shared balance, so a second visitor switching
+   * scenarios mid-loop changes the numbers the first one sees. The funding
+   * event carries the real deficit, so the audit trail stays correct.
+   */
   resetDemoWallet(input.gateway, {
     initialUsdcAtomic,
     initialSolAtomic: input.initialSolAtomic ?? "5000000000"
@@ -210,6 +304,7 @@ export async function applyDemoScenario(input: {
     gateway: input.gateway,
     merchantOrigin: input.merchantOrigin,
     request: requestId,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
     amountAtomic: request.amountAtomic,
     amountUsdMicros: request.amountUsdMicros,
     initialUsdcAtomic,

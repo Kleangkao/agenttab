@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pageHead, REPO_URL } from "./head.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -52,11 +53,13 @@ export function operatorHtml(input: {
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentTab operator console</title>
-  <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="/ui/app.css" />
+${pageHead({
+  title: "AgentTab operator console",
+  description:
+    "Approvals, audit trail, spend policy and the settled Solana Mainnet proof behind the AgentTab funding loop.",
+  path: "/ui",
+  stylesheet: "/ui/app.css"
+})}
 </head>
 <body>
   <div class="shell">
@@ -88,6 +91,7 @@ export function operatorHtml(input: {
       <div class="rail-blocks" id="judge-stats" hidden></div>
 
       <p class="stance" id="stance">Loading the live policy…</p>
+      <a class="rail-repo" href="${REPO_URL}" target="_blank" rel="noopener">Source on GitHub →</a>
     </aside>
 
     <main class="stage">

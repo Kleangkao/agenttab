@@ -420,7 +420,7 @@
   function renderJudgeLanding() {
     const fund = fundingHow();
     return `
-      <section class="judge-proof">
+      <section class="judge-proof" id="mainnet-proof">
         <h3>Already proven on Solana Mainnet</h3>
         <p>This screen does not spend on Mainnet. The same loop already settled on-chain:</p>
         <p class="judge-links">
@@ -1291,6 +1291,21 @@
     if (!state.pending) renderNow();
     renderLedger();
     renderPolicy();
+    scrollToHashOnce();
+  }
+
+  /**
+   * /ui#mainnet-proof is linked from the product page, but the Now panel only
+   * exists after the first render, so the browser has nothing to scroll to on
+   * load. Run it once, after the target exists.
+   */
+  let hashHandled = false;
+  function scrollToHashOnce() {
+    if (hashHandled || location.hash !== "#mainnet-proof") return;
+    const target = document.getElementById("mainnet-proof");
+    if (!target) return;
+    hashHandled = true;
+    target.scrollIntoView({ block: "center" });
   }
 
   function detailIsStale(row) {

@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pageHead, REPO_URL } from "./head.js";
+import { MAINNET_DFLOW_TX, MAINNET_X402_TX, solscanTx } from "./proof.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -17,11 +19,13 @@ export function landingHtml(): string {
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentTab</title>
-  <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="/landing.css" />
+${pageHead({
+  title: "AgentTab",
+  description:
+    "AgentTab covers only the missing amount when an agent's wallet falls short, then continues the original request. Powered by DFlow on Solana.",
+  path: "/",
+  stylesheet: "/landing.css"
+})}
 </head>
 <body>
   <div class="land">
@@ -90,13 +94,20 @@ export function landingHtml(): string {
 
       <section class="land-trust" aria-labelledby="trust-title">
         <p id="trust-title"><strong>Proven end-to-end on Solana Mainnet.</strong> This site runs a safe demo; the same loop has already settled for real.</p>
-        <a href="/ui">View proof <span aria-hidden="true">→</span></a>
+        <p class="land-trust-links">
+          <a href="${solscanTx(MAINNET_DFLOW_TX)}" target="_blank" rel="noopener">Funding transaction</a>
+          <span aria-hidden="true">→</span>
+          <a href="${solscanTx(MAINNET_X402_TX)}" target="_blank" rel="noopener">Payment transaction</a>
+          <span aria-hidden="true">→</span>
+          <a href="/ui#mainnet-proof">Full audit trail</a>
+        </p>
       </section>
     </main>
 
     <footer class="land-foot">
       <span>AgentTab</span>
       <span>Powered by DFlow on Solana.</span>
+      <a href="${REPO_URL}" target="_blank" rel="noopener">Source on GitHub →</a>
     </footer>
   </div>
 </body>

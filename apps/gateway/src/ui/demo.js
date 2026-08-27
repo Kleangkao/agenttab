@@ -19,8 +19,30 @@
     },
   };
 
+  /**
+   * The public host is one shared gateway, so several visitors can have a card
+   * parked at once. This id tags the card this browser started, so a reset from
+   * someone else never takes it away and this page never adopts theirs.
+   */
+  function demoSessionId() {
+    const key = "agenttab.demoSession";
+    try {
+      const existing = sessionStorage.getItem(key);
+      if (existing) return existing;
+      const fresh = (crypto.randomUUID?.() || String(Date.now())).replaceAll("-", "");
+      sessionStorage.setItem(key, fresh);
+      return fresh;
+    } catch {
+      // Private modes can throw on access; a per-load id is still better than none.
+      return (crypto.randomUUID?.() || String(Date.now())).replaceAll("-", "");
+    }
+  }
+
   const state = {
     busy: false,
+    sessionId: demoSessionId(),
+    /** operationId of the card this browser started, once it has run one. */
+    ownedOperationId: null,
     // The public stack auto-parks a fresh card seconds after a loop finishes.
     // Without this, the visitor's own result is swapped out before they read it.
     holdResult: false,
@@ -199,6 +221,11 @@
       return;
     }
 
+    if (state.row.state === "denied") {
+      panel.innerHTML = `<p class="demo-empty">This request was reset on the shared demo host. Run a new one above.</p>`;
+      return;
+    }
+
     const loop = loopNumbers(state.row, state.detail);
     const path = beats(loop)
       .map((beat) => `<li class="${beat.cls}">${esc(beat.label)}</li>`)
@@ -261,6 +288,14 @@
     try {
       const id = state.row.operationId;
       if (loop.state === "approval_required") {
+        // Shared demo host: re-apply this card's own starting wallet first, so
+        // another visitor's scenario cannot rewrite the gap being covered.
+        if (id === state.ownedOperationId) {
+          await api("/v1/demo/claim", {
+            method: "POST",
+            body: JSON.stringify({ operationId: id, sessionId: state.sessionId }),
+          }).catch(() => undefined);
+        }
         const body = await api(`/v1/approvals/${encodeURIComponent(id)}`, {
           method: "POST",
           body: "{}",
@@ -326,16 +361,37 @@
       }
       const open = await api("/v1/executions?reusable=1&limit=5");
       const rows = open.executions || open.items || [];
+      const mine = state.ownedOperationId
+        ? rows.find((row) => row.operationId === state.ownedOperationId) || null
+        : null;
+      // Before this visitor runs anything, the auto-seeded card is theirs to
+      // look at. After that, only their own card drives this page.
       const active =
-        rows.find(
-          (row) => row.state === "approval_required" && row.parkedExpired !== true,
-        ) ||
-        rows.find((row) => ["funded", "payment_submitted", "paid", "fulfillment_failed"].includes(row.state)) ||
-        rows[0] ||
-        null;
+        mine ||
+        (state.ownedOperationId
+          ? null
+          : rows.find(
+              (row) => row.state === "approval_required" && row.parkedExpired !== true,
+            ) ||
+            rows.find((row) =>
+              ["funded", "payment_submitted", "paid", "fulfillment_failed"].includes(row.state),
+            ) ||
+            rows[0] ||
+            null);
       if (active) {
         state.row = active;
         state.detail = await api(`/v1/executions/${encodeURIComponent(active.operationId)}`);
+      } else if (state.ownedOperationId) {
+        // Left the open list: fulfilled, or reset by the host. Show its ending.
+        const detail = await api(
+          `/v1/executions/${encodeURIComponent(state.ownedOperationId)}`,
+        );
+        state.detail = detail;
+        state.row = {
+          operationId: state.ownedOperationId,
+          state: detail.state,
+          intent: detail.intent,
+        };
       } else if (state.row?.state !== "fulfilled") {
         state.row = null;
         state.detail = null;
@@ -358,8 +414,13 @@
     try {
       const body = await api("/v1/demo/scenario", {
         method: "POST",
-        body: JSON.stringify({ scenario: state.scenario, request: state.request }),
+        body: JSON.stringify({
+          scenario: state.scenario,
+          request: state.request,
+          sessionId: state.sessionId,
+        }),
       });
+      state.ownedOperationId = body.operationId || null;
       setStatus(body.message || "Your request is ready.");
       await refresh();
     } catch (err) {

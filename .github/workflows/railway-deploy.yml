@@ -32,8 +32,10 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN secret missing — add a project token from Railway → Project → Settings → Tokens"
-            exit 1
+            echo "::notice::RAILWAY_TOKEN not set — skipping the CI fallback deploy."
+            echo "The Railway GitHub App is the live deploy path. To arm this fallback,"
+            echo "add a project token: Railway → Project → Settings → Tokens."
+            exit 0
           fi
           npx --yes @railway/cli@latest up --ci \
             --project 33763140-39d1-4c1f-abbf-f2ae549f6ea0 \

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { pageHead, REPO_URL } from "./head.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -17,11 +18,13 @@ export function demoHtml(): string {
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AgentTab demo</title>
-  <link rel="icon" href="data:," />
-  <link rel="stylesheet" href="/demo.css" />
+${pageHead({
+  title: "AgentTab interactive demo",
+  description:
+    "Pick a task and watch AgentTab cover the payment gap and finish the request. Safe demo — no real funds.",
+  path: "/demo",
+  stylesheet: "/demo.css"
+})}
 </head>
 <body>
   <div class="demo">
@@ -104,7 +107,8 @@ export function demoHtml(): string {
     <footer class="demo-foot">
       <div><strong>Verified on Solana Mainnet</strong><span>This screen is a safe demo and does not create new Mainnet spend.</span></div>
       <div class="demo-foot-links">
-        <a href="/ui">View technical proof →</a>
+        <a href="/ui#mainnet-proof">View technical proof →</a>
+        <a href="${REPO_URL}" target="_blank" rel="noopener">Source on GitHub →</a>
       </div>
     </footer>
   </div>

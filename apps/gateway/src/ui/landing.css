@@ -241,7 +241,7 @@ a { color: inherit; }
 
 .land-equation div { min-width: 0; }
 .land-equation span,
-.land-equation small { display: block; color: var(--text-3); font-size: 10px; }
+.land-equation small { display: block; color: var(--text-3); font-size: 11px; }
 .land-equation strong { display: block; margin: 4px 0; font: 600 clamp(20px, 2.4vw, 28px)/1 var(--mono); }
 .land-equation b { align-self: center; color: var(--text-3); font: 400 13px/1 var(--mono); }
 .land-equation .is-deficit strong { color: var(--signal); }
@@ -350,6 +350,16 @@ a { color: inherit; }
 }
 .land-trust a:hover { text-decoration: underline; }
 
+/* The settled Mainnet pair sits on the product page itself; /ui is one more
+   click for anyone who wants the full trail. */
+.land-trust-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.land-trust-links span { color: var(--text-3); }
+
 .land-foot {
   min-height: 84px;
   display: flex;
@@ -362,6 +372,12 @@ a { color: inherit; }
 }
 
 .land-foot span:first-child { color: var(--text); font-weight: 600; }
+.land-foot a {
+  color: var(--text-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+.land-foot a:hover { color: var(--signal); text-decoration: underline; }
 
 @media (max-width: 920px) {
   .land-hero { grid-template-columns: 1fr; min-height: 0; }
@@ -392,8 +408,9 @@ a { color: inherit; }
   .land-eyebrow { font-size: 12px; }
   .land-equation span, .land-equation small { font-size: 12px; }
   .land-card-head span { font-size: 13px; }
-  .land-card-flow li { font-size: 11px; }
+  .land-card-flow li { font-size: 12px; }
   .land-card-note, .land-foot { font-size: 13px; }
+  .land-trust p, .land-trust-links { font-size: 13px; }
   .land-foot { align-items: flex-start; flex-direction: column; justify-content: center; }
 }
 
