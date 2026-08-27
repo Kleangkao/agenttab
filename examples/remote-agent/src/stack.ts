@@ -20,6 +20,7 @@ import {
 import {
   applyDemoScenario,
   claimDemoCard,
+  demoCardStart,
   DEMO_REQUESTS,
   DEMO_SEED_USDC_ATOMIC,
   DEMO_SCENARIOS,
@@ -173,11 +174,26 @@ gateway.app.post("/v1/demo/scenario", async (c) => {
 });
 
 /**
- * Re-apply a card's own starting wallet just before its owner approves it, so
- * concurrent visitors on the public host do not rewrite each other's numbers.
- * The real approval still goes through /v1/approvals/:id.
+ * Demo approvals run one at a time. Restoring a card's wallet and funding it
+ * has to be indivisible: otherwise a second visitor claiming in between funds
+ * the first visitor's card against the wrong balance.
  */
-gateway.app.post("/v1/demo/claim", async (c) => {
+let demoApprovals: Promise<unknown> = Promise.resolve();
+function serializeDemoApproval<T>(run: () => Promise<T>): Promise<T> {
+  const next = demoApprovals.then(run, run);
+  demoApprovals = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
+/**
+ * Re-apply a card's own starting wallet and approve it in one serialized step,
+ * so concurrent visitors on the public host cannot rewrite each other's
+ * numbers. The approval itself is the ordinary /v1/approvals/:id call.
+ */
+gateway.app.post("/v1/demo/approve", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as {
     operationId?: string;
     sessionId?: string;
@@ -187,12 +203,38 @@ gateway.app.post("/v1/demo/claim", async (c) => {
   if (typeof operationId !== "string" || typeof sessionId !== "string") {
     return c.json({ error: "invalid_claim" }, 400);
   }
-  const claimed = claimDemoCard(gateway, {
-    operationId,
-    sessionId,
-    initialSolAtomic
+  const result = await serializeDemoApproval(async () => {
+    const claimed = claimDemoCard(gateway, {
+      operationId,
+      sessionId,
+      initialSolAtomic
+    });
+    // Unknown card (a restart drops the map) or another visitor's: the caller
+    // falls back to the plain approval route.
+    if (!claimed) return { status: 409, payload: { error: "not_your_card" } };
+    const res = await gateway.app.request(
+      `/v1/approvals/${encodeURIComponent(operationId)}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}"
+      }
+    );
+    return { status: res.status, payload: await res.json().catch(() => ({})) };
   });
-  return c.json({ ok: true, claimed });
+  return new Response(JSON.stringify(result.payload), {
+    status: result.status,
+    headers: { "content-type": "application/json" }
+  });
+});
+
+/** The wallet a parked card was seeded with, so /demo never shows the shared one. */
+gateway.app.get("/v1/demo/card/:operationId", (c) => {
+  const startingUsdcAtomic = demoCardStart(c.req.param("operationId"));
+  if (startingUsdcAtomic === undefined) {
+    return c.json({ error: "unknown_card" }, 404);
+  }
+  return c.json({ ok: true, startingUsdcAtomic });
 });
 
 gateway.app.post("/v1/demo/topup", async (c) => {

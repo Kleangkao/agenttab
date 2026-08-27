@@ -12,6 +12,7 @@ import {
   applyDemoScenario,
   claimDemoCard,
   clearParkedApprovals,
+  demoCardStart,
   resetDemoWallet,
   seedNowIfEmpty,
   startAutoReseed,
@@ -325,6 +326,62 @@ describe("stack seed / reseed", () => {
         funded?.events.find((event) => event.kind === "funding.submitted")?.details
           ?.deficitAtomic
       ).toBe("1400000");
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("pins the starting wallet on every parked card", async () => {
+    const gateway = stackGateway();
+    try {
+      const idle = await seedNowIfEmpty({
+        gateway,
+        merchantOrigin,
+        resetDemoState: true,
+        initialUsdcAtomic: "2600000",
+        initialSolAtomic: "5000000000"
+      });
+      expect(demoCardStart(idle!.operationId)).toBe("2600000");
+
+      const chosen = await applyDemoScenario({
+        gateway,
+        merchantOrigin,
+        scenario: "empty",
+        sessionId: "session-aaaaaaaa",
+        seedPolicy: gateway.policies.get()
+      });
+      expect(demoCardStart(chosen.operationId)).toBe("0");
+      expect(demoCardStart("demo-now-unknown")).toBeUndefined();
+    } finally {
+      gateway.close();
+    }
+  });
+
+  it("lets the first visitor claim the auto-seeded card, then holds it", async () => {
+    const gateway = stackGateway();
+    try {
+      const idle = await seedNowIfEmpty({
+        gateway,
+        merchantOrigin,
+        resetDemoState: true,
+        initialUsdcAtomic: "2600000",
+        initialSolAtomic: "5000000000"
+      });
+      gateway.balances.applyDelta(USDC_MINT, 1_000_000n);
+
+      expect(
+        claimDemoCard(gateway, {
+          operationId: idle!.operationId,
+          sessionId: "session-aaaaaaaa"
+        })
+      ).toBe(true);
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+      expect(
+        claimDemoCard(gateway, {
+          operationId: idle!.operationId,
+          sessionId: "session-bbbbbbbb"
+        })
+      ).toBe(false);
     } finally {
       gateway.close();
     }

@@ -43,6 +43,9 @@
     sessionId: demoSessionId(),
     /** operationId of the card this browser started, once it has run one. */
     ownedOperationId: null,
+    /** Wallet the active card was seeded with, and the card it belongs to. */
+    startingUsdcAtomic: null,
+    startingFor: null,
     // The public stack auto-parks a fresh card seconds after a loop finishes.
     // Without this, the visitor's own result is swapped out before they read it.
     holdResult: false,
@@ -130,7 +133,13 @@
       deficit = 0n;
       hold = asked;
     } else {
-      hold = liveHold;
+      // Before funding, the shared mock wallet may already hold another
+      // visitor's scenario. This card's own starting wallet is the truth.
+      hold =
+        state.startingFor === (row?.operationId ?? null) &&
+        state.startingUsdcAtomic !== null
+          ? BigInt(state.startingUsdcAtomic)
+          : liveHold;
       deficit = asked > hold ? asked - hold : 0n;
     }
 
@@ -288,18 +297,19 @@
     try {
       const id = state.row.operationId;
       if (loop.state === "approval_required") {
-        // Shared demo host: re-apply this card's own starting wallet first, so
-        // another visitor's scenario cannot rewrite the gap being covered.
-        if (id === state.ownedOperationId) {
-          await api("/v1/demo/claim", {
-            method: "POST",
-            body: JSON.stringify({ operationId: id, sessionId: state.sessionId }),
-          }).catch(() => undefined);
-        }
-        const body = await api(`/v1/approvals/${encodeURIComponent(id)}`, {
+        // Shared demo host: this route restores the card's own starting wallet
+        // and approves it in one step, so another visitor's scenario cannot
+        // rewrite the gap being covered. Falls back to the plain approval when
+        // the host does not know the card (a restart drops the mapping).
+        const body = await api("/v1/demo/approve", {
           method: "POST",
-          body: "{}",
-        });
+          body: JSON.stringify({ operationId: id, sessionId: state.sessionId }),
+        }).catch(() =>
+          api(`/v1/approvals/${encodeURIComponent(id)}`, {
+            method: "POST",
+            body: "{}",
+          }),
+        );
         const funded =
           body.record?.state === "funded" ||
           body.outcome?.status === "funded" ||
@@ -335,6 +345,18 @@
       state.busy = false;
       render();
     }
+  }
+
+  /** The wallet this card was seeded with; null when the host cannot say. */
+  async function loadCardStart(operationId) {
+    if (state.startingFor === operationId) return;
+    try {
+      const body = await api(`/v1/demo/card/${encodeURIComponent(operationId)}`);
+      state.startingUsdcAtomic = body.startingUsdcAtomic ?? null;
+    } catch {
+      state.startingUsdcAtomic = null;
+    }
+    state.startingFor = operationId;
   }
 
   async function refreshBalances() {
@@ -381,6 +403,7 @@
       if (active) {
         state.row = active;
         state.detail = await api(`/v1/executions/${encodeURIComponent(active.operationId)}`);
+        await loadCardStart(active.operationId);
       } else if (state.ownedOperationId) {
         // Left the open list: fulfilled, or reset by the host. Show its ending.
         const detail = await api(

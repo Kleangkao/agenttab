@@ -83,20 +83,29 @@ export const DEMO_SESSION_GRACE_MS = 90_000;
  */
 const demoCardOwners = new Map<
   string,
-  { sessionId: string; at: number; usdcAtomic: string }
+  { sessionId?: string; at: number; usdcAtomic: string }
 >();
 
-function rememberOwner(
+/**
+ * Every parked card records the wallet it was seeded with, so /demo can show
+ * this card's own numbers instead of the shared live balance. `sessionId` is
+ * absent for the auto-reseeded idle card until a visitor claims it.
+ */
+function rememberCard(
   operationId: string,
   sessionId: string | undefined,
   usdcAtomic: string | undefined
 ): void {
-  if (!sessionId) return;
   demoCardOwners.set(operationId, {
-    sessionId,
+    ...(sessionId ? { sessionId } : {}),
     at: Date.now(),
     usdcAtomic: usdcAtomic ?? DEMO_SEED_USDC_ATOMIC
   });
+}
+
+/** The wallet this card was seeded with, for the /demo display. */
+export function demoCardStart(operationId: string): string | undefined {
+  return demoCardOwners.get(operationId)?.usdcAtomic;
 }
 
 /** Drop owners well past the grace window so the map cannot grow forever. */
@@ -189,7 +198,7 @@ async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
   if (result.status !== "approval_required") {
     throw new Error(`stack seed expected approval_required, got ${result.status}`);
   }
-  rememberOwner(operationId, input.sessionId, input.initialUsdcAtomic);
+  rememberCard(operationId, input.sessionId, input.initialUsdcAtomic);
   return { operationId, created: true, request: requestId };
 }
 
@@ -217,7 +226,7 @@ export async function clearParkedApprovals(
     if (options?.sessionId) {
       const owner = demoCardOwners.get(row.operationId);
       const heldByOther =
-        owner !== undefined &&
+        owner?.sessionId !== undefined &&
         owner.sessionId !== options.sessionId &&
         now - owner.at < graceMs;
       if (heldByOther) continue;
@@ -240,19 +249,22 @@ export async function clearParkedApprovals(
 }
 
 /**
- * Restore the wallet this card was seeded with, immediately before its owner
- * approves it. The mock wallet is one shared balance, so without this a second
+ * Restore the wallet this card was seeded with, immediately before it is
+ * funded. The mock wallet is one shared balance, so without this a second
  * visitor picking a different scenario rewrites the first visitor's numbers and
  * their "covers only the missing $1.40" story collapses to "nothing to cover".
  *
- * Returns false when the card is not this session's to claim.
+ * An unclaimed card (the auto-reseeded idle one) becomes this session's on the
+ * first claim. Returns false when the card belongs to someone else.
  */
 export function claimDemoCard(
   gateway: StackGateway,
   input: { operationId: string; sessionId: string; initialSolAtomic?: string }
 ): boolean {
   const owner = demoCardOwners.get(input.operationId);
-  if (!owner || owner.sessionId !== input.sessionId) return false;
+  if (!owner) return false;
+  if (owner.sessionId !== undefined && owner.sessionId !== input.sessionId) return false;
+  owner.sessionId = input.sessionId;
   resetDemoWallet(gateway, {
     initialUsdcAtomic: owner.usdcAtomic,
     initialSolAtomic: input.initialSolAtomic ?? "5000000000"
