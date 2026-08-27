@@ -25,6 +25,7 @@ describe("product surfaces", () => {
       expect(demo.status).toBe(200);
       const demoHtml = await demo.text();
       expect(demoHtml).toContain("Ask for the result, not the transaction");
+      expect(demoHtml).toContain('src="/i18n.js"');
       expect(demoHtml).toContain('id="run-request"');
       expect(demoHtml).not.toContain("Add $1 USDC");
       // The demo intro must not lead with the payment protocol.
@@ -93,8 +94,8 @@ describe("product surfaces", () => {
     expect(landingHtml()).toContain('href="/demo"');
     expect(landingHtml()).toContain('href="/ui"');
     expect(demoHtml()).toContain('href="/ui"');
-    expect(demoHtml()).toContain('data-request="valuation"');
-    expect(demoHtml()).toContain('data-request="price-check"');
+    expect(demoHtml()).toContain('data-request="subscription"');
+    expect(demoHtml()).toContain('data-request="agentic-ai"');
     expect(demoHtml()).toContain('data-scenario="partial"');
   });
 });

@@ -26,6 +26,7 @@ export const GATEWAY_OPENAPI_PATHS: Record<string, GatewayOpenApiPath> = {
   "/demo": { get: { summary: "Playable mock demo surface" } },
   "/demo.css": { get: { summary: "Playable demo stylesheet" } },
   "/demo.js": { get: { summary: "Playable demo client" } },
+  "/i18n.js": { get: { summary: "Thai/English switch for the public surfaces" } },
   "/ui": {
     get: {
       summary:

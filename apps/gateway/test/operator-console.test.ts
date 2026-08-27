@@ -82,7 +82,7 @@ describe("operator console", () => {
       expect(js).toContain("Alert delivered");
       expect(js).toContain("notifyDeliveries");
       expect(js).toContain("agentId");
-      expect(js).toContain(">Agent ");
+      expect(js).toContain('t("o.card.agent", "Agent")');
       expect(js).toContain("detailIsStale");
       expect(js).toContain("historicalDeficit");
       expect(js).toContain("funding.plan_receipt");

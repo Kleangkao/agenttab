@@ -7,14 +7,14 @@ export type StackGateway = ReturnType<typeof createGatewayRuntime>;
 
 /**
  * The demo wallet starts holding part of the ask so the Now card shows a real
- * deficit (holds $2.60, merchant asks $4.00, DFlow buys $1.40). Starting at 0
+ * deficit (holds $1.50, service asks $5.00, DFlow buys $3.50). Starting at 0
  * makes the deficit equal the ask, which hides the exact-deficit claim.
  */
-export const DEMO_SEED_USDC_ATOMIC = "2600000";
-export const DEMO_ASK_USDC_ATOMIC = "4000000";
+export const DEMO_SEED_USDC_ATOMIC = "1500000";
+export const DEMO_ASK_USDC_ATOMIC = "5000000";
 
 export type DemoScenarioId = "partial" | "empty" | "funded";
-export type DemoRequestId = "valuation" | "price-check" | "portfolio-refresh";
+export type DemoRequestId = "subscription" | "agentic-ai";
 
 export const DEMO_REQUESTS: Record<
   DemoRequestId,
@@ -27,29 +27,21 @@ export const DEMO_REQUESTS: Record<
     partialUsdcAtomic: string;
   }
 > = {
-  valuation: {
-    label: "Value my wallet",
-    purpose: "Estimate my wallet's USD value",
-    stepLabel: "Paid market snapshot",
+  subscription: {
+    label: "Monthly subscription",
+    purpose: "Pay a monthly subscription",
+    stepLabel: "Paid subscription renewal",
     amountAtomic: DEMO_ASK_USDC_ATOMIC,
     amountUsdMicros: DEMO_ASK_USDC_ATOMIC,
     partialUsdcAtomic: DEMO_SEED_USDC_ATOMIC
   },
-  "price-check": {
-    label: "Check SOL's live mark",
-    purpose: "Check SOL's live market price",
-    stepLabel: "Paid market snapshot",
+  "agentic-ai": {
+    label: "Agentic AI service",
+    purpose: "Pay for an agentic AI service",
+    stepLabel: "Paid API call",
     amountAtomic: "1250000",
     amountUsdMicros: "1250000",
     partialUsdcAtomic: "750000"
-  },
-  "portfolio-refresh": {
-    label: "Refresh my portfolio",
-    purpose: "Refresh my portfolio with current market data",
-    stepLabel: "Paid market snapshot",
-    amountAtomic: "5000000",
-    amountUsdMicros: "5000000",
-    partialUsdcAtomic: "4000000"
   }
 };
 
@@ -60,21 +52,16 @@ export const DEMO_SCENARIOS: Record<
   }
 > = {
   partial: {
-    label: "Wallet is short"
+    label: "Some USDC, not enough"
   },
   empty: {
-    label: "Wallet has no USDC"
+    label: "Only SOL, no USDC"
   },
   funded: {
-    label: "Wallet already covers it"
+    label: "Enough USDC already"
   }
 };
 
-/**
- * How long one visitor's parked card is protected from another visitor's
- * scenario reset. Long enough to read the card and click through, short enough
- * that an abandoned card does not block the next person.
- */
 export const DEMO_SESSION_GRACE_MS = 90_000;
 
 /**
@@ -166,7 +153,7 @@ export async function seedNowIfEmpty(
 }
 
 async function parkDemoCard(input: SeedNowInput): Promise<SeedNowResult> {
-  const requestId = input.request ?? "valuation";
+  const requestId = input.request ?? "subscription";
   const request = DEMO_REQUESTS[requestId];
   const operationId = `demo-now-${randomUUID()}`;
   const taskId = `${requestId}-${randomUUID()}`;
@@ -282,7 +269,7 @@ export async function applyDemoScenario(input: {
   initialSolAtomic?: string;
 }): Promise<SeedNowResult> {
   const scenario = DEMO_SCENARIOS[input.scenario];
-  const requestId = input.request ?? "valuation";
+  const requestId = input.request ?? "subscription";
   const request = DEMO_REQUESTS[requestId];
   if (!scenario) {
     throw new Error(`unknown_scenario:${input.scenario}`);

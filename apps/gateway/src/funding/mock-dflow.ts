@@ -8,6 +8,13 @@ import type { DeficitFundingAdapter, FundingOrder, PlanExactDeficitInput } from 
 
 export type { FundingOrder } from "./types.js";
 
+/**
+ * Atomic USDC out per atomic WSOL in, scaled by 1e6. Taken from the settled
+ * Mainnet pair in docs/mainnet-receipt.md (13143 lamports -> 999 atomic USDC),
+ * so the mock swaps at the same rate the real proof did: ~$76.01 per SOL.
+ */
+const SETTLED_MAINNET_RATE_SCALED = 76_009n;
+
 export interface MockDFlowAdapterOptions {
   /** Atomic output per 1 atomic input, scaled by 1e6 for fixed-point. */
   rateScaled?: bigint;
@@ -25,7 +32,7 @@ export class MockDFlowAdapter implements DeficitFundingAdapter {
   readonly orders: FundingOrder[] = [];
 
   constructor(options: MockDFlowAdapterOptions = {}) {
-    this.#rateScaled = options.rateScaled ?? 500_000_000n;
+    this.#rateScaled = options.rateScaled ?? SETTLED_MAINNET_RATE_SCALED;
     this.failFunding = options.failFunding ?? false;
   }
 

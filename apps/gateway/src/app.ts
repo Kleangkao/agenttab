@@ -20,7 +20,7 @@ import {
   operatorJs
 } from "./ui/operator-page.js";
 import { landingCss, landingHtml } from "./ui/landing-page.js";
-import { demoCss, demoHtml, demoJs } from "./ui/demo-page.js";
+import { demoCss, demoHtml, demoJs, i18nJs } from "./ui/demo-page.js";
 import { gatewayOpenApiDocument } from "./openapi.js";
 import { annotateParkedExpiry } from "./parked-expiry.js";
 import {
@@ -395,6 +395,12 @@ export function createGatewayRuntime(options: GatewayRuntimeOptions = {}): Gatew
   );
   app.get("/demo.js", (c) =>
     c.text(demoJs(), 200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-store"
+    })
+  );
+  app.get("/i18n.js", (c) =>
+    c.text(i18nJs(), 200, {
       "Content-Type": "text/javascript; charset=utf-8",
       "Cache-Control": "no-store"
     })

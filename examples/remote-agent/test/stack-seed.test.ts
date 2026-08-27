@@ -182,7 +182,7 @@ describe("stack seed / reseed", () => {
         seedPolicy: gateway.policies.get()
       });
       expect(partial.created).toBe(true);
-      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("1500000");
       expect(partial.operationId).not.toBe(empty.operationId);
     } finally {
       gateway.close();
@@ -196,12 +196,12 @@ describe("stack seed / reseed", () => {
         gateway,
         merchantOrigin,
         scenario: "partial",
-        request: "price-check",
+        request: "agentic-ai",
         seedPolicy: gateway.policies.get()
       });
       const before = await gateway.store.get(seeded.operationId);
       expect(before?.intent.amountAtomic).toBe("1250000");
-      expect(before?.intent.taskId).toMatch(/^price-check-/);
+      expect(before?.intent.taskId).toMatch(/^agentic-ai-/);
       expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("750000");
 
       await gateway.app.request(`/v1/approvals/${seeded.operationId}`, {
@@ -225,7 +225,7 @@ describe("stack seed / reseed", () => {
         gateway,
         merchantOrigin,
         scenario: "funded",
-        request: "portfolio-refresh",
+        request: "subscription",
         seedPolicy: gateway.policies.get()
       });
       expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("5000000");
@@ -301,7 +301,7 @@ describe("stack seed / reseed", () => {
         sessionId: "session-bbbbbbbb",
         seedPolicy: gateway.policies.get()
       });
-      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("4000000");
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("5000000");
 
       expect(
         claimDemoCard(gateway, {
@@ -315,7 +315,7 @@ describe("stack seed / reseed", () => {
           sessionId: "session-aaaaaaaa"
         })
       ).toBe(true);
-      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("1500000");
 
       await gateway.app.request(`/v1/approvals/${mine.operationId}`, {
         method: "POST",
@@ -325,7 +325,7 @@ describe("stack seed / reseed", () => {
       expect(
         funded?.events.find((event) => event.kind === "funding.submitted")?.details
           ?.deficitAtomic
-      ).toBe("1400000");
+      ).toBe("3500000");
     } finally {
       gateway.close();
     }
@@ -338,10 +338,10 @@ describe("stack seed / reseed", () => {
         gateway,
         merchantOrigin,
         resetDemoState: true,
-        initialUsdcAtomic: "2600000",
+        initialUsdcAtomic: "1500000",
         initialSolAtomic: "5000000000"
       });
-      expect(demoCardStart(idle!.operationId)).toBe("2600000");
+      expect(demoCardStart(idle!.operationId)).toBe("1500000");
 
       const chosen = await applyDemoScenario({
         gateway,
@@ -364,7 +364,7 @@ describe("stack seed / reseed", () => {
         gateway,
         merchantOrigin,
         resetDemoState: true,
-        initialUsdcAtomic: "2600000",
+        initialUsdcAtomic: "1500000",
         initialSolAtomic: "5000000000"
       });
       gateway.balances.applyDelta(USDC_MINT, 1_000_000n);
@@ -375,7 +375,7 @@ describe("stack seed / reseed", () => {
           sessionId: "session-aaaaaaaa"
         })
       ).toBe(true);
-      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("2600000");
+      expect(gateway.balances.get(USDC_MINT)?.balanceAtomic).toBe("1500000");
       expect(
         claimDemoCard(gateway, {
           operationId: idle!.operationId,
